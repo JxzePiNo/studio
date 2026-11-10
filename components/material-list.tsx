@@ -1,4 +1,6 @@
 "use client";
+
+import { readApiResponse } from "@/lib/api-response";
 import { useRef, useState } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -29,8 +31,7 @@ export function MaterialList({ documents, folder, query, busy, analysisRunning =
   const visible = sorted.filter(d => d.name.toLowerCase().includes(query.toLowerCase()));
   async function request<T>(url: string, body: unknown): Promise<T> {
     const response = await fetch(url, { method: "PATCH", headers: { "Content-Type": "application/json", ...await authHeaders() }, body: JSON.stringify(body) });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Operazione non riuscita.");
+    const data = await readApiResponse<T>(response);
     return data;
   }
   function edit(doc: DocumentSummary) {

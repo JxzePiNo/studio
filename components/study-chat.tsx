@@ -1,5 +1,7 @@
 "use client";
 
+import { readApiResponse } from "@/lib/api-response";
+
 import { useEffect, useId, useRef, useState } from "react";
 import { ArrowUp, FileText, LoaderCircle, Settings2, Sparkles } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
@@ -99,8 +101,7 @@ export function StudyChat({ id, page, initial, explanation, onAnalyze, onAnalyze
         body: JSON.stringify({ question: submittedQuestion, scope: wholeDocument ? "document" : "slide", page }),
         signal: controller.signal,
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Invio non riuscito.");
+      const result = await readApiResponse<ChatMessage[]>(response, "Invio non riuscito.");
       if (!mounted.current) return;
       setMessages(result); onSaved(result); setQuestion("");
       setPendingQuestion(""); setScrollRequest(value => value + 1);

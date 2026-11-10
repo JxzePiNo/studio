@@ -1,5 +1,7 @@
 "use client";
 
+import { readApiResponse } from "@/lib/api-response";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, FileText, FolderOpen, Languages, LoaderCircle, Maximize2, Minus, Plus, Search, Sparkles, Upload, X } from "lucide-react";
@@ -25,8 +27,7 @@ import type { DocumentSummary, SlideData, StudyDocument } from "@/lib/types";
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...init, headers: { ...init?.headers, ...await authHeaders() } });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Operazione non riuscita.");
+  const data = await readApiResponse<T>(response);
   return data;
 }
 const json = (method: string, data: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
@@ -124,7 +125,13 @@ export default function Workspace() {
     return () => { window.removeEventListener("beforeunload", protectUnsaved); flushNotes(); };
   }, [flushNotes]);
 
-  const refresh = useCallback(async () => { const [documents, exams] = await Promise.all([api<DocumentSummary[]>("/api/documents"), api<ExamFolder[]>("/api/folders")]); setLibrary(documents); setFolders(exams); }, []);
+  const refreshSequence = useRef(0);
+  const refresh = useCallback(async () => {
+    const sequence = ++refreshSequence.current;
+    const [documents, exams] = await Promise.all([api<DocumentSummary[]>("/api/documents"), api<ExamFolder[]>("/api/folders")]);
+    if (sequence !== refreshSequence.current) return;
+    setLibrary(documents); setFolders(exams);
+  }, []);
   useEffect(() => {
     void refresh().catch(e => setError(e.message));
     void api<{ configured: boolean }>("/api/status").then(s => setConfigured(s.configured)).catch(e => setError(e.message));
@@ -397,7 +404,7 @@ export default function Workspace() {
       </>}
     </main>
     {dragging && <div className="drop-overlay" onDragLeave={e => { if (e.currentTarget === e.target) setDragging(false); }} onDrop={e => { e.preventDefault(); setDragging(false); void uploadFiles(e.dataTransfer.files); }}><Upload size={46} /><h2>Fai spazio a una nuova idea.</h2><p>Rilascia il PDF per iniziare.</p></div>}
-    <NewExamDialog folders={folders} open={creatingFolder} onOpenChange={setCreatingFolder} onCreated={folder => { setFolders(current => [...current.filter(f => f.id !== folder.id), folder]); openFolder(folder.id); }} />
+    <NewExamDialog folders={folders} open={creatingFolder} onOpenChange={setCreatingFolder} onCreated={async folder => { setFolders(current => [...current.filter(f => f.id !== folder.id), folder]); openFolder(folder.id); await refresh(); }} />
     {settings && doc && <ReaderSettingsDialog zoom={zoom} onZoomChange={setZoom} textSize={textSize} onTextSizeChange={changeTextSize} configured={configured} name={doc.name} page={page} notes={activeSlide?.notes || ""} noteStatus={noteStatus} onNotesChange={saveNotes} hasExplanation={!!explanation} disabled={busy || courseRunning || !!analyzing || !!batchRunning} onRegenerate={() => { setSettings(false); void analyze(true); }} onResetZoom={() => setZoom(1)} onClose={() => { flushNotes(); setSettings(false); }} />}
   </div></SidebarProvider>;
 }

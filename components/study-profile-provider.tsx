@@ -1,5 +1,7 @@
 "use client";
 
+import { readApiResponse } from "@/lib/api-response";
+
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { GraduationCap, LoaderCircle } from "lucide-react";
@@ -24,8 +26,7 @@ async function profileRequest(init?: RequestInit): Promise<StudyProfile> {
     headers: { "Content-Type": "application/json", ...await authHeaders() },
     cache: "no-store",
   });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || "Impossibile caricare il profilo di studio.");
+  const result = await readApiResponse<StudyProfile>(response, "Impossibile caricare il profilo di studio.");
   return result as StudyProfile;
 }
 

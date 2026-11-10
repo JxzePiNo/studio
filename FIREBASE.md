@@ -52,3 +52,16 @@ Le conversazioni sono separate per slide; vengono conservati fino a 40 messaggi,
 Dopo la configurazione: accedi, crea un esame, carica un PDF, salva un appunto, analizza una pagina e fai una domanda. Ricarica e verifica che tutto sia presente. Esci e accedi con un secondo account: la biblioteca deve risultare separata. Verifica anche progressi di lettura, riapertura dei documenti e ripresa delle analisi interrotte. Senza un progetto e credenziali validi non è possibile certificare questi passaggi contro i servizi reali.
 
 Le dipendenze Firebase sono fissate per Node 22; gli override di `@firebase/app` e `@firebase/app-compat` evitano che i peer installino versioni che richiedono Node 24. L’override gRPC elimina la segnalazione di gravità alta rilevata durante l’installazione. L’audit npm segnala ancora sei vulnerabilità moderate nella catena indiretta `glob/minimatch/rimraf` del client Google; `npm audit fix` non le risolve con queste versioni. Ricontrollare gli aggiornamenti prima della pubblicazione del servizio.
+
+
+## Deploy su Vercel e diagnostica
+
+Su Vercel usa le variabili di ambiente del progetto: `NEXT_PUBLIC_FIREBASE_ENABLED=true`, la configurazione pubblica Firebase e, per il server, `FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY` estratti dal JSON del service account. Il percorso `GOOGLE_APPLICATION_CREDENTIALS` del computer locale non identifica un file presente nel deployment. Imposta i valori per l'ambiente utilizzato (Production o Preview) ed esegui un nuovo deploy dopo le modifiche.
+
+Il progetto dichiara Node.js `22.x` in `package.json`. Mantiene inoltre un override limitato a `jwks-rsa > jose` per utilizzare la versione CommonJS/ESM `5.10.0`: Firebase Admin 14 carica questa dipendenza tramite `require`, mentre jose 6 richiede interoperabilita ESM non sempre abilitata nel runtime delle Functions. Il test `tests/firebase-runtime.test.ts` importa realmente Firebase Admin con `--no-experimental-require-module` e verifica una chiave RSA derivata dal relativo JWK. Riferimento: [segnalazione Firebase](https://github.com/firebase/firebase-admin-node/issues/3181).
+
+Se compare `ERR_REQUIRE_ESM` nei log, verifica che il deployment includa il `package-lock.json` aggiornato e rifai la build senza riutilizzare la cache precedente. Questo errore avviene prima della verifica delle credenziali: modificare la chiave privata non lo risolve.
+
+L'interfaccia distingue ora risposte JSON valide da risposte vuote, HTML o troncate e mostra stato HTTP e percorso della richiesta fallita. Nei Runtime Logs di Vercel puoi cercare la stessa richiesta senza condividere token o chiavi.
+
+Il limite locale di 30 MB per PDF resta soggetto ai limiti dell'hosting: le richieste e risposte di una Vercel Function hanno un limite di 4,5 MB. Con il caricamento attuale attraverso l'API, usa PDF inferiori a quel limite, considerando anche il corpo multipart. Il supporto a file maggiori richiede un flusso di trasferimento diretto o streaming dedicato: non viene risolto dalle variabili d'ambiente. Riferimento: [limiti Vercel Functions](https://vercel.com/docs/functions/limitations).

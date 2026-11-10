@@ -1,5 +1,7 @@
 "use client";
 
+import { readApiResponse } from "@/lib/api-response";
+
 import { useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { CalendarDays, FolderPlus, LoaderCircle, X } from "lucide-react";
@@ -56,9 +58,7 @@ export function NewExamDialog({ open, onOpenChange, onCreated, folders = [] }: N
           headers: { "Content-Type": "application/json", ...await authHeaders() },
           body: JSON.stringify({ name: name.trim(), ...(date ? { examDate: calendarDate(date) } : {}), nonStudyWeekdays, nonStudyDates }),
         });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Impossibile creare l’esame. Riprova.");
-        folder = result as ExamFolder;
+        folder = await readApiResponse<ExamFolder>(response, "Impossibile creare l'esame. Riprova.");
         created.current = folder;
       }
       await onCreated(folder);

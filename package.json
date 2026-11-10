@@ -46,7 +46,10 @@
     "@firebase/app": "0.14.9",
     "@firebase/app-compat": "0.5.9",
     "@grpc/grpc-js": "^1.14.6",
-    "katex": "$katex"
+    "katex": "$katex",
+    "jwks-rsa": {
+      "jose": "^5.10.0"
+    }
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
@@ -55,5 +58,8 @@
     "@types/react-dom": "^19.0.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }

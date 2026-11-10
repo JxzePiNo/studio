@@ -1,5 +1,7 @@
 "use client";
 
+import { readApiResponse } from "@/lib/api-response";
+
 import { useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { ArrowRight, CalendarDays, Check, Clock3, FolderOpen, LoaderCircle, Plus, X } from "lucide-react";
@@ -73,8 +75,7 @@ export function ExamOverview({ folders, documents, onOpen, onCreate, onUpdated }
         headers: { "Content-Type": "application/json", ...await authHeaders() },
         body: JSON.stringify({ name: name.trim(), color, examDate: examDate || null, pagesPerHour, nonStudyWeekdays, nonStudyDates }),
       });
-      const folder = await response.json();
-      if (!response.ok) throw new Error(folder.error || "Impossibile salvare il piano. Riprova.");
+      const folder = await readApiResponse<ExamFolder>(response, "Impossibile salvare il piano. Riprova.");
       onUpdated(folder);
       setEditing(null);
     } catch (error) { setError((error as Error).message); }

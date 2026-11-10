@@ -1,5 +1,7 @@
 "use client";
 
+import { readApiResponse } from "@/lib/api-response";
+
 import { useEffect, useRef, useState } from "react";
 import { Check, LoaderCircle, Sparkles } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
@@ -87,8 +89,7 @@ export function CourseAnalysis({ folderId, documents, configured, disabled, onRu
         ...(page === undefined ? {} : { body: JSON.stringify({ page }) }),
         signal: requestController.signal,
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Analisi non riuscita. Riprova.");
+      const data = await readApiResponse<T>(response, "Analisi non riuscita. Riprova.");
       return data;
     }
     const timings: number[] = [];
