@@ -63,11 +63,6 @@
 .chat-analysis-progress strong { font-weight:500; }
 .chat-analysis-progress progress { display:block; height:4px; width:100%; margin-top:8px; accent-color:var(--primary); }
 .chat-analysis-progress .ui-button { min-height:32px; padding:6px 0; color:var(--primary); font-size:12px; }
-.reader-settings-content { display:flex; flex-direction:column; gap:16px; margin-top:24px; }
-.reader-settings-content label { display:flex; flex-direction:column; gap:10px; font-size:13px; font-weight:500; }
-.reader-settings-content textarea { min-height:200px; font-weight:400; }
-.reader-settings-content .note-save { display:flex; align-items:center; gap:6px; margin:0; }
-.reader-settings-hint { color:var(--muted-foreground); font-size:12px; line-height:1.7; }
 @media(max-width:1000px) and (min-width:701px) {
   .reader-active .study-grid { grid-template-columns:minmax(0,1fr) minmax(360px,48%); }
   .chat-scroll-area { padding-inline:20px; }
@@ -107,14 +102,6 @@
 .page-read-toggle { flex-shrink:0; gap:6px; }
 .page-read-toggle[aria-pressed="true"] { background:#e6efe4; color:#35553b; border-color:#b8ceb5; }
 .material-progress small { display:block; font-size:11px; opacity:.7; }
-.reader-settings-dialog { max-height:85dvh; overflow:auto; width:min(540px,calc(100vw - 32px)); }
-.reader-settings-content { display:flex; flex-direction:column; gap:18px; margin-top:22px; }
-.settings-section { padding:18px; background:var(--muted,#f6f5f1); border:1px solid var(--border,#e4e2dc); border-radius:14px; display:flex; flex-direction:column; gap:12px; }
-.settings-section h3 { font-size:15px; margin:0; }
-.settings-section > p { font-size:13px; margin:0; color:#706e66; }
-.settings-section label { display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; font-size:13px; }
-.settings-section input[type="range"], .settings-section textarea { width:100%; }
-.settings-section input[type="range"] { accent-color:#52644c; }
 .reader-active .reader-chat-panel .chat-analysis-message .explanation-content p, .reader-active .reader-chat-panel .chat-conversation .chat-message p { font-size:var(--reader-text-size,14px); line-height:1.75; }
 .deepen-button { opacity:0; transition:opacity .15s; margin-top:8px; color:#52644c; }
 .concept:hover .deepen-button, .example-box:hover .deepen-button, .takeaway:hover .deepen-button, .explanation-topic:hover .deepen-button, .chat-message:hover > .deepen-button, .deepen-button:focus-visible, :focus-within > .deepen-button { opacity:1; }
@@ -198,7 +185,6 @@
 .reader-dismiss { position:absolute; right:-7px; top:-7px; z-index:1; display:grid; place-items:center; width:24px; height:24px; padding:0; background:var(--card,#fff); color:var(--muted-foreground); border:1px solid var(--border); border-radius:50%; box-shadow:0 2px 6px #0f172a12; opacity:0; pointer-events:none; transition:opacity .15s; }
 :is(.reader-navigation-island,.reader-navigation-hint):is(:hover,:focus-within) > .reader-dismiss { opacity:1; pointer-events:auto; }
 .reader-dismiss:hover { color:var(--foreground); background:var(--muted); }
-.settings-section .reader-display-option { display:flex; align-items:center; justify-content:space-between; flex-wrap:nowrap; gap:16px; padding-block:4px; }
 .reader-display-option input { appearance:none; flex-shrink:0; position:relative; width:38px; height:22px; margin:0; border:1px solid var(--border); border-radius:999px; background:var(--muted); cursor:pointer; }
 .reader-display-option input::before { content:""; position:absolute; width:16px; height:16px; left:2px; top:2px; border-radius:50%; background:var(--card); box-shadow:0 1px 3px #0002; transition:transform .15s; }
 .reader-display-option input:checked { background:var(--primary); border-color:var(--primary); }

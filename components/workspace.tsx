@@ -4,17 +4,15 @@ import { cachedApi, cachedPdf, invalidateApiCache } from "@/lib/browser-data-cac
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { House, Clock3, ArrowLeft, ArrowRight, Check, FileText, FolderOpen, Languages, LoaderCircle, Plus, Search, Sparkles, Upload, X } from "lucide-react";
+import { House, Clock3, ArrowLeft, ArrowRight, FileText, FolderOpen, Languages, LoaderCircle, Plus, Search, Upload, X } from "lucide-react";
 import { authHeaders, firebaseEnabled } from "@/lib/firebase-client";
 import { formatCourseName } from "@/lib/course-name";
 import { examColor, examAccentColor } from "@/lib/exam-colors";
-import * as Dialog from "@radix-ui/react-dialog";
 import { SidebarProfile } from "./sidebar-profile";
 import { StudySessionsView } from "./study-sessions-view";
 import { ExamOverview } from "./exam-overview";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Textarea } from "./ui/textarea";
 import { CourseHeader } from "./course-header";
 import { CourseAnalysis } from "./course-analysis";
 import { useCourseAnalysis } from "./use-course-analysis";
@@ -34,7 +32,8 @@ import { MaterialList } from "./material-list";
 import { StudyChat } from "./study-chat";
 import type { ExamFolder } from "@/lib/types";
 import { loadPdf, PdfCanvas } from "./pdf-viewer";
-import { useReaderDisplay, type ReaderDisplay } from "./use-reader-display";
+import { useReaderDisplay } from "./use-reader-display";
+import { ReaderSettingsDialog } from "./reader-settings-dialog";
 import { ReaderNavigation } from "./reader-navigation";
 import { BottomPanel } from "./bottom-panel";
 import { BaristaLoading } from "./barista-loading";
@@ -550,8 +549,4 @@ export default function Workspace() {
     <NewExamDialog folders={folders} open={creatingFolder} onOpenChange={setCreatingFolder} onCreated={async folder => { setFolders(current => [...current.filter(f => f.id !== folder.id), folder]); await refresh(); }} />
     {settings && doc && <ReaderSettingsDialog display={readerDisplay.display} onVisibilityChange={readerDisplay.setVisible} zoom={zoom} onZoomChange={setZoom} textSize={textSize} onTextSizeChange={changeTextSize} configured={configured} name={doc.name} page={page} notes={activeSlide?.notes || ""} noteStatus={noteStatus} onNotesChange={saveNotes} hasExplanation={!!explanation} disabled={busy || selectedDocumentAnalyzing || !!analyzing || !!batchRunning} onRegenerate={() => { setSettings(false); void analyze(true); }} onResetZoom={() => setZoom(1)} onClose={() => { flushNotes(); setSettings(false); }} />}
   </div></SidebarProvider>;
-}
-
-function ReaderSettingsDialog({ display, onVisibilityChange, zoom, onZoomChange, textSize, onTextSizeChange, configured, name, page, notes, noteStatus, onNotesChange, hasExplanation, disabled, onRegenerate, onResetZoom, onClose }: { display: ReaderDisplay; onVisibilityChange: (field: keyof ReaderDisplay, visible: boolean) => void; zoom: number; onZoomChange: (value: number) => void; textSize: number; onTextSizeChange: (value: number) => void; configured: boolean; name: string; page: number; notes: string; noteStatus: string; onNotesChange: (notes: string) => void; hasExplanation: boolean; disabled: boolean; onRegenerate: () => void; onResetZoom: () => void; onClose: () => void }) {
-  return <Dialog.Root open onOpenChange={open => { if (!open) onClose(); }}><Dialog.Portal><Dialog.Overlay className="plan-overlay" /><Dialog.Content className="plan-dialog reader-settings-dialog"><Dialog.Close asChild><Button variant="ghost" size="icon" className="plan-dialog-close" aria-label="Chiudi impostazioni"><X size={18} /></Button></Dialog.Close><Dialog.Title>Impostazioni della lettura</Dialog.Title><Dialog.Description>{name.replace(/\.pdf$/i, "")} · Slide {page}</Dialog.Description><div className="reader-settings-content"><section className="settings-section"><h3>Visualizzazione</h3><p>Adatta lo spazio al tuo modo di studiare.</p><label className="form-field"><span className="form-field-label">Zoom del PDF <strong>{Math.round(zoom * 100)}%</strong></span><input aria-label="Zoom del PDF" type="range" min="0.5" max="2" step="0.1" value={zoom} onChange={event => onZoomChange(Number(event.target.value))} /></label><label className="form-field"><span className="form-field-label">Dimensione del testo <strong>{textSize} px</strong></span><input aria-label="Dimensione del testo" type="range" min="14" max="22" step="1" value={textSize} onChange={event => onTextSizeChange(Number(event.target.value))} /></label><label className="reader-display-option"><span>Mostra frecce di navigazione</span><input type="checkbox" role="switch" checked={display.navigation} onChange={event => onVisibilityChange("navigation", event.target.checked)} /></label><label className="reader-display-option"><span>Mostra suggerimenti dei comandi</span><input type="checkbox" role="switch" checked={display.hints} onChange={event => onVisibilityChange("hints", event.target.checked)} /></label></section><section className="settings-section"><h3>Il tuo quaderno</h3><label className="form-field"><span className="form-field-label">Appunti personali</span><Textarea aria-label={`Appunti della slide ${page}`} value={notes} onChange={event => onNotesChange(event.target.value)} maxLength={50000} placeholder="Collegamenti, formule e idee da ricordare…" /></label><p className="note-save"><Check size={13} />{noteStatus}</p></section><section className="settings-section"><h3>Strumenti</h3><Button variant="outline" onClick={onResetZoom}>Ripristina zoom</Button>{hasExplanation && <Button variant="outline" disabled={disabled || !configured} onClick={onRegenerate}><Sparkles size={15} />Rigenera analisi della pagina</Button>}{!configured && <p className="reader-settings-hint">Configura la chiave OpenAI sul server per generare analisi e risposte del tutor.</p>}<p className="reader-settings-hint">Scorri con le frecce. Premi Spazio per segnare la pagina letta o da leggere.</p></section></div></Dialog.Content></Dialog.Portal></Dialog.Root>;
 }

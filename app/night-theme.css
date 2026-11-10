@@ -135,7 +135,6 @@ html[data-theme="dark"] .account-control button { color: var(--primary); }
 html[data-theme="dark"] .ui-button-destructive { color: #35141b; }
 html[data-theme="dark"] .reader-back:hover { background: var(--muted); }
 html[data-theme="dark"] .reader-splitter-toggle:hover { background: var(--accent); color: var(--primary); }
-html[data-theme="dark"] .settings-section input[type="range"],
 html[data-theme="dark"] [class*="_period"] input { accent-color: var(--primary); }
 
 /* Reader preparation uses the same surface as the tutor once it is ready. */

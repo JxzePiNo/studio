@@ -73,6 +73,12 @@ test("navigation and hints can be dismissed per PDF and restored from reading se
   await expect(page.locator(".reader-navigation-footer")).toHaveCount(0);
   await page.getByRole("button", { name: "Impostazioni della lettura", exact: true }).click();
   const settings = page.getByRole("dialog", { name: "Impostazioni della lettura", exact: true });
+  const zoom = settings.getByRole("slider", { name: "Zoom del PDF", exact: true });
+  await zoom.fill("1.4");
+  await expect(zoom).toHaveValue("1.4");
+  await settings.getByRole("button", { name: "Ripristina zoom", exact: true }).click();
+  await expect(zoom).toHaveValue("1");
+  await settings.getByRole("slider", { name: "Dimensione del testo", exact: true }).fill("18");
   const navigation = settings.getByRole("switch", { name: "Mostra frecce di navigazione" });
   const hints = settings.getByRole("switch", { name: "Mostra suggerimenti dei comandi" });
   await expect(navigation).not.toBeChecked(); await expect(hints).not.toBeChecked();
@@ -83,6 +89,8 @@ test("navigation and hints can be dismissed per PDF and restored from reading se
   await page.reload();
   await expect(page.locator(".reader-navigation-island")).toBeVisible();
   await expect(page.locator(".reader-navigation-hint")).toBeVisible();
+  await page.getByRole("button", { name: "Impostazioni della lettura", exact: true }).click();
+  await expect(page.getByRole("slider", { name: "Dimensione del testo", exact: true })).toHaveValue("18");
 });
 
 test("reading updates the cached page without a full document or history reload", async ({ page }) => {
