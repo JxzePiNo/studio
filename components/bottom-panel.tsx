@@ -44,8 +44,8 @@ export function BottomPanel({ children }: { children: ReactNode }) {
           else if (event.key === "Home") setHeight(collapsedHeight);
           else if (event.key === "End") resize(maxHeight());
           else toggle();
-        }}><span /><small>{collapsed ? "Controlli e traduzioni" : "Trascina per ridimensionare"}</small></div>
-      <button onClick={toggle} aria-label={collapsed ? "Mostra pannello inferiore" : "Abbassa pannello inferiore"} aria-expanded={!collapsed} aria-controls="reader-bottom-content" title={collapsed ? "Mostra controlli e traduzioni" : "Abbassa per ingrandire il PDF"}>{collapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
+        }}><span /><small>{collapsed ? "Le parole della slide" : "Trascina per ridimensionare"}</small></div>
+      <button onClick={toggle} aria-label={collapsed ? "Mostra pannello inferiore" : "Abbassa pannello inferiore"} aria-expanded={!collapsed} aria-controls="reader-bottom-content" title={collapsed ? "Mostra parole e traduzioni" : "Abbassa per ingrandire il PDF"}>{collapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
     </div>
     <div id="reader-bottom-content" className="bottom-panel-content" hidden={collapsed}>{children}</div>
   </div>;

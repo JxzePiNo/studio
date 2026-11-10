@@ -10,11 +10,18 @@
   inset:0;
   z-index:-1;
   pointer-events:none;
-  background-image:url("/workspace-ambient.svg"),radial-gradient(#64748b60 1px,transparent 1px);
-  background-size:min(860px,82vw) auto,20px 20px;
-  background-position:right -70px bottom -170px,left top;
-  background-repeat:no-repeat,repeat;
+  background-image:radial-gradient(#64748b60 1px,transparent 1px);
+  background-size:20px 20px;
+  background-position:left top;
+  background-repeat:repeat;
   opacity:.42;
+}
+.app-shell:not(.reader-active) .main-shell:not([data-course-theme="true"])::after {
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:url("/workspace-ambient.svg") no-repeat right -70px bottom -170px / min(860px,82vw) auto;
+  opacity:.42;
+  transform:translate3d(var(--ambient-x,0px),var(--ambient-y,0px),0);
+  transition:transform 450ms cubic-bezier(.2,.7,.2,1);
 }
 /* Course colors reuse the tile geometry while keeping the dotted canvas neutral. */
 .app-shell:not(.reader-active) .main-shell[data-course-theme="true"]::before {
@@ -27,9 +34,15 @@
   position:fixed; z-index:-1; pointer-events:none;
   width:min(860px,82vw); height:auto; right:-70px; bottom:-170px;
   color:var(--course-color); opacity:.42;
+  transform:translate3d(var(--ambient-x,0px),var(--ambient-y,0px),0);
+  transition:transform 450ms cubic-bezier(.2,.7,.2,1);
 }
 @media(max-width:700px) {
-  .app-shell:not(.reader-active) .main-shell::before { background-size:620px auto,20px 20px; background-position:right -190px bottom -130px,left top; opacity:.3; }
+  .app-shell:not(.reader-active) .main-shell::before { opacity:.3; }
+  .app-shell:not(.reader-active) .main-shell:not([data-course-theme="true"])::after { background-size:620px auto; background-position:right -190px bottom -130px; opacity:.3; }
   .app-shell:not(.reader-active) .main-shell[data-course-theme="true"]::before { background-size:20px 20px; background-position:left top; }
   .course-ambient { width:620px; right:-190px; bottom:-130px; opacity:.3; }
+}
+@media(prefers-reduced-motion:reduce), (hover:none), (pointer:coarse) {
+  .app-shell:not(.reader-active) .main-shell::after, .course-ambient { transform:none; transition:none; }
 }

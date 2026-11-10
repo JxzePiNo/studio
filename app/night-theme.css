@@ -37,6 +37,7 @@ html[data-theme="dark"] .sidebar[data-slot="sidebar"] {
 }
 html[data-theme="dark"] .app-shell:not(.reader-active) .main-shell { background: #10151f; }
 html[data-theme="dark"] .app-shell:not(.reader-active) .main-shell::before { opacity: .17; }
+html[data-theme="dark"] .app-shell:not(.reader-active) .main-shell::after { opacity: .17; }
 html[data-theme="dark"] .course-ambient { opacity: .17; }
 html[data-theme="dark"] .sidebar .folder-item .folder-icon { color: color-mix(in oklab,var(--course-accent) 65%,#ffffff); }
 html[data-theme="dark"] :is(.brand, .takeaway p, .takeaway > div > span) { color: var(--foreground); }

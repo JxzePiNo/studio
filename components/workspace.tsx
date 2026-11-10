@@ -4,7 +4,7 @@ import { readApiResponse } from "@/lib/api-response";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { House, Clock3, ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, FileText, FolderOpen, Languages, LoaderCircle, Maximize2, Minus, Plus, Search, Sparkles, Upload, X } from "lucide-react";
+import { House, Clock3, ArrowLeft, ArrowRight, Check, FileText, FolderOpen, Languages, LoaderCircle, Plus, Search, Sparkles, Upload, X } from "lucide-react";
 import { authHeaders, firebaseEnabled } from "@/lib/firebase-client";
 import { formatCourseName } from "@/lib/course-name";
 import { examColor, examAccentColor } from "@/lib/exam-colors";
@@ -22,6 +22,7 @@ import { AnalysisIsland, type AnalysisIslandJob } from "./analysis-island";
 import { useBackgroundChat, ChatNotifications } from "./background-chat";
 import { StudySessionBar, useStudySession } from "./study-session";
 import sessionStyles from "./study-session.module.css";
+import { useAmbientParallax } from "./use-ambient-parallax";
 import { CourseAmbient } from "./course-ambient";
 import { TonyCompanion } from "./tony-companion";
 import homeStyles from "./home-greeting.module.css";
@@ -33,6 +34,7 @@ import { MaterialList } from "./material-list";
 import { StudyChat } from "./study-chat";
 import type { ExamFolder } from "@/lib/types";
 import { loadPdf, PdfCanvas } from "./pdf-viewer";
+import { ReaderNavigation } from "./reader-navigation";
 import { BottomPanel } from "./bottom-panel";
 import { BaristaLoading } from "./barista-loading";
 import baristaStyles from "./barista-loading.module.css";
@@ -328,6 +330,8 @@ export default function Workspace() {
     finally { uploadLock.current = false; setBusy(false); if (input.current) input.current.value = ""; }
   }
 
+  const ambientRef = useAmbientParallax(!doc && !opening);
+
   const navigate = useCallback((target: number) => {
     const current = docRef.current;
     if (busy || !current || target < 1 || target > current.pages) return;
@@ -494,7 +498,7 @@ export default function Workspace() {
         if (docRef.current?.id === id) navigate(Math.min(Math.max(1, target), docRef.current.pages));
       })(); }} />
     </div>
-    <main className="main-shell" data-course-theme={courseColor ? "true" : undefined} style={courseColor ? { "--course-color": courseColor, "--course-foreground": courseForeground } as React.CSSProperties : undefined}>
+    <main ref={ambientRef} className="main-shell" data-section={section} data-course-theme={courseColor ? "true" : undefined} style={courseColor ? { "--course-color": courseColor, "--course-foreground": courseForeground } as React.CSSProperties : undefined}>
       {courseColor && !doc && !opening && <CourseAmbient />}
       {(folderId || section === "sessions" || doc || opening) && <Button variant="ghost" className="workspace-back" aria-label={doc || opening ? "Torna alla biblioteca" : "Torna alla home"} onClick={() => { if (doc || opening) void closeDocument(); else openFolder(""); }}><ArrowLeft size={16} /><span>{doc || opening ? "Torna al corso" : "Torna alla home"}</span></Button>}
       {!doc && !opening && <SidebarTrigger />}
@@ -526,9 +530,9 @@ export default function Workspace() {
         <ReaderSplit><section className="slide-panel"><div className="slide-stage"><BaristaLoading key={opening.id} name={opening.name} error={opening.error} onRetry={() => void openDocument(opening.id)} /></div></section><aside className="explanation-panel reader-chat-panel" aria-label="Tutor della slide"><div className={baristaStyles.chat}><strong>Tony sta preparando il tuo spazio.</strong><p>Il PDF e le tue conversazioni arrivano tra un momento.</p></div></aside></ReaderSplit>
       </>}
       {doc && <>
-        <ReaderSplit><section className="slide-panel"><div className={`slide-stage ${activeSlide?.read ? "is-read" : ""}`} ref={viewer}>{pdf && <PdfCanvas pdf={pdf} page={page} zoom={zoom} fitHeight />}{busy && <div className="viewer-busy"><LoaderCircle className="spin" /> Apertura documento…</div>}</div><BottomPanel key={doc.id}><div className="slide-tools"><Button variant="outline" className="page-read-toggle" aria-pressed={!!activeSlide?.read} disabled={busy} onClick={toggleRead}><Check size={15} />{activeSlide?.read ? "Letta" : "Da leggere"}</Button><div className="page-navigation"><Button variant="ghost" className="icon-button" disabled={page <= 1 || busy} onClick={() => navigate(page - 1)} aria-label="Slide precedente"><ChevronLeft size={17} /></Button><label><Input aria-label="Numero della slide" type="number" min={1} max={doc.pages} value={page} onChange={e => { const n = Number(e.target.value); if (n >= 1 && n <= doc.pages) navigate(n); }} /> <span>/ {doc.pages}</span></label><Button variant="ghost" className="icon-button" disabled={page >= doc.pages || busy} onClick={() => navigate(page + 1)} aria-label="Slide successiva"><ChevronRight size={17} /></Button></div><div><Button variant="ghost" className="icon-button" onClick={() => setZoom(z => Math.max(0.5, Math.round((z - 0.1) * 10) / 10))} disabled={zoom <= 0.5} aria-label="Riduci zoom"><Minus size={15} /></Button><Button variant="ghost" className="zoom-reset" onClick={() => setZoom(1)} title="Adatta alla larghezza">{Math.round(zoom * 100)}%</Button><Button variant="ghost" className="icon-button" onClick={() => setZoom(z => Math.min(2, Math.round((z + 0.1) * 10) / 10))} disabled={zoom >= 2} aria-label="Aumenta zoom"><Plus size={15} /></Button><span className="tool-divider" /><Button variant="ghost" className="icon-button" aria-label="Schermo intero" onClick={() => { void viewer.current?.requestFullscreen().catch(() => setError("Il browser non permette lo schermo intero.")); }}><Maximize2 size={15} /></Button></div></div>
+        <ReaderSplit><section className="slide-panel"><div className={`slide-stage ${activeSlide?.read ? "is-read" : ""}`} ref={viewer}>{pdf && <PdfCanvas pdf={pdf} page={page} zoom={zoom} fitHeight />}{busy && <div className="viewer-busy"><LoaderCircle className="spin" /> Apertura documento…</div>}</div><ReaderNavigation page={page} total={doc.pages} disabled={busy} onNavigate={navigate} /><BottomPanel key={doc.id}>
           <div className="glossary"><div className="glossary-heading"><span><Languages size={17} /> Le parole della slide</span><span className="language-tag">EN <ArrowRight size={10} /> IT</span></div>{explanation?.glossary.length ? <div className="glossary-words">{explanation.glossary.map(g => <div key={g.word} className="glossary-word" title={g.context}><strong>{g.word}</strong><span>{g.translation}</span><small>{g.context}</small></div>)}</div> : <p>{explanation ? explanation.language === "en" ? "Nessun termine da tradurre individuato in questa slide." : "Questa slide non è in inglese. Puoi concentrarti sui concetti." : "Quando spieghi una slide in inglese, trovi qui i termini importanti con la traduzione italiana."}</p>}</div>
-          <div className="keyboard-tip"><span>Il tuo ritmo, una slide alla volta.</span><span>Usa <kbd>←</kbd> <kbd>→</kbd> per sfogliare / <kbd>Spazio</kbd> letta / da leggere</span></div></BottomPanel>
+          </BottomPanel>
         </section>
         <aside className="explanation-panel reader-chat-panel" style={{ "--reader-text-size": `${textSize}px` } as React.CSSProperties} aria-label="Tutor della slide"><h1 className="sr-only">{doc.name.replace(/\.pdf$/i, "")}</h1><StudyChat controller={chatController} documentName={doc.name} key={`${doc.id}:${page}`} id={doc.id} page={page} folder={doc.folderId} initial={activeSlide?.chat || []} explanation={explanation} onAnalyze={() => void analyze()} onAnalyzeAll={() => void analyzeAll()} analyzing={currentAnalyzing} batchRunning={!!batchRunning && batch?.id === doc.id} analysisBusy={selectedDocumentAnalyzing || !!analyzing || !!batchRunning} configured={configured} disabled={busy} analysisProgress={batch?.id === doc.id ? { completed: batch.completed, total: batch.total, current: batch.current, status: batch.status } : undefined} onStopAnalysis={stopAnalysis} onSettings={() => setSettings(true)} />
         </aside></ReaderSplit>
