@@ -7,8 +7,22 @@ export async function requestGuard(request: Request) {
   if (!cloudEnabled()) return;
   const authorization = request.headers.get("authorization");
   if (!authorization?.startsWith("Bearer ")) return NextResponse.json({ error: "Accedi con Google." }, { status: 401 });
-  try { await services().auth.verifyIdToken(authorization.slice(7), true); }
-  catch { return NextResponse.json({ error: "Sessione non valida. Accedi nuovamente." }, { status: 401 }); }
+  let auth;
+  try { auth = services().auth; }
+  catch (error) {
+    logAuthFailure("initialize", error);
+    return NextResponse.json({ error: "Configurazione Firebase del server non valida. Controlla le credenziali e il bucket nelle variabili del deployment." }, { status: 503 });
+  }
+  try { await auth.verifyIdToken(authorization.slice(7), true); }
+  catch (error) {
+    logAuthFailure("verify", error);
+    return NextResponse.json({ error: "Sessione non valida. Accedi nuovamente." }, { status: 401 });
+  }
+}
+
+function logAuthFailure(stage: "initialize" | "verify", error: unknown) {
+  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "unknown";
+  console.error("Firebase authentication failed", { stage, code: /^[a-z0-9/_-]{1,80}$/i.test(code) ? code : "unknown" });
 }
 
 export function localRequest(request: Request) {

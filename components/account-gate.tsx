@@ -37,10 +37,14 @@ export default function AccountGate() {
     }
     finally { setBusy(false); }
   }
+  async function logout() {
+    await signOut(browserAuth());
+    setUser(null); setError("");
+  }
   if (!firebaseEnabled) return <StudyProfileProvider><Workspace /></StudyProfileProvider>;
   if (!ready) return <main className="account-gate"><p>Caricamento del tuo spazio…</p></main>;
   if (!user) return <main className="account-gate"><span className="eyebrow">MARGINE · IL TUO SPAZIO DI STUDIO</span><h1>Ogni esame,<br />un passo più vicino.</h1><p>Raccogli le slide, chiarisci i concetti e fai domande al tuo tutor.</p><Button className="primary-button" disabled={busy} onClick={() => void login()}>{busy ? "Accesso in corso…" : "Accedi con Google"}</Button>{error && <p role="alert">{error}</p>}</main>;
-  return <StudyProfileProvider key={user.uid}><Workspace /><LogoutHandler /></StudyProfileProvider>;
+  return <StudyProfileProvider key={user.uid} onSignOut={logout}><Workspace /><LogoutHandler /></StudyProfileProvider>;
 }
 function LogoutHandler() {
   useEffect(() => {

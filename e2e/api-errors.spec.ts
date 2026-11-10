@@ -7,7 +7,7 @@ test("an empty startup response reports HTTP status and endpoint, then allows re
     if (!failed) {
       failed = true;
       await route.fulfill({ status: 502, body: "" });
-    } else await route.fallback();
+    } else await route.fulfill({ json: { studyProgram: "Ingegneria informatica", onboardingCompleted: true } });
   });
   await page.goto("/");
   const error = page.getByRole("main").getByRole("alert");

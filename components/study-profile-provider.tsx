@@ -4,7 +4,7 @@ import { readApiResponse } from "@/lib/api-response";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { GraduationCap, LoaderCircle } from "lucide-react";
+import { GraduationCap, LoaderCircle, LogOut } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
 import type { StudyProfile } from "@/lib/types";
 import { Button } from "./ui/button";
@@ -30,10 +30,12 @@ async function profileRequest(init?: RequestInit): Promise<StudyProfile> {
   return result as StudyProfile;
 }
 
-export function StudyProfileProvider({ children }: { children: ReactNode }) {
+export function StudyProfileProvider({ children, onSignOut }: { children: ReactNode; onSignOut?: () => Promise<void> }) {
   const [profile, setProfile] = useState<StudyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
+  const signOutLock = useRef(false);
   const requestSequence = useRef(0);
   const saveLock = useRef(false);
 
@@ -73,11 +75,22 @@ export function StudyProfileProvider({ children }: { children: ReactNode }) {
     }
   }, [profile?.onboardingCompleted]);
 
+  async function leaveSession() {
+    if (!onSignOut || signOutLock.current) return;
+    signOutLock.current = true; setSigningOut(true);
+    try { await onSignOut(); }
+    catch { setError("Impossibile uscire dall'account. Riprova."); }
+    finally { signOutLock.current = false; setSigningOut(false); }
+  }
+
   return <StudyProfileContext.Provider value={{ profile, loading, error, saveProfile, reload }}>
     {!profile ? <main className="study-profile-loading" aria-busy={loading}>
       {loading ? <p role="status"><LoaderCircle size={18} className="spin" aria-hidden="true" /> Caricamento del profilo di studio…</p> : <>
         <p role="alert">{error || "Il profilo di studio non è disponibile."}</p>
-        <Button onClick={() => void reload()}>Riprova</Button>
+        <div className="profile-recovery-actions">
+          <Button disabled={signingOut} onClick={() => void reload()}>Riprova</Button>
+          {onSignOut && <Button variant="outline" disabled={signingOut} onClick={() => void leaveSession()}>{signingOut ? <LoaderCircle size={16} className="spin" /> : <LogOut size={16} />} {signingOut ? "Uscita in corso..." : "Esci e torna al login"}</Button>}
+        </div>
       </>}
     </main> : <>{children}<StudyOnboarding profile={profile} saveProfile={saveProfile} /></>}
   </StudyProfileContext.Provider>;

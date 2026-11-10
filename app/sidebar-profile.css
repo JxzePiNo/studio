@@ -21,3 +21,10 @@
   outline:2px solid #b6d9bf;
   outline-offset:-2px;
 }
+.profile-recovery-actions {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:10px;
+}
