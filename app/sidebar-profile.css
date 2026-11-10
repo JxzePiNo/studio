@@ -176,3 +176,13 @@
   .standalone-menu { position:fixed; top:8px; right:8px; margin:0; z-index:36; }
   .app-shell:not(.reader-active) .main-shell { padding-top:104px; padding-bottom:140px; }
 }
+.nickname-settings { margin-top:24px; padding-top:24px; border-top:1px solid var(--border); }
+.nickname-settings h3 { margin:0 0 6px; font-size:15px; }
+.nickname-settings > p { color:var(--muted-foreground); font-size:12px; }
+.nickname-catalogue { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:16px 0; }
+.nickname-entry { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--card); font-size:12px; overflow-wrap:anywhere; text-align:left; }
+.nickname-entry:hover { background:var(--accent); }
+.nickname-entry > span { color:var(--muted-foreground); }
+.nickname-settings form { display:flex; flex-direction:column; gap:16px; }
+.nickname-settings [role="alert"] { color:var(--destructive); }
+@media(max-width:420px) { .nickname-catalogue { grid-template-columns:1fr; } }

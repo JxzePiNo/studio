@@ -1,4 +1,5 @@
 "use client";
+import { useNickname } from "./nicknames-provider";
 
 import { useEffect, useRef, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
@@ -13,7 +14,7 @@ export function HomeGreeting({ variant = "home" }: { variant?: "home" | "session
   const displayedPhrases = sessions ? ["le tue sessioni"] : phrases;
   const [name, setName] = useState("");
   const { profile } = useStudyProfile();
-  const greetingName = profile?.displayName?.trim().split(/\s+/)[0] || name;
+  const greetingName = useNickname(profile?.displayName?.trim() || name);
   const [fontSize, setFontSize] = useState(32);
   const heading = useRef<HTMLHeadingElement>(null);
   const line = useRef<HTMLSpanElement>(null);

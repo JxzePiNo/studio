@@ -1,4 +1,5 @@
 "use client";
+import { useNickname } from "./nicknames-provider";
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { CalendarDays, FolderOpen, Settings2 } from "lucide-react";
@@ -20,7 +21,7 @@ const encouragements = [
 export function CourseHeader({ folder, onSettings }: { folder: ExamFolder; onSettings?: () => void }) {
   const [name, setName] = useState("");
   const { profile } = useStudyProfile();
-  const greetingName = profile?.displayName?.trim().split(/\s+/)[0] || name;
+  const greetingName = useNickname(profile?.displayName?.trim() || name);
   const [today, setToday] = useState(localStudyDate);
   useEffect(() => {
     const timer = setInterval(() => setToday(localStudyDate()), 60000);

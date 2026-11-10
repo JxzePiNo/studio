@@ -115,7 +115,7 @@
 .settings-section label { display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; font-size:13px; }
 .settings-section input[type="range"], .settings-section textarea { width:100%; }
 .settings-section input[type="range"] { accent-color:#52644c; }
-.reader-active .reader-chat-panel .chat-analysis-message .explanation-content p, .reader-active .reader-chat-panel .chat-conversation .chat-message p { font-size:var(--reader-text-size,16px); line-height:1.75; }
+.reader-active .reader-chat-panel .chat-analysis-message .explanation-content p, .reader-active .reader-chat-panel .chat-conversation .chat-message p { font-size:var(--reader-text-size,14px); line-height:1.75; }
 .deepen-button { opacity:0; transition:opacity .15s; margin-top:8px; color:#52644c; }
 .concept:hover .deepen-button, .example-box:hover .deepen-button, .takeaway:hover .deepen-button, .explanation-topic:hover .deepen-button, .chat-message:hover > .deepen-button, .deepen-button:focus-visible, :focus-within > .deepen-button { opacity:1; }
 .explanation-content .takeaway { display:flex; align-items:flex-start; gap:12px; padding:20px; margin-top:24px; border:1px solid #d6ddcf; border-left:3px solid #6d8261; border-radius:12px; background:#f0f3eb; color:#34432e; }

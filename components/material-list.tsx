@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Check, CircleAlert, Clock3, ChevronRight, FileText, MoreHorizontal, Pencil, ArrowDownAZ, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Check, CircleAlert, Clock3, ChevronRight, MoreHorizontal, Pencil, ArrowDownAZ, Trash2, X } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
 import { orderedMaterials, type MaterialMove } from "@/lib/material-order";
 import type { DocumentSummary, ExamFolder, StudyDocument } from "@/lib/types";
@@ -13,10 +13,6 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ReadRangeDialog } from "./read-range-dialog";
 import { DocumentQuizzes, type PendingQuiz } from "./document-quizzes";
-
-const fileSize = (bytes: number) => bytes < 1024 * 1024
-  ? `${Math.ceil(bytes / 1024)} KB`
-  : `${(bytes / 1024 / 1024).toLocaleString("it-IT", { maximumFractionDigits: 1 })} MB`;
 
 export function MaterialList({ documents, folder, query, busy, analysisRunning = false, onOpen, onRenamed, onOrdered, onReadUpdated, onDeleted, isDocumentBusy, pendingQuizzes, openQuiz, onQuizOpened }: {
   documents: DocumentSummary[]; folder: ExamFolder; query: string; busy: boolean; analysisRunning?: boolean;
@@ -94,7 +90,7 @@ export function MaterialList({ documents, folder, query, busy, analysisRunning =
       {!visible.length && <p className="materials-no-results">Nessun materiale corrisponde alla ricerca.</p>}
       {visible.map(item => <div key={item.id}><ContextMenu.Root>
         <ContextMenu.Trigger asChild disabled={busy || saving || analysisRunning}><div className="material-row" data-document-id={item.id} tabIndex={0}>
-          <Button variant="ghost" className="material-open" disabled={busy || saving} aria-label={`Apri ${item.name.replace(/\.pdf$/i, "")}`} onClick={() => onOpen(item.id)}><span className="material-icon"><FileText size={20} /></span><span className="material-info"><strong>{item.name.replace(/\.pdf$/i, "")}</strong><span className="material-details"><small>{item.pages} slide / {fileSize(item.size)}</small><span className={`material-analysis-badge ${item.analyzedPages >= item.pages && item.pages > 0 ? "is-analyzed" : item.analyzedPages > 0 ? "is-partial" : "is-pending"}`} role="status">{item.analyzedPages >= item.pages && item.pages > 0 ? <><Check size={12} aria-hidden="true" />Analizzato</> : item.analyzedPages > 0 ? <><Clock3 size={12} aria-hidden="true" />Parzialmente analizzato</> : <><CircleAlert size={12} aria-hidden="true" />Da analizzare</>}</span></span></span><span className="material-progress"><span>{(item.readPages || 0) / item.pages >= .95 ? `Letto / ${item.readPages}/${item.pages}` : `${item.readPages || 0}/${item.pages} lette`}</span><progress max={item.pages} value={item.readPages || 0} aria-label={`Avanzamento ${item.name}`} /></span><ChevronRight size={16} /></Button>
+          <Button variant="ghost" className="material-open" disabled={busy || saving} aria-label={`Apri ${item.name.replace(/\.pdf$/i, "")}`} onClick={() => onOpen(item.id)}><span className="material-lesson" aria-label={`Lezione ${sorted.findIndex(document => document.id === item.id) + 1}`}><span>Lezione</span><strong>{String(sorted.findIndex(document => document.id === item.id) + 1).padStart(2, "0")}</strong></span><span className="material-info"><span className="material-title-row"><strong className="material-title">{item.name.replace(/\.pdf$/i, "")}.pdf</strong><span className={`material-analysis-badge ${item.analyzedPages >= item.pages && item.pages > 0 ? "is-analyzed" : item.analyzedPages > 0 ? "is-partial" : "is-pending"}`} role="status">{item.analyzedPages >= item.pages && item.pages > 0 ? <><Check size={12} aria-hidden="true" />Analizzato</> : item.analyzedPages > 0 ? <><Clock3 size={12} aria-hidden="true" />Parzialmente analizzato</> : <><CircleAlert size={12} aria-hidden="true" />Da analizzare</>}</span></span><span className="material-progress"><span className="material-progress-labels"><span className="material-progress-percent">{item.pages > 0 ? Math.round(Math.min(item.readPages || 0, item.pages) / item.pages * 100) : 0}%</span><span className="material-progress-count"><strong>{item.readPages || 0}</strong><span>/{item.pages}</span></span></span><progress max={item.pages || 1} value={item.readPages || 0} aria-label={`Avanzamento ${item.name}`} /></span></span><ChevronRight size={16} /></Button>
           <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" className="material-more" aria-label={`Azioni ${item.name.replace(/\.pdf$/i, "")}`} disabled={busy || saving || analysisRunning}><MoreHorizontal size={18} /></Button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="material-menu-content" align="end" sideOffset={5} onCloseAutoFocus={closeMenuFocus}>{items(item, false)}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
         </div></ContextMenu.Trigger>
         <ContextMenu.Portal><ContextMenu.Content className="material-menu-content" onCloseAutoFocus={closeMenuFocus}>{items(item, true)}</ContextMenu.Content></ContextMenu.Portal>

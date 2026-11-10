@@ -37,6 +37,10 @@ test("routes, browser history, read progress and reading preferences", async ({ 
     await expect(page.locator(".slide-stage canvas")).toHaveCSS("outline-style", "none");
     await page.evaluate(() => { (document.activeElement as HTMLElement)?.blur(); });
     await page.keyboard.press("Space");
+    await expect(page.locator(".chat-slide-label")).toHaveText("Slide 2");
+    await expect(page.locator(".slide-stage canvas")).toHaveCSS("outline-style", "none");
+    await page.getByRole("button", { name: "Slide precedente", exact: true }).click();
+    await page.evaluate(() => { (document.activeElement as HTMLElement)?.blur(); });
     await expect(page.getByRole("button", { name: "Letta", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".slide-stage canvas")).toHaveCSS("outline-color", "rgb(182, 217, 191)");
     await expect(page.locator(".slide-stage canvas")).toHaveCSS("border-radius", "12px");
@@ -44,6 +48,7 @@ test("routes, browser history, read progress and reading preferences", async ({ 
     await expect(page.locator(".slide-stage canvas")).toHaveCSS("outline-width", "5px");
     await expect.poll(async () => (await (await request.get(`/api/documents/${doc.id}`)).json()).slides[1]?.read).toBe(true);
     await page.keyboard.press("Space");
+    await expect(page.locator(".chat-slide-label")).toHaveText("Slide 1");
     await expect(page.locator(".slide-stage canvas")).toHaveCSS("outline-style", "none");
     await expect.poll(async () => (await (await request.get(`/api/documents/${doc.id}`)).json()).slides[1]?.read).toBe(false);
     await page.getByRole("button", { name: "Impostazioni della lettura", exact: true }).click();

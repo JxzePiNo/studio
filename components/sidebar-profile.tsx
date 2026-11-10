@@ -9,6 +9,7 @@ import { useTheme } from "./theme-provider";
 import { browserAuth, firebaseEnabled } from "@/lib/firebase-client";
 import { useStudyProfile } from "./study-profile-provider";
 import { Button } from "./ui/button";
+import { NicknameSettings } from "./nickname-settings";
 import { Input } from "./ui/input";
 
 function ProfileAvatar({ user, displayName, large = false }: { user: User | null; displayName?: string; large?: boolean }) {
@@ -122,6 +123,7 @@ export function SidebarProfile() {
           <Button type="submit" disabled={loading || saving}>{saving ? "Salvataggio…" : "Salva profilo"}</Button>
           {saveStatus && <p className="profile-save-status" role={saveError ? "alert" : "status"}>{saveStatus}</p>}
         </form>
+        {user?.emailVerified && user.email?.toLowerCase() === "paolucciacopo@gmail.com" && <NicknameSettings />}
         <Dialog.Close className="secondary-button">Chiudi</Dialog.Close>
       </Dialog.Content>
     </Dialog.Portal>

@@ -10,6 +10,7 @@ import type { StudyProfile } from "@/lib/types";
 import { Button } from "./ui/button";
 import { StudyProgramPicker } from "./study-program-picker";
 import pickerStyles from "./study-program-picker.module.css";
+import { NicknamesProvider } from "./nicknames-provider";
 import { TonyMascot } from "./mascot/tony-mascot";
 
 type StudyProfileContextValue = {
@@ -94,7 +95,7 @@ export function StudyProfileProvider({ children, onSignOut }: { children: ReactN
           {onSignOut && <Button variant="outline" disabled={signingOut} onClick={() => void leaveSession()}>{signingOut ? <LoaderCircle size={16} className="spin" /> : <LogOut size={16} />} {signingOut ? "Uscita in corso..." : "Esci e torna al login"}</Button>}
         </div>
       </>}
-    </main> : <>{children}<StudyOnboarding key={profile.studyProgram} profile={profile} saveProfile={saveProfile} /></>}
+    </main> : <NicknamesProvider>{children}<StudyOnboarding key={profile.studyProgram} profile={profile} saveProfile={saveProfile} /></NicknamesProvider>}
   </StudyProfileContext.Provider>;
 }
 
