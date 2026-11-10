@@ -3,11 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { LoaderCircle } from "lucide-react";
 
-export async function loadPdf(url: string, httpHeaders?: Record<string, string>, signal?: AbortSignal) {
+export async function loadPdf(url: string | Uint8Array, httpHeaders?: Record<string, string>, signal?: AbortSignal) {
   const pdfjs = await import("pdfjs-dist");
   signal?.throwIfAborted();
   pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-  const task = pdfjs.getDocument({ url, httpHeaders, isEvalSupported: false });
+  const task = pdfjs.getDocument({ ...(typeof url === "string" ? { url, httpHeaders } : { data: url }), isEvalSupported: false });
   let rejectAbort!: (reason: unknown) => void;
   const aborted = new Promise<never>((_, reject) => { rejectAbort = reject; });
   const abort = () => { void task.destroy().catch(() => {}); rejectAbort(signal?.reason || new DOMException("Caricamento annullato", "AbortError")); };

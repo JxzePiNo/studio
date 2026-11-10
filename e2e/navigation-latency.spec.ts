@@ -20,8 +20,8 @@ test("leaving the reader does not wait for pending saves or library refresh", as
   });
   try {
     await expect(page.locator(".slide-stage canvas")).toBeVisible();
-    await page.getByRole("button", { name: "Mostra pannello inferiore" }).click();
-    await page.getByRole("button", { name: "Da leggere", exact: true }).click();
+    await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+    await page.keyboard.press("Space");
     await expect.poll(() => saveStarted).toBe(true);
     await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
     // The response remains held: navigation must succeed before it is released.

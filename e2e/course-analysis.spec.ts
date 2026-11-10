@@ -92,6 +92,9 @@ test("analizza tutti i PDF dell’esame in sequenza con avanzamento e stima del 
     expect(state.maximumConcurrent()).toBe(2);
     expect((await upload.boundingBox())!.width).toBeCloseTo((await page.locator(".exam-action-grid").boundingBox())!.width, 0);
     expect((await request.post("/api/documents", { multipart: { folderId: state.folder.id, file: { name: "Corso C.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") } } })).ok()).toBe(true);
+    // An upload outside this browser is picked up when the catalogue TTL expires.
+    await page.clock.install();
+    await page.clock.fastForward(31_000);
     await page.reload();
     await expect(analysis).toBeVisible();
   } finally {
@@ -164,8 +167,10 @@ test("a parallel failure preserves other active results before reporting the err
     state.release();
     await expect(analysis.getByRole("alert")).toContainText("Limite API raggiunto");
     await expect(analysis.getByText("Analisi sospesa. I progressi sono salvati.", { exact: true })).toBeVisible();
-    expect(state.calls).toHaveLength(2);
-    await expect(analysis.getByRole("progressbar")).toHaveAttribute("value", "1");
+    expect(state.calls.filter(call => call.startsWith("Corso A.pdf:"))).toEqual(["Corso A.pdf:1"]);
+    const successfulPages = state.calls.filter(call => call.startsWith("Corso B.pdf:")).length;
+    expect(successfulPages).toBeGreaterThanOrEqual(1);
+    await expect(analysis.getByRole("progressbar")).toHaveAttribute("value", String(successfulPages));
     await expect(analysis.getByRole("button", { name: "Analizza tutto", exact: true })).toBeEnabled();
   } finally {
     state.release();

@@ -1,4 +1,5 @@
 "use client";
+import { trackedFetch } from "@/lib/browser-data-cache";
 
 import { useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -26,8 +27,8 @@ export function ReadRangeDialog({ document, onClose, onSaved }: { document: Docu
     if (lock.current) return;
     lock.current = true; setSaving(true); setError("");
     try {
-      const response = await fetch(`/api/documents/${document.id}/read-range`, {
-        method: "POST", headers: { "Content-Type": "application/json", ...await authHeaders() },
+      const response = await trackedFetch(`/api/documents/${document.id}/read-range`, {
+        method: "POST", headers: { "Content-Type": "application/json", Prefer: "return=minimal", ...await authHeaders() },
         body: JSON.stringify({ from: Number(from), to: Number(to), ...(period ? { startDate, endDate } : {}) }),
       });
       await readApiResponse(response);

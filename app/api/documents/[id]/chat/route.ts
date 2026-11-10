@@ -3,10 +3,10 @@ import { PDFDocument } from "pdf-lib";
 import OpenAI from "openai";
 import { z } from "zod";
 import { apiError, requestGuard } from "@/lib/http";
-import { listDocuments, readDocument, readPdf, updateDocument } from "@/lib/store";
+import { listDocuments, readDocument, readPdf, updateSlide } from "@/lib/store";
 import { openaiError } from "@/lib/openai";
 import { getStudyProfile } from "@/lib/study-profile";
-import { listFolders } from "@/lib/folders";
+import { getFolder } from "@/lib/folders";
 import { formatStudyContext, graduateTutorInstructions } from "@/lib/tutor-context";
 import { quizConfigSchema } from "@/lib/quiz";
 import { generateQuiz, quizTool } from "@/lib/quiz-generation";
@@ -26,19 +26,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (page > doc.pages) return NextResponse.json({ error: "Slide non valida." }, { status: 400 });
     if (!process.env.OPENAI_API_KEY?.trim()) return NextResponse.json({ error: "Configura OPENAI_API_KEY per usare la chat." }, { status: 503 });
     const originalBytes = await readPdf(id);
-    const [profile, folders] = await Promise.all([getStudyProfile(), listFolders()]);
-    const studyContext = formatStudyContext({ studyProgram: profile.studyProgram, courseName: folders.find(folder => folder.id === doc.folderId)?.name, documentName: doc.name });
+    const [profile, folder] = await Promise.all([getStudyProfile(), getFolder(doc.folderId)]);
+    const studyContext = formatStudyContext({ studyProgram: profile.studyProgram, courseName: folder?.name, documentName: doc.name });
     const createQuiz = async (configuration: unknown, signal = request.signal) => {
       const checked = quizConfigSchema.safeParse(configuration);
       if (!checked.success) return NextResponse.json({ error: "Scegli da 1 a 30 domande e tipologie compatibili con il totale." }, { status: 400 });
       const quiz = await generateQuiz(doc, originalBytes, checked.data, studyContext, signal);
       signal.throwIfAborted();
       await saveQuiz(id, quiz);
-      const updated = await updateDocument(id, current => {
-        const slide = current.slides[page] || { notes: "" };
-        current.slides[page] = { ...slide, chat: boundedChatHistory([...(slide.chat || []), { role: "user", content: question }, { role: "assistant", content: `Quiz pronto: ${quiz.title}. Lo trovi sotto il PDF nei materiali del corso.` }]) };
-      });
-      return NextResponse.json(updated.slides[page].chat, { headers: { "X-Studio-Quiz-Id": quiz.id } });
+      const updated = await updateSlide(id, page, slide => ({ ...slide, chat: boundedChatHistory([...(slide.chat || []), { role: "user", content: question }, { role: "assistant", content: `Quiz pronto: ${quiz.title}. Lo trovi sotto il PDF nei materiali del corso.` }]) }));
+      return NextResponse.json(updated.chat, { headers: { "X-Studio-Quiz-Id": quiz.id } });
     };
     if (parsed.data.quiz) return await createQuiz(parsed.data.quiz);
 
@@ -83,8 +80,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (response.status !== "completed" || !outputText.trim()) return NextResponse.json({ error: "Risposta incompleta. Riprova." }, { status: 502 });
     signal.throwIfAborted();
     const messages = [{ role: "user" as const, content: question }, { role: "assistant" as const, content: outputText }];
-    const updated = await updateDocument(id, d => { const slide = d.slides[page] || { notes: "" }; d.slides[page] = { ...slide, chat: boundedChatHistory([...(slide.chat || []), ...messages]) }; });
-    return NextResponse.json(updated.slides[page].chat);
+    const updated = await updateSlide(id, page, slide => ({ ...slide, chat: boundedChatHistory([...(slide.chat || []), ...messages]) }));
+    return NextResponse.json(updated.chat);
     };
     if (!request.headers.get("accept")?.includes("text/event-stream")) {
       return await finish(await client.responses.create(parameters, { signal: request.signal }));

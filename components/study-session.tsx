@@ -6,7 +6,7 @@ import { Eye, EyeOff, GripVertical, Pause, Play, Square } from "lucide-react";
 import { onAuthStateChanged } from "firebase/auth";
 import { buildSavedSession, type SavedSessionInput, type SavedStudySession, type StudyHistorySnapshot } from "@/lib/study-history";
 import type { DocumentSummary } from "@/lib/types";
-import { readApiResponse } from "@/lib/api-response";
+import { cachedApi } from "@/lib/browser-data-cache";
 import { authHeaders, browserAuth, firebaseEnabled } from "@/lib/firebase-client";
 import { freshSession, pauseStudyTimer, startStudyTimer, recordStudyPage, restoreSession, sessionElapsed, studyDay, type StudySession } from "@/lib/study-session";
 import styles from "./study-session.module.css";
@@ -46,8 +46,7 @@ export function useStudySession({ documents = [] }: { documents?: DocumentSummar
     setLoadingHistory(true);
     const requestedRevision = revision.current;
     try {
-      const response = await fetch(`/api/study-sessions?day=${studyDay()}`, { headers: await authHeaders() });
-      const snapshot = await readApiResponse<StudyHistorySnapshot>(response, "Impossibile caricare le sessioni.");
+      const snapshot = await cachedApi<StudyHistorySnapshot>(`/api/study-sessions?day=${studyDay()}`, { headers: await authHeaders() });
       if (owner === key.current && requestedRevision === revision.current) { merge(snapshot); setErrorHistory(""); }
     } catch (error) { if (owner === key.current) setErrorHistory((error as Error).message); }
     finally { if (owner === key.current) setLoadingHistory(false); }
@@ -59,13 +58,12 @@ export function useStudySession({ documents = [] }: { documents?: DocumentSummar
     try {
       while (queue.current.length && key.current === owner) {
         const action = queue.current[0];
-        const response = await fetch(`/api/study-sessions?day=${studyDay()}`, { method: "POST", headers: { "Content-Type": "application/json", ...await authHeaders() }, body: JSON.stringify(action) });
-        const snapshot = await readApiResponse<StudyHistorySnapshot>(response, "Impossibile salvare lo studio. Riprova.");
+        await cachedApi(`/api/study-sessions?day=${studyDay()}`, { method: "POST", headers: { "Content-Type": "application/json", Prefer: "return=minimal", ...await authHeaders() }, body: JSON.stringify(action) });
         if (key.current !== owner) break;
         queue.current.shift(); revision.current++; persistQueue();
         // Keep newer optimistic changes when an older request completes.
         if (action.type === "read" && optimistic.current.get(`${action.documentId}:${action.page}`) === action.read && !queue.current.some(item => item.type === "read" && item.documentId === action.documentId && item.page === action.page)) optimistic.current.delete(`${action.documentId}:${action.page}`);
-        merge(snapshot); setErrorHistory("");
+        setErrorHistory("");
       }
     } catch (error) { if (owner === key.current) setErrorHistory((error as Error).message); }
     finally { syncing.current = false; setSavingHistory(false); }

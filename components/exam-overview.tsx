@@ -1,4 +1,5 @@
 "use client";
+import { trackedFetch } from "@/lib/browser-data-cache";
 
 import { readApiResponse } from "@/lib/api-response";
 
@@ -116,7 +117,7 @@ export function ExamOverview({ dialogOnly = false, folders, documents, onOpen, o
     }
     setBusy(true); setError("");
     try {
-      const response = await fetch(`/api/folders/${editing.id}`, {
+      const response = await trackedFetch(`/api/folders/${editing.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...await authHeaders() },
         body: JSON.stringify({ name: name.trim(), color, optional, cfu: cfu.trim() ? Number(cfu) : null, examDate: examDate || null, pagesPerHour, nonStudyWeekdays, nonStudyDates }),
@@ -133,7 +134,7 @@ export function ExamOverview({ dialogOnly = false, folders, documents, onOpen, o
     mutation.current = true;
     setBusy(true); setError("");
     try {
-      const response = await fetch(`/api/folders/${folder.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...await authHeaders() }, body: JSON.stringify({ archived: !folder.archived }) });
+      const response = await trackedFetch(`/api/folders/${folder.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...await authHeaders() }, body: JSON.stringify({ archived: !folder.archived }) });
       onUpdated(await readApiResponse<ExamFolder>(response, "Impossibile aggiornare l’esame. Riprova."));
       setEditing(null);
     } catch (error) { setError((error as Error).message); }
@@ -161,7 +162,7 @@ export function ExamOverview({ dialogOnly = false, folders, documents, onOpen, o
     if (!editing || busy || isCourseBusy?.(editing.id) || !confirmDelete) return;
     setBusy(true); setError("");
     try {
-      const response = await fetch(`/api/folders/${editing.id}`, { method: "DELETE", headers: await authHeaders() });
+      const response = await trackedFetch(`/api/folders/${editing.id}`, { method: "DELETE", headers: await authHeaders() });
       await readApiResponse(response, "Impossibile eliminare tutti i materiali. Riprova per completare l’eliminazione.");
       onDeleted?.(editing.id);
       setEditing(null);

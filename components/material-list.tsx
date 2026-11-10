@@ -1,4 +1,5 @@
 "use client";
+import { trackedFetch } from "@/lib/browser-data-cache";
 
 import { readApiResponse } from "@/lib/api-response";
 import { useRef, useState } from "react";
@@ -33,7 +34,7 @@ export function MaterialList({ documents, folder, query, busy, analysisRunning =
   const sorted = orderedMaterials(documents, folder.documentOrder);
   const visible = sorted.filter(d => d.name.toLowerCase().includes(query.toLowerCase()));
   async function request<T>(url: string, body: unknown): Promise<T> {
-    const response = await fetch(url, { method: "PATCH", headers: { "Content-Type": "application/json", ...await authHeaders() }, body: JSON.stringify(body) });
+    const response = await trackedFetch(url, { method: "PATCH", headers: { "Content-Type": "application/json", ...await authHeaders() }, body: JSON.stringify(body) });
     const data = await readApiResponse<T>(response);
     return data;
   }
@@ -59,7 +60,7 @@ export function MaterialList({ documents, folder, query, busy, analysisRunning =
     if (!deleting || mutation.current || isDocumentBusy?.(deleting.id)) return;
     mutation.current = true; setSaving(true); setError("");
     try {
-      const response = await fetch(`/api/documents/${deleting.id}`, { method: "DELETE", headers: await authHeaders() });
+      const response = await trackedFetch(`/api/documents/${deleting.id}`, { method: "DELETE", headers: await authHeaders() });
       await readApiResponse(response, "Impossibile eliminare il file. Riprova.");
       onDeleted?.(deleting.id); setDeleting(null);
     } catch (cause) { setError((cause as Error).message); }

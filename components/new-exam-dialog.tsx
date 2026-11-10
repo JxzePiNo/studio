@@ -1,4 +1,5 @@
 "use client";
+import { trackedFetch } from "@/lib/browser-data-cache";
 
 import { readApiResponse } from "@/lib/api-response";
 
@@ -56,7 +57,7 @@ export function NewExamDialog({ open, onOpenChange, onCreated, folders = [] }: N
     try {
       let folder = created.current;
       if (!folder) {
-        const response = await fetch("/api/folders", {
+        const response = await trackedFetch("/api/folders", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...await authHeaders() },
           body: JSON.stringify({ name: name.trim(), ...(cfu.trim() ? { cfu: Number(cfu) } : {}), ...(date ? { examDate: calendarDate(date) } : {}), nonStudyWeekdays, nonStudyDates }),

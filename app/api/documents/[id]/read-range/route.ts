@@ -27,6 +27,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       console.error("Reading range history save failed", error);
       return NextResponse.json({ error: "Le pagine sono segnate come lette, ma lo storico non è stato salvato. Riprova con lo stesso intervallo e periodo per completare il salvataggio senza duplicati.", documentUpdated: true }, { status: 503 });
     }
-    return NextResponse.json({ document, history: await getStudyHistory(studyDay()) });
+    return NextResponse.json(request.headers.get("prefer") === "return=minimal" ? { ok: true } : { document, history: await getStudyHistory(studyDay()) });
   } catch (error) { return apiError(error); }
 }

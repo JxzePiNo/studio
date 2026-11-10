@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import type { DocumentSummary, StudyDocument } from "./types";
+import type { DocumentSummary, StudyDocument, SlideData } from "./types";
 
 export const dataRoot = () => path.resolve(/* turbopackIgnore: true */ process.env.DATA_DIR || path.join(process.cwd(), "data"));
 const validId = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -23,6 +23,11 @@ export async function readDocument(id: string): Promise<StudyDocument> {
   const doc: StudyDocument = JSON.parse(await readFile(file, "utf8"));
   rememberDocument(file, revision, doc);
   return doc;
+}
+export async function readDocumentMetadata(id: string): Promise<Omit<StudyDocument, "slides"> & { quizIndexVersion?: number }> {
+  if (cloudEnabled()) return cloud.readMetadata(id);
+  const { slides: _slides, ...metadata } = await readDocument(id);
+  return metadata;
 }
 async function saveDocument(doc: StudyDocument) {
   const dir = documentDir(doc.id);
@@ -57,6 +62,28 @@ export async function updateDocument(id: string, change: (doc: StudyDocument) =>
     await saveDocument(doc);
     return doc;
   });
+}
+export async function patchDocumentPage(id: string, page: number, patch: { notes?: string; read?: boolean }) {
+  if (cloudEnabled()) return cloud.patchPage(id, page, patch);
+  const document = await updateDocument(id, doc => {
+    if (page > doc.pages) throw Object.assign(new Error("Pagina non valida."), { status: 400 });
+    if (patch.notes !== undefined || patch.read !== undefined) doc.slides[page] = { ...doc.slides[page], notes: doc.slides[page]?.notes || "", ...patch };
+    else doc.currentPage = page;
+  });
+  const { slides, ...metadata } = document;
+  return { ...metadata, readPages: Object.values(slides).filter(slide => slide.read).length, page, ...(patch.notes !== undefined || patch.read !== undefined ? { slide: slides[page] } : {}) };
+}
+export async function updateSlide(id: string, page: number, change: (slide: SlideData) => SlideData) {
+  if (cloudEnabled()) return cloud.updateSlide(id, page, change);
+  const document = await updateDocument(id, doc => { doc.slides[page] = change(doc.slides[page] || { notes: "" }); });
+  return document.slides[page];
+}
+export async function readVersionedDocument(id: string, etag?: string | null) {
+  if (cloudEnabled()) return cloud.versionedRead(id, etag);
+  const document = await readDocument(id);
+  const metadata = await stat(path.join(documentDir(id), "document.json"), { bigint: true });
+  const version = `"${metadata.mtimeNs}-${metadata.ctimeNs}-${metadata.size}"`;
+  return { etag: version, document: etag === version ? null : document };
 }
 export async function createDocument(name: string, bytes: Uint8Array, pages: number, folderId?: string) {
   if (cloudEnabled()) return cloud.create(name, bytes, pages, folderId);

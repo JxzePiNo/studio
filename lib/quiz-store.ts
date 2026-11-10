@@ -3,11 +3,32 @@ import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promise
 import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
 import { cloudEnabled, userRoot } from "./firebase-server";
-import { documentDir } from "./store";
+import { documentDir, readDocument, readDocumentMetadata } from "./store";
+import { markQuizIndex } from "./cloud-store";
 import type { StudyDocument } from "./types";
 import type { StudyQuiz } from "./quiz";
 
 type StoredQuiz = StudyQuiz | { id: string; deleted: true };
+
+/** Listing child quizzes must not download every page of an analyzed PDF. */
+export async function readQuizIndexDocument(id: string): Promise<StudyDocument> {
+  const metadata = await readDocumentMetadata(id);
+  if (cloudEnabled() && metadata.quizIndexVersion === 1) return { ...metadata, slides: {} };
+  const document = await readDocument(id);
+  if (!cloudEnabled()) return document;
+  // Migrate legacy chat quizzes once. create() never overwrites edits/tombstones
+  // written by another request while the migration was reading old chat data.
+  const root = (await userRoot()).collection("documents").doc(id).collection("quizzes");
+  const legacy = new Map<string, StudyQuiz>();
+  for (const slide of Object.values(document.slides)) for (const message of slide.chat || []) if (message.quiz) legacy.set(message.quiz.id, message.quiz);
+  for (const quiz of legacy.values()) {
+    checkId(quiz.id);
+    try { await root.doc(quiz.id).create(quiz); }
+    catch (error) { if ((error as { code?: number }).code !== 6) throw error; }
+  }
+  await markQuizIndex(id);
+  return { ...metadata, slides: {} };
+}
 function checkId(id: string) {
   if (!/^[a-zA-Z0-9-]{1,100}$/.test(id)) throw Object.assign(new Error("Quiz non valido."), { status: 400 });
 }

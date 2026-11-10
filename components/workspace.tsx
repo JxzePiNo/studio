@@ -1,6 +1,6 @@
 "use client";
 
-import { readApiResponse } from "@/lib/api-response";
+import { cachedApi, cachedPdf, invalidateApiCache } from "@/lib/browser-data-cache";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
@@ -34,6 +34,7 @@ import { MaterialList } from "./material-list";
 import { StudyChat } from "./study-chat";
 import type { ExamFolder } from "@/lib/types";
 import { loadPdf, PdfCanvas } from "./pdf-viewer";
+import { useReaderDisplay, type ReaderDisplay } from "./use-reader-display";
 import { ReaderNavigation } from "./reader-navigation";
 import { BottomPanel } from "./bottom-panel";
 import { BaristaLoading } from "./barista-loading";
@@ -42,9 +43,8 @@ import { ReaderSplit } from "./reader-split";
 import type { DocumentSummary, SlideData, StudyDocument } from "@/lib/types";
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { ...init?.headers, ...await authHeaders() } });
-  const data = await readApiResponse<T>(response);
-  return data;
+  const headers = { ...init?.headers, ...await authHeaders(), ...(init?.method === "PATCH" && /^\/api\/documents\/[^/]+$/.test(url) ? { Prefer: "return=minimal" } : {}) };
+  return cachedApi<T>(url, { ...init, headers });
 }
 const json = (method: string, data: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
 const size = (bytes: number) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -172,8 +172,12 @@ export default function Workspace() {
   const courseAnalysis = useCourseAnalysis({
     folderId, documents: library, configured, disabled: busy,
     canStart: ids => !uploadLock.current && (!analysisLock.current || !ids.includes(readerJobDocument.current || "")),
-    onProgressSaved: refresh,
-    onSlideSaved: (id, target, result) => mergeSlide(id, target, result, true),
+    onProgressSaved: async () => { await invalidateApiCache("/api/documents"); await refresh(); },
+    onSlideSaved: (id, target, result) => {
+      mergeSlide(id, target, result, true);
+      setLibrary(items => items.map(item => item.id === id ? { ...item, analyzedPages: Math.min(item.pages, item.analyzedPages + 1) } : item));
+      void invalidateApiCache(`/api/documents/${id}`, `/api/documents/${id}/quiz`);
+    },
   });
   const courseRunning = courseAnalysis.anyRunning;
   courseLock.current = courseRunning;
@@ -285,7 +289,8 @@ export default function Workspace() {
       const result = await api<StudyDocument>(`/api/documents/${id}`, { signal: controller.signal });
       if (sequence !== openSequence.current) return;
       setOpening({ id, name: result.name });
-      const loaded = await loadPdf(`/api/documents/${id}/pdf`, await authHeaders(), controller.signal);
+      const bytes = await cachedPdf(`/api/documents/${id}/pdf`, await authHeaders(), controller.signal);
+      const loaded = await loadPdf(bytes, undefined, controller.signal);
       if (sequence !== openSequence.current) { await loaded.destroy(); return; }
       pdfRef.current = loaded;
       if (updateHistory) changeLocation(result.folderId || targetFolder, id);
@@ -331,6 +336,7 @@ export default function Workspace() {
   }
 
   const ambientRef = useAmbientParallax(!doc && !opening);
+  const readerDisplay = useReaderDisplay(doc?.id);
 
   const navigate = useCallback((target: number) => {
     const current = docRef.current;
@@ -357,7 +363,9 @@ export default function Workspace() {
     const updated = { ...current, slides: { ...current.slides, [target]: { ...current.slides[target], notes: current.slides[target]?.notes || "", read } } };
     docRef.current = updated; setDoc(updated);
     queueWrite(async () => {
-      try { await api(`/api/documents/${current.id}`, json("PATCH", { page: target, read })); studySession.commitRead(current.id, target, read); await refresh().catch(e => setError(e.message)); }
+      try { await api(`/api/documents/${current.id}`, json("PATCH", { page: target, read })); studySession.commitRead(current.id, target, read);
+        const readPages = Object.values<SlideData>(docRef.current?.id === current.id ? docRef.current.slides : updated.slides).filter(slide => slide.read).length;
+        setLibrary(items => items.map(item => item.id === current.id ? { ...item, readPages } : item)); }
       catch (e) {
         if (readVersions.current.get(readKey) === version) studySession.recordRead(current.id, target, previousToday);
         if (readVersions.current.get(readKey) === version && docRef.current?.id === current.id && docRef.current.slides[target]?.read === read) {
@@ -473,7 +481,7 @@ export default function Workspace() {
     if (!restoringRoute.current) changeLocation(folderId);
     setDoc(null); setPdf(null); setSidebar(false); setSettings(false); setBusy(false);
     void previousPdf?.destroy();
-    void saves.then(() => refresh()).catch(e => setError((e as Error).message));
+    void saves.catch(e => setError((e as Error).message));
   }
 
   return <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell ${doc || opening ? "reader-active" : ""}`} onDragOver={e => { e.preventDefault(); if (folderId && !busy && e.dataTransfer.types.includes("Files")) setDragging(true); }} onDrop={e => { e.preventDefault(); if (!folderId && e.dataTransfer.files.length) setError("Apri un esame prima di caricare un PDF."); }}>
@@ -530,7 +538,7 @@ export default function Workspace() {
         <ReaderSplit><section className="slide-panel"><div className="slide-stage"><BaristaLoading key={opening.id} name={opening.name} error={opening.error} onRetry={() => void openDocument(opening.id)} /></div></section><aside className="explanation-panel reader-chat-panel" aria-label="Tutor della slide"><div className={baristaStyles.chat}><strong>Tony sta preparando il tuo spazio.</strong><p>Il PDF e le tue conversazioni arrivano tra un momento.</p></div></aside></ReaderSplit>
       </>}
       {doc && <>
-        <ReaderSplit><section className="slide-panel"><div className={`slide-stage ${activeSlide?.read ? "is-read" : ""}`} ref={viewer}>{pdf && <PdfCanvas pdf={pdf} page={page} zoom={zoom} fitHeight />}{busy && <div className="viewer-busy"><LoaderCircle className="spin" /> Apertura documento…</div>}</div><ReaderNavigation page={page} total={doc.pages} disabled={busy} onNavigate={navigate} /><BottomPanel key={doc.id}>
+        <ReaderSplit><section className="slide-panel"><div className={`slide-stage ${activeSlide?.read ? "is-read" : ""}`} ref={viewer}>{pdf && <PdfCanvas pdf={pdf} page={page} zoom={zoom} fitHeight />}{busy && <div className="viewer-busy"><LoaderCircle className="spin" /> Apertura documento…</div>}</div><ReaderNavigation display={readerDisplay.display} onVisibilityChange={readerDisplay.setVisible} page={page} total={doc.pages} disabled={busy} onNavigate={navigate} /><BottomPanel key={doc.id}>
           <div className="glossary"><div className="glossary-heading"><span><Languages size={17} /> Le parole della slide</span><span className="language-tag">EN <ArrowRight size={10} /> IT</span></div>{explanation?.glossary.length ? <div className="glossary-words">{explanation.glossary.map(g => <div key={g.word} className="glossary-word" title={g.context}><strong>{g.word}</strong><span>{g.translation}</span><small>{g.context}</small></div>)}</div> : <p>{explanation ? explanation.language === "en" ? "Nessun termine da tradurre individuato in questa slide." : "Questa slide non è in inglese. Puoi concentrarti sui concetti." : "Quando spieghi una slide in inglese, trovi qui i termini importanti con la traduzione italiana."}</p>}</div>
           </BottomPanel>
         </section>
@@ -540,10 +548,10 @@ export default function Workspace() {
     </main>
     {dragging && <div className="drop-overlay" onDragLeave={e => { if (e.currentTarget === e.target) setDragging(false); }} onDrop={e => { e.preventDefault(); setDragging(false); void uploadFiles(e.dataTransfer.files); }}><Upload size={46} /><h2>Fai spazio a una nuova idea.</h2><p>Rilascia il PDF per iniziare.</p></div>}
     <NewExamDialog folders={folders} open={creatingFolder} onOpenChange={setCreatingFolder} onCreated={async folder => { setFolders(current => [...current.filter(f => f.id !== folder.id), folder]); await refresh(); }} />
-    {settings && doc && <ReaderSettingsDialog zoom={zoom} onZoomChange={setZoom} textSize={textSize} onTextSizeChange={changeTextSize} configured={configured} name={doc.name} page={page} notes={activeSlide?.notes || ""} noteStatus={noteStatus} onNotesChange={saveNotes} hasExplanation={!!explanation} disabled={busy || selectedDocumentAnalyzing || !!analyzing || !!batchRunning} onRegenerate={() => { setSettings(false); void analyze(true); }} onResetZoom={() => setZoom(1)} onClose={() => { flushNotes(); setSettings(false); }} />}
+    {settings && doc && <ReaderSettingsDialog display={readerDisplay.display} onVisibilityChange={readerDisplay.setVisible} zoom={zoom} onZoomChange={setZoom} textSize={textSize} onTextSizeChange={changeTextSize} configured={configured} name={doc.name} page={page} notes={activeSlide?.notes || ""} noteStatus={noteStatus} onNotesChange={saveNotes} hasExplanation={!!explanation} disabled={busy || selectedDocumentAnalyzing || !!analyzing || !!batchRunning} onRegenerate={() => { setSettings(false); void analyze(true); }} onResetZoom={() => setZoom(1)} onClose={() => { flushNotes(); setSettings(false); }} />}
   </div></SidebarProvider>;
 }
 
-function ReaderSettingsDialog({ zoom, onZoomChange, textSize, onTextSizeChange, configured, name, page, notes, noteStatus, onNotesChange, hasExplanation, disabled, onRegenerate, onResetZoom, onClose }: { zoom: number; onZoomChange: (value: number) => void; textSize: number; onTextSizeChange: (value: number) => void; configured: boolean; name: string; page: number; notes: string; noteStatus: string; onNotesChange: (notes: string) => void; hasExplanation: boolean; disabled: boolean; onRegenerate: () => void; onResetZoom: () => void; onClose: () => void }) {
-  return <Dialog.Root open onOpenChange={open => { if (!open) onClose(); }}><Dialog.Portal><Dialog.Overlay className="plan-overlay" /><Dialog.Content className="plan-dialog reader-settings-dialog"><Dialog.Close asChild><Button variant="ghost" size="icon" className="plan-dialog-close" aria-label="Chiudi impostazioni"><X size={18} /></Button></Dialog.Close><Dialog.Title>Impostazioni della lettura</Dialog.Title><Dialog.Description>{name.replace(/\.pdf$/i, "")} · Slide {page}</Dialog.Description><div className="reader-settings-content"><section className="settings-section"><h3>Visualizzazione</h3><p>Adatta lo spazio al tuo modo di studiare.</p><label className="form-field"><span className="form-field-label">Zoom del PDF <strong>{Math.round(zoom * 100)}%</strong></span><input aria-label="Zoom del PDF" type="range" min="0.5" max="2" step="0.1" value={zoom} onChange={event => onZoomChange(Number(event.target.value))} /></label><label className="form-field"><span className="form-field-label">Dimensione del testo <strong>{textSize} px</strong></span><input aria-label="Dimensione del testo" type="range" min="14" max="22" step="1" value={textSize} onChange={event => onTextSizeChange(Number(event.target.value))} /></label></section><section className="settings-section"><h3>Il tuo quaderno</h3><label className="form-field"><span className="form-field-label">Appunti personali</span><Textarea aria-label={`Appunti della slide ${page}`} value={notes} onChange={event => onNotesChange(event.target.value)} maxLength={50000} placeholder="Collegamenti, formule e idee da ricordare…" /></label><p className="note-save"><Check size={13} />{noteStatus}</p></section><section className="settings-section"><h3>Strumenti</h3><Button variant="outline" onClick={onResetZoom}>Ripristina zoom</Button>{hasExplanation && <Button variant="outline" disabled={disabled || !configured} onClick={onRegenerate}><Sparkles size={15} />Rigenera analisi della pagina</Button>}{!configured && <p className="reader-settings-hint">Configura la chiave OpenAI sul server per generare analisi e risposte del tutor.</p>}<p className="reader-settings-hint">Scorri con le frecce. Premi Spazio per segnare la pagina letta o da leggere.</p></section></div></Dialog.Content></Dialog.Portal></Dialog.Root>;
+function ReaderSettingsDialog({ display, onVisibilityChange, zoom, onZoomChange, textSize, onTextSizeChange, configured, name, page, notes, noteStatus, onNotesChange, hasExplanation, disabled, onRegenerate, onResetZoom, onClose }: { display: ReaderDisplay; onVisibilityChange: (field: keyof ReaderDisplay, visible: boolean) => void; zoom: number; onZoomChange: (value: number) => void; textSize: number; onTextSizeChange: (value: number) => void; configured: boolean; name: string; page: number; notes: string; noteStatus: string; onNotesChange: (notes: string) => void; hasExplanation: boolean; disabled: boolean; onRegenerate: () => void; onResetZoom: () => void; onClose: () => void }) {
+  return <Dialog.Root open onOpenChange={open => { if (!open) onClose(); }}><Dialog.Portal><Dialog.Overlay className="plan-overlay" /><Dialog.Content className="plan-dialog reader-settings-dialog"><Dialog.Close asChild><Button variant="ghost" size="icon" className="plan-dialog-close" aria-label="Chiudi impostazioni"><X size={18} /></Button></Dialog.Close><Dialog.Title>Impostazioni della lettura</Dialog.Title><Dialog.Description>{name.replace(/\.pdf$/i, "")} · Slide {page}</Dialog.Description><div className="reader-settings-content"><section className="settings-section"><h3>Visualizzazione</h3><p>Adatta lo spazio al tuo modo di studiare.</p><label className="form-field"><span className="form-field-label">Zoom del PDF <strong>{Math.round(zoom * 100)}%</strong></span><input aria-label="Zoom del PDF" type="range" min="0.5" max="2" step="0.1" value={zoom} onChange={event => onZoomChange(Number(event.target.value))} /></label><label className="form-field"><span className="form-field-label">Dimensione del testo <strong>{textSize} px</strong></span><input aria-label="Dimensione del testo" type="range" min="14" max="22" step="1" value={textSize} onChange={event => onTextSizeChange(Number(event.target.value))} /></label><label className="reader-display-option"><span>Mostra frecce di navigazione</span><input type="checkbox" role="switch" checked={display.navigation} onChange={event => onVisibilityChange("navigation", event.target.checked)} /></label><label className="reader-display-option"><span>Mostra suggerimenti dei comandi</span><input type="checkbox" role="switch" checked={display.hints} onChange={event => onVisibilityChange("hints", event.target.checked)} /></label></section><section className="settings-section"><h3>Il tuo quaderno</h3><label className="form-field"><span className="form-field-label">Appunti personali</span><Textarea aria-label={`Appunti della slide ${page}`} value={notes} onChange={event => onNotesChange(event.target.value)} maxLength={50000} placeholder="Collegamenti, formule e idee da ricordare…" /></label><p className="note-save"><Check size={13} />{noteStatus}</p></section><section className="settings-section"><h3>Strumenti</h3><Button variant="outline" onClick={onResetZoom}>Ripristina zoom</Button>{hasExplanation && <Button variant="outline" disabled={disabled || !configured} onClick={onRegenerate}><Sparkles size={15} />Rigenera analisi della pagina</Button>}{!configured && <p className="reader-settings-hint">Configura la chiave OpenAI sul server per generare analisi e risposte del tutor.</p>}<p className="reader-settings-hint">Scorri con le frecce. Premi Spazio per segnare la pagina letta o da leggere.</p></section></div></Dialog.Content></Dialog.Portal></Dialog.Root>;
 }

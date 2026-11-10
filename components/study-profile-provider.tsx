@@ -1,6 +1,6 @@
 "use client";
 
-import { readApiResponse } from "@/lib/api-response";
+import { cachedApi } from "@/lib/browser-data-cache";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -24,12 +24,9 @@ type StudyProfileContextValue = {
 const StudyProfileContext = createContext<StudyProfileContextValue | null>(null);
 
 async function profileRequest(init?: RequestInit): Promise<StudyProfile> {
-  const response = await fetch("/api/profile", {
-    ...init,
-    headers: { "Content-Type": "application/json", ...await authHeaders() },
-    cache: "no-store",
+  const result = await cachedApi<StudyProfile>("/api/profile", {
+    ...init, headers: { "Content-Type": "application/json", ...await authHeaders() },
   });
-  const result = await readApiResponse<StudyProfile>(response, "Impossibile caricare il profilo di studio.");
   return result as StudyProfile;
 }
 

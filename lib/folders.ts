@@ -7,6 +7,22 @@ import { runParallelFiles } from "./parallel-analysis";
 import type { ExamFolder, StudyAvailability } from "./types";
 import { examColors } from "./exam-colors";
 import { validExamCfu } from "./exam-cfu";
+import { MemoryCache } from "./memory-cache";
+
+const courseContextCache = new MemoryCache<ExamFolder>({ maxEntries: 128, maxBytes: 1024 * 1024, ttlMs: 30_000 });
+export async function getFolder(id?: string): Promise<ExamFolder | undefined> {
+  if (!id) return;
+  if (!cloudEnabled()) return (await listFolders()).find(folder => folder.id === id);
+  if (!/^[a-zA-Z0-9-]{1,100}$/.test(id)) return;
+  const reference = (await userRoot()).collection("folders").doc(id);
+  const cached = courseContextCache.get(reference.path);
+  if (cached) return structuredClone(cached);
+  const snapshot = await reference.get();
+  if (!snapshot.exists) return;
+  const folder = snapshot.data() as ExamFolder;
+  courseContextCache.set(reference.path, folder, Buffer.byteLength(JSON.stringify(folder)));
+  return structuredClone(folder);
+}
 
 export async function listFolders(): Promise<ExamFolder[]> {
   if (cloudEnabled()) return (await (await userRoot()).collection("folders").get()).docs.map(d => d.data() as ExamFolder).sort((a,b) => a.name.localeCompare(b.name));
@@ -52,13 +68,15 @@ export async function updateFolder(id: string, changes: FolderChanges | ((folder
   };
   if (cloudEnabled()) {
     const ref = (await userRoot()).collection("folders").doc(id);
-    return services().db.runTransaction(async tx => {
+    const result = await services().db.runTransaction(async tx => {
       const snapshot = await tx.get(ref);
       if (!snapshot.exists) throw Object.assign(new Error("Esame non trovato."), { status: 404 });
       const updated = apply(snapshot.data() as ExamFolder);
       tx.set(ref, updated);
       return updated;
     });
+    courseContextCache.delete(ref.path);
+    return result;
   }
   const previous = folderQueues.get(id) || Promise.resolve();
   const task = previous.catch(() => {}).then(async () => {
@@ -96,6 +114,6 @@ export async function deleteFolder(id: string): Promise<void> {
     try { await deleteDocument(documentId); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
   });
-  if (root) await root.collection("folders").doc(id).delete();
+  if (root) { await root.collection("folders").doc(id).delete(); courseContextCache.delete(`${root.path}/folders/${id}`); }
   else await unlink(path.join(dataRoot(), `folder-${id}.json`)).catch(error => { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; });
 }

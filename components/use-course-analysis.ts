@@ -138,11 +138,9 @@ export function useCourseAnalysis({ folderId, documents, configured, disabled, c
               secondsPerPage: timings.reduce((sum, seconds) => sum + seconds, 0) / timings.length,
               measured: true,
             });
-            await refreshProgress();
           }
         } finally { active.delete(document.id); update({ active: [...active.values()] }); }
       }, () => runtime.stop);
-      await refreshProgress();
       update({ status: runtime.stop && current.completed < current.total ? "stopped" : "completed", currentName: "" });
     } catch (error) {
       if (mounted.current) {
@@ -151,6 +149,7 @@ export function useCourseAnalysis({ folderId, documents, configured, disabled, c
     } finally {
       if (runtimes.current.get(folderId) === runtime) runtimes.current.delete(folderId);
       if (mounted.current) setNow(Date.now());
+      await refreshProgress().catch(() => {});
     }
   }
 

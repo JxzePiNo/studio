@@ -47,6 +47,8 @@ Riferimenti: [`test del pool`](../tests/parallel-analysis.test.ts), [`test brows
 
 [`MemoryCache<T>`](../lib/memory-cache.ts) fornisce una cache generica configurabile per numero di elementi, dimensione stimata, scadenza e sorgente temporale. La politica LRU espelle gli elementi meno recentemente utilizzati; il TTL è assoluto e non viene esteso dalle letture.
 
+La cache persistente del browser, le risposte condizionali e gli aggiornamenti mirati delle slide sono descritti in [Cache e riduzione delle letture](PERFORMANCE.md). Le transazioni del lettore leggono al massimo i metadati e una sola slide, anziché l’intera collezione.
+
 Il livello dei contenuti usa due cache separate per PDF e snapshot dei documenti. Prima di riutilizzare un valore controlla:
 
 1. Esistenza del contenuto e autorizzazione alla lettura.

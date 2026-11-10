@@ -28,7 +28,7 @@ test("PDF context menu imports a historical page range once and refreshes readin
     await dialog.getByLabel("Al giorno", { exact: true }).fill(endDate);
     await dialog.getByRole("button", { name: "Segna come lette", exact: true }).click();
     await expect(dialog).not.toBeVisible();
-    await expect(row).toContainText("2/4 lette");
+    await expect(row.locator(".material-progress-count")).toHaveText("2/4");
     const saved = await (await request.get(`/api/documents/${document.id}`)).json();
     expect(saved.slides[2].read).toBe(true);
     expect(saved.slides[3].read).toBe(true);
@@ -40,6 +40,6 @@ test("PDF context menu imports a historical page range once and refreshes readin
     expect(repeated.ok()).toBe(true);
     expect((await repeated.json()).history.activity).toEqual(history.activity);
     await page.reload();
-    await expect(page.locator(`[data-document-id="${document.id}"]`)).toContainText("2/4 lette");
+    await expect(page.locator(`[data-document-id="${document.id}"] .material-progress-count`)).toHaveText("2/4");
   } finally { await request.delete(`/api/documents/${document.id}`); await request.delete(`/api/folders/${exam.id}`); }
 });

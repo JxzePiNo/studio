@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { PDFDocument } from "pdf-lib";
 import { z } from "zod";
-import { readDocument, readPdf, updateDocument } from "@/lib/store";
+import { readDocument, readPdf, updateSlide } from "@/lib/store";
 import { explainSlide, openaiError } from "@/lib/openai";
 import { apiError, requestGuard } from "@/lib/http";
 import { getStudyProfile } from "@/lib/study-profile";
-import { listFolders } from "@/lib/folders";
+import { getFolder } from "@/lib/folders";
 export const runtime = "nodejs";
 export const maxDuration = 180;
 const inFlight = new Set<string>();
@@ -29,16 +29,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const [copied] = await single.copyPages(original, [page - 1]); single.addPage(copied);
     let explanation;
     try {
-      const [profile, folders] = await Promise.all([getStudyProfile(), listFolders()]);
-      explanation = await explainSlide(await single.save(), page, { studyProgram: profile.studyProgram, courseName: folders.find(folder => folder.id === doc.folderId)?.name, documentName: doc.name });
+      const [profile, folder] = await Promise.all([getStudyProfile(), getFolder(doc.folderId)]);
+      explanation = await explainSlide(await single.save(), page, { studyProgram: profile.studyProgram, courseName: folder?.name, documentName: doc.name });
     }
     catch (e) {
       const known = openaiError(e);
       if (known) return NextResponse.json({ error: known.error }, { status: known.status });
       return NextResponse.json({ error: e instanceof Error && e.message.startsWith("L’AI") ? e.message : "La risposta AI non è valida. Riprova." }, { status: 502 });
     }
-    const updated = await updateDocument(id, d => { d.slides[page] = { ...d.slides[page], notes: d.slides[page]?.notes || "", explanation, generatedAt: new Date().toISOString() }; });
-    return NextResponse.json(updated.slides[page]);
+    const updated = await updateSlide(id, page, slide => ({ ...slide, explanation, generatedAt: new Date().toISOString() }));
+    return NextResponse.json(updated);
   } catch (e) { return apiError(e); }
   finally { if (lock) inFlight.delete(lock); }
 }

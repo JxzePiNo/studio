@@ -1,4 +1,5 @@
 "use client";
+import { invalidateApiCache } from "@/lib/browser-data-cache";
 
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronUp, MessageCircle, X } from "lucide-react";
@@ -80,6 +81,7 @@ export function useBackgroundChat({ onSaved, onQuizStarted }: { onSaved: (id: st
       const messages = Array.isArray(result) ? result : undefined;
       if (kind === "quiz" && !quizId) throw new Error(messages?.at(-1)?.content || "La richiesta non ha prodotto un quiz. Riprova dal pulsante Quiz.");
       setSessions(current => ({ ...current, [key]: { status: "completed", question: input.question, messages, revision, kind: quizId ? "quiz" : "chat", documentId: input.id, request: input } }));
+      await invalidateApiCache(`/api/documents/${input.id}`, `/api/documents/${input.id}/quiz`);
       if (messages) savedCallback.current(input.id, input.page, messages);
       if (quizId) {
         window.dispatchEvent(new CustomEvent("studio-quizzes-changed", { detail: { documentId: input.id } }));

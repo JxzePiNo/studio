@@ -1,4 +1,5 @@
 "use client";
+import { trackedFetch } from "@/lib/browser-data-cache";
 
 import { useRef, useState } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
@@ -31,7 +32,7 @@ export function StudySessionsView({ sessions, activity, today, loading = false, 
     if (!confirmation || lock.current) return;
     lock.current = true; setSaving(true); setMutationError("");
     try {
-      const response = await fetch("/api/study-sessions", { method: confirmation.action === "delete" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json", ...await authHeaders() }, body: JSON.stringify({ ids: confirmation.ids, ...(confirmation.action === "merge" ? { action: "merge" } : {}) }) });
+      const response = await trackedFetch("/api/study-sessions", { method: confirmation.action === "delete" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json", ...await authHeaders() }, body: JSON.stringify({ ids: confirmation.ids, ...(confirmation.action === "merge" ? { action: "merge" } : {}) }) });
       await readApiResponse(response); setSelected([]); setConfirmation(null); onRetry();
     } catch (cause) { setMutationError(cause instanceof Error ? cause.message : "Operazione non riuscita. Riprova."); }
     finally { lock.current = false; setSaving(false); }

@@ -1,4 +1,5 @@
 "use client";
+import { cachedApi, invalidateApiCache } from "@/lib/browser-data-cache";
 
 import { useEffect, useRef, useState } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
@@ -6,7 +7,6 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Dialog from "@radix-ui/react-dialog";
 import { ClipboardList, MoreHorizontal, Pencil, Trash2, X } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
-import { readApiResponse } from "@/lib/api-response";
 import type { QuizSummary, StudyQuiz } from "@/lib/quiz";
 import { QuizCard } from "./quiz-card";
 import { TonyMascot } from "./mascot/tony-mascot";
@@ -56,8 +56,7 @@ export function DocumentQuizzes({ documentId, documentName, pending = [], autoOp
     onAutoOpened?.();
   }, [autoOpenQuizId]);
   async function request<T>(url: string, method = "GET", body?: unknown, signal?: AbortSignal) {
-    const response = await fetch(url, { method, headers: { "Content-Type": "application/json", ...await authHeaders() }, ...(body ? { body: JSON.stringify(body) } : {}), signal });
-    return readApiResponse<T>(response);
+    return cachedApi<T>(url, { method, headers: { "Content-Type": "application/json", ...await authHeaders(), ...(method === "GET" && url.endsWith("/quiz") ? { "X-Studio-Quiz-Summaries": "1" } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), signal });
   }
   useEffect(() => {
     let controller: AbortController | null = null;
@@ -66,7 +65,7 @@ export function DocumentQuizzes({ documentId, documentName, pending = [], autoOp
       void request<{ quizzes: QuizSummary[] }>(`/api/documents/${documentId}/quiz`, "GET", undefined, controller.signal).then(value => { setQuizzes(value.quizzes || []); setError(""); }).catch(cause => { if (cause.name !== "AbortError") setError("Impossibile caricare i quiz. Riapri il corso per riprovare."); });
     };
     load();
-    const changed = (event: Event) => { if ((event as CustomEvent).detail?.documentId === documentId) load(); };
+    const changed = (event: Event) => { if ((event as CustomEvent).detail?.documentId === documentId) void invalidateApiCache(`/api/documents/${documentId}/quiz`).then(load); };
     window.addEventListener("studio-quizzes-changed", changed);
     return () => { controller?.abort(); generation.current++; window.removeEventListener("studio-quizzes-changed", changed); };
   }, [documentId]);

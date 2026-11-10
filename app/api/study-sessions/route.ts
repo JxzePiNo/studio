@@ -30,6 +30,6 @@ export async function POST(request: Request) {
     if (input.type === "read") { const { type: _type, ...event } = input; await recordReadingBatch([event]); }
     else if (input.type === "session") await saveStudySession(input.session);
     else await importReadingActivity(input.activity);
-    return NextResponse.json(await getStudyHistory(day));
+    return NextResponse.json(request.headers.get("prefer") === "return=minimal" ? { ok: true } : await getStudyHistory(day));
   } catch (error) { return apiError(error); }
 }

@@ -6,6 +6,9 @@ import { z } from "zod";
 import { cloudEnabled, userRoot } from "./firebase-server";
 import { dataRoot } from "./store";
 import type { StudyProfile } from "./types";
+import { MemoryCache } from "./memory-cache";
+
+const profileCache = new MemoryCache<StudyProfile>({ maxEntries: 128, maxBytes: 1024 * 1024, ttlMs: 30_000 });
 
 export const defaultStudyProfile: Readonly<StudyProfile> = Object.freeze({ studyProgram: "", onboardingCompleted: false });
 
@@ -20,8 +23,13 @@ const localWrites = new Map<string, Promise<unknown>>();
 
 export async function getStudyProfile(): Promise<StudyProfile> {
   if (cloudEnabled()) {
-    const snapshot = await (await userRoot()).collection("settings").doc("profile").get();
-    return snapshot.exists ? storedProfileSchema.parse(snapshot.data()) : { ...defaultStudyProfile };
+    const reference = (await userRoot()).collection("settings").doc("profile");
+    const cached = profileCache.get(reference.path);
+    if (cached) return structuredClone(cached);
+    const snapshot = await reference.get();
+    const profile = snapshot.exists ? storedProfileSchema.parse(snapshot.data()) : { ...defaultStudyProfile };
+    profileCache.set(reference.path, profile, Buffer.byteLength(JSON.stringify(profile)));
+    return structuredClone(profile);
   }
   try {
     return storedProfileSchema.parse(JSON.parse(await readFile(path.join(dataRoot(), "profile.json"), "utf8")));
@@ -37,6 +45,7 @@ export async function saveStudyProfile(input: { studyProgram: string; onboarding
   if (cloudEnabled()) {
     const reference = (await userRoot()).collection("settings").doc("profile");
     await reference.set({ ...parsed.data, updatedAt: new Date().toISOString() }, { merge: true });
+    profileCache.delete(reference.path);
     return getStudyProfile();
   }
 

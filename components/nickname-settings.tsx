@@ -1,4 +1,5 @@
 "use client";
+import { trackedFetch } from "@/lib/browser-data-cache";
 
 import { useRef, useState } from "react";
 import { authHeaders } from "@/lib/firebase-client";
@@ -19,7 +20,7 @@ export function NicknameSettings() {
     if (lock.current) return;
     lock.current = true; setSaving(true); setError(""); setMessage("");
     try {
-      const response = await fetch("/api/nicknames", { method: "PATCH", headers: { "Content-Type": "application/json", ...await authHeaders() }, body: JSON.stringify({ name, nickname }) });
+      const response = await trackedFetch("/api/nicknames", { method: "PATCH", headers: { "Content-Type": "application/json", ...await authHeaders() }, body: JSON.stringify({ name, nickname }) });
       update(await readApiResponse<Record<string, string>>(response));
       setName(""); setNickname(""); setMessage("Soprannome salvato.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Impossibile salvare il soprannome."); }
