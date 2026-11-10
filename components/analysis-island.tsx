@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, CircleAlert, Eye, EyeOff, LoaderCircle, Pause, Square } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, CircleAlert, LoaderCircle, Pause, Square } from "lucide-react";
 import styles from "./analysis-island.module.css";
 
 export interface AnalysisIslandJob {
@@ -34,13 +34,13 @@ export function AnalysisIsland({ jobs, embedded = false }: { jobs: AnalysisIslan
   const title = multiple && active ? `Tony sta analizzando · ${activeJobs.length} in corso` : statusTitle(job);
   const Icon = active ? LoaderCircle : job.status === "completed" ? Check : job.status === "error" ? CircleAlert : Pause;
 
-  if (hidden) return <button className={`${styles.restore} ${embedded ? styles.embeddedRestore : ""}`} onClick={() => setHidden(false)} aria-label="Mostra avanzamento analisi" title={`${title} · ${percent}%`}><Eye size={17} /><span className={active ? styles.dot : styles.finishedDot} /></button>;
+  if (hidden) return <button className={`${styles.restore} ${embedded ? styles.embeddedRestore : ""}`} onClick={() => setHidden(false)} aria-label="Mostra avanzamento analisi" aria-expanded={false} title={`${title} · ${percent}%`}><ChevronDown size={17} /><span className={active ? styles.dot : styles.finishedDot} /></button>;
   return <aside className={`${styles.island} ${embedded ? styles.embedded : ""}`} aria-label="Avanzamento analisi in background" data-active={active}>
     <div className={styles.summary}>
       <span className={styles.icon}><Icon size={18} className={active ? "spin" : undefined} /></span>
       <div className={styles.copy}><strong role="status" aria-live="polite">{title}</strong><span title={multiple ? `${jobs.length} analisi` : job.label}>{multiple ? `${jobs.length} analisi · ${totals.completed} / ${totals.total} pagine` : job.label}</span></div>
       <strong className={styles.percent}>{percent}%</strong>
-      <button className={styles.hide} onClick={() => setHidden(true)} aria-label="Nascondi avanzamento analisi" title="Nascondi avanzamento"><EyeOff size={16} /></button>
+      <button className={styles.hide} onClick={() => setHidden(true)} aria-label="Riduci avanzamento analisi" aria-expanded={true} title="Riduci avanzamento"><ChevronUp size={16} /></button>
     </div>
     <progress className={styles.progress} max={Math.max(1, totals.total)} value={totals.completed} aria-label="Avanzamento globale analisi" />
     {multiple ? <ul className={styles.jobs} aria-label="Analisi per materia">{jobs.map(item => <li key={item.id} aria-label={`Analisi ${item.label}`}>

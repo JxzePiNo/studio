@@ -2,8 +2,21 @@ import { NextResponse } from "next/server";
 import { requestGuard, apiError } from "@/lib/http";
 import { readDocument } from "@/lib/store";
 import { listSavedQuizzes } from "@/lib/quiz-store";
+import { quizConfigSchema } from "@/lib/quiz";
+import { createDocumentQuiz } from "@/lib/quiz-service";
+import { openaiError } from "@/lib/openai";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 180;
+
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requestGuard(request); if (denied) return denied;
+  try {
+    const config = quizConfigSchema.safeParse(await request.json().catch(() => null));
+    if (!config.success) return NextResponse.json({ error: "Configurazione del quiz non valida." }, { status: 400 });
+    return NextResponse.json(await createDocumentQuiz((await params).id, config.data), { status: 201 });
+  } catch (error) { const known = openaiError(error); return known ? NextResponse.json({ error: known.error }, { status: known.status }) : apiError(error); }
+}
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const denied = await requestGuard(request); if (denied) return denied;

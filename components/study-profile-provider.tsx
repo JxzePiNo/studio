@@ -4,11 +4,13 @@ import { readApiResponse } from "@/lib/api-response";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { GraduationCap, LoaderCircle, LogOut } from "lucide-react";
+import { LoaderCircle, LogOut } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
 import type { StudyProfile } from "@/lib/types";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
+import { StudyProgramPicker } from "./study-program-picker";
+import pickerStyles from "./study-program-picker.module.css";
+import { TonyMascot } from "./mascot/tony-mascot";
 
 type StudyProfileContextValue = {
   profile: StudyProfile | null;
@@ -92,7 +94,7 @@ export function StudyProfileProvider({ children, onSignOut }: { children: ReactN
           {onSignOut && <Button variant="outline" disabled={signingOut} onClick={() => void leaveSession()}>{signingOut ? <LoaderCircle size={16} className="spin" /> : <LogOut size={16} />} {signingOut ? "Uscita in corso..." : "Esci e torna al login"}</Button>}
         </div>
       </>}
-    </main> : <>{children}<StudyOnboarding profile={profile} saveProfile={saveProfile} /></>}
+    </main> : <>{children}<StudyOnboarding key={profile.studyProgram} profile={profile} saveProfile={saveProfile} /></>}
   </StudyProfileContext.Provider>;
 }
 
@@ -108,29 +110,25 @@ function StudyOnboarding({ profile, saveProfile }: Pick<StudyProfileContextValue
   const [error, setError] = useState("");
   const lock = useRef(false);
 
-  async function complete(skip = false) {
-    if (lock.current || (!skip && !studyProgram.trim())) return;
+  async function complete() {
+    if (lock.current || !studyProgram.trim()) return;
     lock.current = true; setSaving(true); setError("");
-    try { await saveProfile(skip ? "" : studyProgram, true); }
+    try { await saveProfile(studyProgram, true); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Salvataggio non riuscito. Riprova."); }
     finally { lock.current = false; setSaving(false); }
   }
 
-  return <Dialog.Root open={!profile.onboardingCompleted}>
+  return <Dialog.Root open={!profile.studyProgram.trim()}>
     <Dialog.Portal>
       <Dialog.Overlay className="account-profile-overlay study-onboarding-overlay" />
-      <Dialog.Content className="account-profile-dialog study-onboarding-dialog" onEscapeKeyDown={event => event.preventDefault()} onPointerDownOutside={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}>
-        <span className="study-onboarding-icon"><GraduationCap size={26} aria-hidden="true" /></span>
-        <Dialog.Title>Cosa studi?</Dialog.Title>
-        <Dialog.Description>Indicaci il tuo corso e il livello di studio, per esempio una laurea magistrale. Useremo questa informazione per adattare le spiegazioni e le risposte del tutor.</Dialog.Description>
-        <form className="study-onboarding-form study-profile-form" onSubmit={event => { event.preventDefault(); void complete(); }}>
-          <label htmlFor="onboarding-study-program">Corso di laurea o ambito di studio</label>
-          <Input id="onboarding-study-program" aria-label="Corso di laurea o ambito di studio" value={studyProgram} onChange={event => setStudyProgram(event.target.value)} maxLength={300} placeholder="Es. Laurea magistrale in Ingegneria informatica" disabled={saving} autoFocus />
-          <p className="study-profile-form-hint">Puoi modificarlo in qualsiasi momento da Account. Il testo verrà incluso nelle richieste al tutor AI.</p>
+      <Dialog.Content className={`account-profile-dialog study-onboarding-dialog ${pickerStyles.dialog}`} onEscapeKeyDown={event => event.preventDefault()} onPointerDownOutside={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}>
+        <div className={pickerStyles.heading}><TonyMascot size={80} /><Dialog.Title>Cosa studi?</Dialog.Title></div>
+        <Dialog.Description>Indicaci il tuo corso di laurea</Dialog.Description>
+        <form className={pickerStyles.form} onSubmit={event => { event.preventDefault(); void complete(); }}>
+          <StudyProgramPicker id="onboarding-study-program" value={studyProgram} onChange={setStudyProgram} disabled={saving} autoFocus />
           {error && <p className="profile-save-status" role="alert">{error}</p>}
           <div className="study-onboarding-actions">
-            <Button type="submit" disabled={saving || !studyProgram.trim()}>{saving ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : null} Inizia a studiare</Button>
-            <Button variant="ghost" onClick={() => void complete(true)} disabled={saving}>Lo imposto dopo</Button>
+            <Button type="submit" disabled={saving || !studyProgram.trim()}>{saving ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : null} Continua</Button>
           </div>
         </form>
       </Dialog.Content>

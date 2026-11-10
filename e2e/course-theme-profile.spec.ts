@@ -52,7 +52,8 @@ test("il nome dell'account rimane salvato e aggiorna il saluto", async ({ page }
   await page.goto("/");
   await page.getByRole("button", { name: "Apri menu account" }).click();
   await page.getByRole("menuitem", { name: "Account", exact: true }).click();
-  await page.getByRole("textbox", { name: "Nome", exact: true }).fill("Tony Tester");
+  await page.getByRole("button", { name: "Modifica nome e cognome" }).click();
+  await page.getByRole("textbox", { name: "Nome e cognome", exact: true }).fill("Tony Tester");
   await page.getByRole("button", { name: "Salva profilo", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Profilo salvato");
   await page.getByRole("button", { name: "Chiudi", exact: true }).click();

@@ -157,10 +157,11 @@ export function StudySessionBar({ session, document }: { session: ReturnType<typ
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, session.hidden, !!document, !!position, move]);
   if (!mounted) return null;
+  if (session.hidden) return <button className={styles.restore} onClick={session.toggleVisibility} aria-label="Mostra riepilogo studio" aria-expanded={false} title="Mostra riepilogo studio"><Eye size={15} /></button>;
   const seconds = Math.floor(session.elapsed / 1000);
   const time = `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
-  return <><div aria-hidden="true" style={{ height: session.hidden ? 26 : 54, pointerEvents: "none" }} />{createPortal(<div ref={floating} className={styles.floating} style={position ? { left: position.x, top: position.y, transform: "none" } : undefined}>
-    {session.hidden ? <button className={styles.restore} onClick={session.toggleVisibility} aria-label="Mostra riepilogo studio" title="Mostra riepilogo studio"><Eye size={15} /></button> : <section className={styles.bar} aria-label="Riepilogo studio">
+  return <><div aria-hidden="true" style={{ height: 54, pointerEvents: "none" }} />{createPortal(<div ref={floating} className={styles.floating} style={position ? { left: position.x, top: position.y, transform: "none" } : undefined}>
+    <section className={styles.bar} aria-label="Riepilogo studio">
     <button className={styles.drag} aria-label="Sposta riepilogo studio" title="Trascina o usa i tasti freccia per spostare" onPointerDown={event => {
       if (event.button !== 0) return;
       const rect = floating.current!.getBoundingClientRect();
@@ -179,7 +180,7 @@ export function StudySessionBar({ session, document }: { session: ReturnType<typ
     <div className={styles.timer}><span role="timer" aria-label="Tempo di studio">{time}</span><button onClick={session.toggleTimer} disabled={session.running} aria-label="Play" title="Avvia o riprendi timer"><Play size={13} /><span className={styles.actionLabel}>Play</span></button><button onClick={session.toggleTimer} disabled={!session.running} aria-label="Pausa" title="Metti in pausa"><Pause size={13} /><span className={styles.actionLabel}>Pausa</span></button><button onClick={session.endSession} disabled={!session.hasActiveSession} aria-label="Fine sessione" title="Termina e salva la sessione"><Square size={12} /><span>Fine sessione</span></button></div>
     {document && <div className={styles.document} title={document.name}><strong>{document.read}<span> / {document.total}</span></strong><span>pag PDF</span></div>}
     {session.errorHistory && <button onClick={() => void session.reloadHistory()} title={session.errorHistory} aria-label="Riprova salvataggio sessioni">Riprova salvataggio</button>}
-    <button className={styles.hide} onClick={session.toggleVisibility} aria-label="Nascondi riepilogo studio" title="Nascondi riepilogo"><EyeOff size={15} /></button>
-  </section>}
+    <button className={styles.hide} onClick={session.toggleVisibility} aria-label="Nascondi riepilogo studio" title="Nascondi riepilogo" aria-expanded={true}><EyeOff size={15} /></button>
+  </section>
   </div>, window.document.body)}</>;
 }

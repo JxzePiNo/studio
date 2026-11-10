@@ -37,7 +37,8 @@ function QuizOpening() {
   </div>;
 }
 
-export function DocumentQuizzes({ documentId, documentName }: { documentId: string; documentName: string }) {
+export type PendingQuiz = { key: string; status: "pending" | "error"; error?: string; onRetry: () => void };
+export function DocumentQuizzes({ documentId, documentName, pending = [], autoOpenQuizId, onAutoOpened }: { documentId: string; documentName: string; pending?: PendingQuiz[]; autoOpenQuizId?: string; onAutoOpened?: () => void }) {
   const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
   const [selected, setSelected] = useState<QuizSummary | null>(null);
   const [action, setAction] = useState<"open" | "rename" | "delete" | null>(null);
@@ -49,6 +50,11 @@ export function DocumentQuizzes({ documentId, documentName }: { documentId: stri
   const mutation = useRef(false);
   const opening = useRef(false);
   const trigger = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!autoOpenQuizId) return;
+    choose({ id: autoOpenQuizId, documentId, title: "Il tuo quiz", questionCount: 0, createdAt: "" }, "open");
+    onAutoOpened?.();
+  }, [autoOpenQuizId]);
   async function request<T>(url: string, method = "GET", body?: unknown, signal?: AbortSignal) {
     const response = await fetch(url, { method, headers: { "Content-Type": "application/json", ...await authHeaders() }, ...(body ? { body: JSON.stringify(body) } : {}), signal });
     return readApiResponse<T>(response);
@@ -70,7 +76,7 @@ export function DocumentQuizzes({ documentId, documentName }: { documentId: stri
     const sequence = ++generation.current;
     if (next === "open") {
       setBusy(true);
-      void request<StudyQuiz>(`/api/documents/${documentId}/quiz/${item.id}`).then(value => { if (generation.current === sequence) setQuiz(value); }).catch(cause => { if (generation.current === sequence) setError(cause.message); }).finally(() => { if (generation.current === sequence) setBusy(false); });
+      void request<StudyQuiz>(`/api/documents/${documentId}/quiz/${item.id}`).then(value => { if (generation.current === sequence) { setQuiz(value); setSelected({ id: value.id, documentId, title: value.title, questionCount: value.questions.length, createdAt: value.createdAt }); } }).catch(cause => { if (generation.current === sequence) setError(cause.message); }).finally(() => { if (generation.current === sequence) setBusy(false); });
     }
   }
   function close() { if (mutation.current) return; generation.current++; setAction(null); setBusy(false); setError(""); }
@@ -92,7 +98,8 @@ export function DocumentQuizzes({ documentId, documentName }: { documentId: stri
   const menuFocus = (event: Event) => { if (opening.current) { event.preventDefault(); opening.current = false; } };
   return <>
     {error && !action && <p role="alert" className="material-error">{error}</p>}
-    {!!quizzes.length && <ul className={styles.list} aria-label={`Quiz di ${documentName}`}>
+    {(!!quizzes.length || !!pending.length) && <ul className={styles.list} aria-label={`Quiz di ${documentName}`}>
+      {pending.map(task => <li className={styles.pending} key={task.key} role="status"><TonyMascot size={42} animated={false} /><div><strong>{task.status === "pending" ? "Quiz in creazione" : "Creazione del quiz non riuscita"}</strong><small>{task.status === "pending" ? "Tony sta preparando le domande. Puoi continuare a studiare." : task.error}</small></div>{task.status === "pending" ? <span className={styles.pendingPulse} aria-label="Generazione in corso" /> : <button type="button" onClick={task.onRetry}>Riprova</button>}</li>)}
       {quizzes.map(item => <li key={item.id}><ContextMenu.Root><ContextMenu.Trigger asChild><div className={styles.row}>
         <button className={styles.open} type="button" onClick={event => choose(item, "open", event.currentTarget)}><ClipboardList size={17} /><span><strong>{item.title}</strong><small>Quiz · {item.questionCount} {item.questionCount === 1 ? "domanda" : "domande"}</small></span></button>
         <DropdownMenu.Root><DropdownMenu.Trigger asChild><button className={styles.more} type="button" aria-label={`Azioni quiz ${item.title}`}><MoreHorizontal size={17} /></button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="material-menu-content" align="end" onCloseAutoFocus={menuFocus}>{menu(item, false)}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
@@ -102,8 +109,8 @@ export function DocumentQuizzes({ documentId, documentName }: { documentId: stri
       <div className={action === "open" ? styles.viewerHeader : undefined}><Dialog.Title>{action === "rename" ? "Rinomina quiz" : action === "delete" ? "Elimina quiz" : selected?.title}</Dialog.Title>
       <Dialog.Description>{action === "delete" ? "Il quiz verrà eliminato. Il PDF originale e gli appunti resteranno disponibili." : `Quiz collegato a ${documentName}`}</Dialog.Description>
       <Dialog.Close asChild><Button variant="ghost" size="icon" className="plan-dialog-close" aria-label="Chiudi quiz" disabled={mutation.current}><X size={18} /></Button></Dialog.Close></div>
-      {action === "open" && (busy ? <QuizOpening /> : quiz && <QuizCard key={quiz.id} quiz={quiz} />)}
-      {action === "rename" && <form className="plan-form" onSubmit={event => { event.preventDefault(); void save(); }}><label>Nome del quiz<Input autoFocus value={title} onChange={event => setTitle(event.target.value)} maxLength={200} required disabled={busy} /></label><Button type="submit" disabled={busy || !title.trim()}>Salva nome</Button></form>}
+      {action === "open" && (busy ? <QuizOpening /> : quiz && <QuizCard key={quiz.id} quiz={quiz} onClose={close} />)}
+      {action === "rename" && <form className="plan-form" onSubmit={event => { event.preventDefault(); void save(); }}><label className="form-field"><span className="form-field-label">Nome del quiz</span><Input autoFocus value={title} onChange={event => setTitle(event.target.value)} maxLength={200} required disabled={busy} /></label><div className="plan-form-actions"><Button type="submit" disabled={busy || !title.trim()}>Salva nome</Button></div></form>}
       {action === "delete" && <div className="plan-form-actions"><Button variant="outline" onClick={close} disabled={busy}>Annulla</Button><Button onClick={() => void save()} disabled={busy}>Elimina quiz</Button></div>}
       {error && <p role="alert" className="plan-error">{error}</p>}
     </Dialog.Content></Dialog.Portal></Dialog.Root>

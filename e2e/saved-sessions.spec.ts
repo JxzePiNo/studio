@@ -11,6 +11,7 @@ test("timer sessions persist with PDF statistics and open from the annual activi
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
   await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: filename, mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
   const document = await (await uploaded).json();
+  await page.getByRole("button", { name: `Apri ${document.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
     await expect(page.locator(".slide-stage canvas")).toBeVisible();
     await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));

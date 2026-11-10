@@ -1,0 +1,151 @@
+/* Night mode changes UI surfaces only: documents, folder artwork and Tony keep their colors. */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #10151f;
+  --foreground: #e7edf6;
+  --card: #19212e;
+  --primary: #739dff;
+  --primary-foreground: #101a32;
+  --secondary: #a1aec2;
+  --muted: #232e3e;
+  --muted-foreground: #a1aec2;
+  --accent: #243656;
+  --border: #354155;
+  --ring: #8caeff;
+  --sidebar: #131a25;
+  --success: #193c2e;
+  --success-foreground: #97dfb4;
+  --warning: #40341d;
+  --warning-foreground: #f0d18b;
+  --destructive: #ff9b9b;
+  --green: var(--primary);
+  --green-dark: #91b1ff;
+  --pale: var(--accent);
+}
+html[data-theme="dark"] .main-shell[data-course-theme="true"] {
+  --primary: color-mix(in oklab, var(--course-color) 65%, #ffffff);
+  --primary-foreground: #ffffff;
+  --accent: color-mix(in oklab, var(--course-color) 20%, #19212e);
+  --ring: color-mix(in oklab, var(--course-color) 60%, #ffffff);
+  --green-dark: color-mix(in oklab, var(--primary) 85%, #ffffff);
+}
+html[data-theme="dark"] .sidebar[data-slot="sidebar"] {
+  --sidebar: #131a25;
+  --sidebar-foreground: #e7edf6;
+  --sidebar-muted: #a1aec2;
+  --sidebar-accent: #243656;
+}
+html[data-theme="dark"] .app-shell:not(.reader-active) .main-shell { background: #10151f; }
+html[data-theme="dark"] .app-shell:not(.reader-active) .main-shell::before { opacity: .17; }
+html[data-theme="dark"] .course-ambient { opacity: .17; }
+html[data-theme="dark"] .sidebar .folder-item .folder-icon { color: color-mix(in oklab,var(--course-accent) 65%,#ffffff); }
+html[data-theme="dark"] :is(.brand, .takeaway p, .takeaway > div > span) { color: var(--foreground); }
+html[data-theme="dark"] :is(.materials-card.materials-card, .materials-card .materials-empty, .profile-menu-content, .workspace-back.ui-button, .reader-floating-back.ui-button, .chat-reader-settings.ui-button, .settings-modal, .explanation-panel, .slide-panel, .reader-splitter-toggle) { background: var(--card); color: var(--foreground); border-color: var(--border); }
+html[data-theme="dark"] :is(.upload-zone, .document-analysis, .keyboard-tip, .language-tag, .reader-splitter, .example-box, .explanation-content .takeaway) { background: var(--sidebar); border-color: var(--border); color: var(--foreground); }
+html[data-theme="dark"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select) { color: var(--foreground); background-color: var(--background); border-color: var(--border); }
+html[data-theme="dark"] :is(input, textarea)::placeholder { color: var(--muted-foreground); }
+html[data-theme="dark"] :is(.reader-active .overview, .reader-active .concept p, .reader-active .example-box p, .reader-active .chat-analysis-message .overview, .reader-active .markdown-content.overview, .settings-section > p, .glossary > p, .glossary-word > span, .glossary-word small, .batch-progress > div, .batch-progress > small, .settings-modal p) { color: var(--muted-foreground); }
+html[data-theme="dark"] :is(.glossary-word strong, .batch-progress strong, .deepen-button) { color: var(--primary); }
+html[data-theme="dark"] :is(kbd, code, pre) { color: var(--foreground); background-color: var(--muted); border-color: var(--border); }
+html[data-theme="dark"] :is(.modal-backdrop, .account-profile-overlay, .plan-overlay) { background: #050810ad; }
+html[data-theme="dark"] .viewer-busy { background: #10151fe6; color: var(--foreground); }
+html[data-theme="dark"] .drop-overlay { background: #18243af5; color: var(--foreground); border-color: var(--ring); }
+html[data-theme="dark"] .drop-overlay p { color: var(--muted-foreground); }
+html[data-theme="dark"] .skeleton { background: linear-gradient(90deg,#232e3e,#354155,#232e3e); background-size: 200% 100%; }
+html[data-theme="dark"] :is(.api-status, .delete-confirm) { background: var(--warning); color: var(--warning-foreground); border-color: #6a5630; }
+html[data-theme="dark"] :is(.api-status.ready, .page-read-toggle[aria-pressed="true"], .material-analysis-badge.is-analyzed) { background: var(--success); color: var(--success-foreground); border-color: #3d7257; }
+html[data-theme="dark"] .material-analysis-badge.is-partial { background: var(--warning); color: var(--warning-foreground); border-color: #6a5630; }
+html[data-theme="dark"] .material-analysis-badge.is-pending { background: #44292e; color: #ffb2ad; border-color: #79434b; }
+html[data-theme="dark"] :is(.error-text, .error-banner, .plan-error, .course-analysis-error) { color: var(--destructive); }
+html[data-theme="dark"] .reader-active .chat-pane .chat-composer { border-color: var(--border); }
+html[data-theme="dark"] .reader-active .chat-pane .chat-composer textarea.chat-composer-textarea { background: transparent; }
+html[data-theme="dark"] .reader-active .chat-composer .chat-send:hover { background: #c4d1e6; }
+html[data-theme="dark"] .reader-active .markdown-content blockquote { color: #b9c8bc; border-color: #547061; }
+html[data-theme="dark"] .reader-active .markdown-content :is(.markdown-code-block, th, :not(pre) > code) { background: var(--sidebar); color: var(--foreground); border-color: var(--border); }
+html[data-theme="dark"] .reader-active .markdown-code-header { background: var(--muted); color: var(--muted-foreground); border-color: var(--border); }
+html[data-theme="dark"] .reader-active .markdown-content pre { background: transparent; color: var(--foreground); }
+html[data-theme="dark"] .reader-active .markdown-content :is(.hljs-keyword,.hljs-selector-tag,.hljs-literal) { color: #d7afff; }
+html[data-theme="dark"] .reader-active .markdown-content :is(.hljs-string,.hljs-attr) { color: #9addb4; }
+html[data-theme="dark"] .reader-active .markdown-content :is(.hljs-number,.hljs-built_in) { color: #f4bb8d; }
+html[data-theme="dark"] .reader-active .markdown-content :is(.hljs-title,.hljs-function) { color: #96caff; }
+
+/* Match stable CSS Module local-name suffixes in development and production.
+   Folder paper and palette swatches are deliberately untouched. */
+html[data-theme="dark"] [class*="_top"],
+html[data-theme="dark"] [class*="_search"] > input,
+html[data-theme="dark"] [class*="_sort"] select,
+html[data-theme="dark"] [class*="_contextMenu"],
+html[data-theme="dark"] [class*="_stats"] article,
+html[data-theme="dark"] [class*="_list"] > li,
+html[data-theme="dark"] [class*="_bar"],
+html[data-theme="dark"] [class*="_restore"],
+html[data-theme="dark"] [class*="_island"],
+html[data-theme="dark"] [class*="_help"],
+html[data-theme="dark"] [class*="_guide"],
+html[data-theme="dark"] [class*="_bubble"],
+html[data-theme="dark"] [class*="_googleButton"],
+html[data-theme="dark"] [class*="_row"],
+html[data-theme="dark"] [class*="_viewerHeader"],
+html[data-theme="dark"] [class*="_more"]:hover,
+html[data-theme="dark"] [class*="_card"] { background: var(--card); color: var(--foreground); border-color: var(--border); }
+html[data-theme="dark"] [class*="_tag"] { background: var(--muted); color: var(--muted-foreground); }
+html[data-theme="dark"] [class*="_deleteButton"] { color: var(--destructive); }
+html[data-theme="dark"] section:has([class*="_weekdays"]) :is(p, small),
+html[data-theme="dark"] section:has([class*="_weekdays"]) [class*="_weekdays"],
+html[data-theme="dark"] section:has([class*="_weekdays"]) [class*="_month"],
+html[data-theme="dark"] section:has([class*="_weekdays"]) [class*="_footer"] { color: var(--muted-foreground); }
+html[data-theme="dark"] section:has([class*="_weekdays"]) p strong { color: var(--success-foreground); }
+html[data-theme="dark"] section:has([class*="_weekdays"]) [class*="_active"],
+html[data-theme="dark"] .plan-dialog [class*="_summary"] { background: var(--success); color: var(--success-foreground); border-color: #3d7257; }
+html[data-theme="dark"] [class*="_cell"],
+html[data-theme="dark"] [class*="_legend"] i { background: #283345; }
+html[data-theme="dark"] section:has([class*="_weekdays"]) [data-level="1"] { background: #2d513e; }
+html[data-theme="dark"] section:has([class*="_weekdays"]) [data-level="2"] { background: #407d54; }
+html[data-theme="dark"] section:has([class*="_weekdays"]) [data-level="3"] { background: #6cac72; }
+html[data-theme="dark"] section:has([class*="_weekdays"]) [data-level="4"] { background: #a0d78e; }
+html[data-theme="dark"] [class*="_error"] { color: var(--destructive); background: #44292e; border-color: #79434b; }
+
+/* Quiz state colors remain distinct in the dark surface. */
+html[data-theme="dark"] :is([class*="_player"], [class*="_card"], [class*="_dialog"]) :is(select, textarea),
+html[data-theme="dark"] [class*="_player"],
+html[data-theme="dark"] [class*="_prompt"],
+html[data-theme="dark"] [class*="_letter"],
+html[data-theme="dark"] [class*="_choices"] label,
+html[data-theme="dark"] [class*="_options"] label,
+html[data-theme="dark"] [class*="_topics"] label { background: var(--card); color: var(--foreground); border-color: var(--border); }
+html[data-theme="dark"] [class*="_playerFooter"] { background: var(--sidebar); }
+html[data-theme="dark"] [class*="_choices"] label:hover { background: var(--muted); }
+html[data-theme="dark"] :is([class*="_player"], [class*="_card"], [class*="_dialog"]) label:is([data-selected="true"], :has(input:checked):not([data-correct]):not([data-wrong])) { background: var(--accent); border-color: var(--ring); }
+html[data-theme="dark"] [class*="_solution"],
+html[data-theme="dark"] :is([class*="_player"], [class*="_card"], [class*="_dialog"]) label[data-correct="true"],
+html[data-theme="dark"] :is([class*="_player"], [class*="_card"], [class*="_dialog"])[data-feedback="correct"] { background: var(--success); border-color: #4c8c65; }
+html[data-theme="dark"] :is([class*="_player"], [class*="_card"], [class*="_dialog"]) label[data-wrong="true"],
+html[data-theme="dark"] :is([class*="_player"], [class*="_card"], [class*="_dialog"])[data-feedback="wrong"] { background: #44292e; border-color: #aa626b; }
+html[data-theme="dark"] [class*="_solution"] > strong,
+html[data-theme="dark"] [class*="_feedback"] > strong,
+html[data-theme="dark"] :is([class*="_player"], [class*="_card"], [class*="_dialog"]) label[data-correct="true"] [class*="_letter"] { color: var(--success-foreground); }
+html[data-theme="dark"] :is([class*="_player"], [class*="_card"], [class*="_dialog"])[data-feedback="wrong"] [class*="_feedback"] > strong,
+html[data-theme="dark"] :is([class*="_player"], [class*="_card"], [class*="_dialog"]) label[data-wrong="true"] [class*="_letter"] { color: #ffb2ad; }
+html[data-theme="dark"] [class*="_continue"]:disabled { background: var(--muted); border-color: var(--border); color: var(--muted-foreground); }
+html[data-theme="dark"] [class*="_playerProgress"]::-webkit-progress-bar { background: var(--muted); }
+html[data-theme="dark"] :is(.account-gate, .reader-active .document-header, .reader-active .panel-toolbar) { background: var(--sidebar); color: var(--foreground); border-color: var(--border); }
+html[data-theme="dark"] .account-control { background: var(--card); border-color: var(--border); }
+html[data-theme="dark"] .account-control button { color: var(--primary); }
+html[data-theme="dark"] .ui-button-destructive { color: #35141b; }
+html[data-theme="dark"] .reader-back:hover { background: var(--muted); }
+html[data-theme="dark"] .reader-splitter-toggle:hover { background: var(--accent); color: var(--primary); }
+html[data-theme="dark"] .settings-section input[type="range"],
+html[data-theme="dark"] [class*="_period"] input { accent-color: var(--primary); }
+
+/* Reader preparation uses the same surface as the tutor once it is ready. */
+html[data-theme="dark"] .reader-active [class*="_chat"]:has(> strong) { background: var(--card); color: var(--muted-foreground); }
+html[data-theme="dark"] [class*="_retry"] { background: var(--card); color: var(--primary); border-color: var(--border); }
+
+/* PDF controls and translations share a complete dark surface, collapsed or expanded. */
+html[data-theme="dark"] .reader-active :is(.bottom-panel, .bottom-panel-content, .glossary) { background:var(--card); color:var(--foreground); border-color:var(--border); }
+html[data-theme="dark"] .reader-active :is(.bottom-panel-handle, .bottom-panel .slide-tools) { background:var(--sidebar); color:var(--muted-foreground); border-color:var(--border); }
+html[data-theme="dark"] .bottom-panel-grip > span { background:var(--secondary); }
+html[data-theme="dark"] :is(.bottom-panel-grip > small, .bottom-panel-handle > button) { color:var(--muted-foreground); }
+html[data-theme="dark"] .bottom-panel-handle > button:hover { background:var(--accent); color:var(--primary); }
+html[data-theme="dark"] .reader-active .glossary-word { border-color:var(--border); }
+html[data-theme="dark"] .reader-active .language-tag { background:var(--muted); color:var(--muted-foreground); border-color:var(--border); }

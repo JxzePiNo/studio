@@ -1,5 +1,10 @@
-.dock { position: fixed; z-index: 46; top: 12px; left: 50%; transform: translateX(-50%); width: min(440px, calc(100vw - 100px)); display: flex; flex-direction: column; align-items: center; gap: 9px; pointer-events: none; }
+.dock { position: fixed; z-index: 46; top: 12px; left: 50%; transform: translateX(-50%); width: min(440px, calc(100vw - 100px)); display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 9px; pointer-events: none; }
 .dock > * { pointer-events: auto; }
+.dock > :is(aside, section), .dock > [aria-hidden="true"] { flex:0 0 100%; width:100%; }
+.dock > [aria-hidden="true"] { order:0; }
+.dock > :is(aside, section) { order:1; }
+.dock > button, .dock > [data-collapsed="true"] { order:3; flex:0 0 auto; width:auto; }
+.dock > button { min-width:32px; }
 .floating { position: fixed; z-index: 47; top: 12px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 16px); }
 .bar { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 13px; max-width: 100%; border: 1px solid var(--border); border-radius: 19px; background: #ffffff; backdrop-filter: blur(16px); color: var(--foreground); box-shadow: 0 7px 26px #26372216, 0 1px 4px #26372208; }
 .count,.document { display: grid; gap: 2px; white-space: nowrap; }
@@ -16,7 +21,7 @@
 .bar .drag:active { cursor: grabbing; }
 .timer button { display: flex; width: auto; gap: 4px; padding: 0 7px; font-size: 10px; white-space: nowrap; height: 28px; }
 .bar .hide { background: transparent; color: var(--muted-foreground); }
-.restore { width: 32px; height: 26px; border: 1px solid var(--border); background: #fff; box-shadow: 0 5px 16px #26372212; }
+.restore { width: 32px; height: 34px; border: 1px solid var(--border); background: var(--card); box-shadow: 0 5px 16px #26372212; }
 @media(max-width:600px) { .dock { top: 8px; width: calc(100vw - 86px); } .bar { width: 100%; gap: 8px; padding: 9px; border-radius: 16px; } .timer { gap: 3px; padding-left: 7px; } .timer > span { font-size: 11px; } .count strong,.document strong { font-size: 12px; } .count > span,.document > span { font-size: 8px; } .bar button { width: 22px; height: 24px; } }
 @media(max-width:600px) { .floating { top: 56px; } .bar { gap: 5px; padding: 7px; } .timer { gap: 3px; padding-left: 5px; } .timer button { width: auto; padding: 0 4px; font-size: 9px; } .timer .actionLabel { display: none; } .bar .drag { width: 14px; } }
 @media(max-width:380px) { .bar { flex-wrap: wrap; } .document { display: none; } }

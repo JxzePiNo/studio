@@ -17,6 +17,7 @@ test("PDF, note persistenti, navigazione e lettura con chat responsive", async (
   const response = await upload;
   expect(response.status()).toBe(201);
   const doc = await response.json() as StudyDocument;
+  await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
     await expect(page.getByRole("heading", { name: "Introduzione al machine learning" })).toBeVisible();
     await expect(page.locator(".sidebar")).toHaveCount(0);
@@ -127,6 +128,7 @@ test("mostra spiegazione e glossario della slide selezionata con AI simulata", a
   const upload = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
   await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: "Introduzione al machine learning.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
   const doc = await (await upload).json() as StudyDocument;
+  await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
     await page.getByRole("button", { name: "Mostra pannello inferiore" }).click();
     await page.getByRole("button", { name: "Analizza questa pagina", exact: true }).click();

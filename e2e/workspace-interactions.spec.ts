@@ -1,0 +1,53 @@
+import { test, expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { formatCourseName } from "../lib/course-name";
+
+test("creation/upload stay in place; course/file menus and night mode persist", async ({ page, request }) => {
+  await page.goto("/");
+  await expect(page).toHaveTitle("studio.");
+  const name = `Interazioni ${Date.now()}`;
+  await page.getByRole("button", { name: "Crea esame", exact: true }).click();
+  await page.getByRole("textbox", { name: "Nome esame" }).fill(name);
+  const creation = page.waitForResponse(response => response.url().endsWith("/api/folders") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Crea", exact: true }).click();
+  const folder = await (await creation).json();
+  const card = page.locator(".exam-overview-card").filter({ hasText: formatCourseName(name) });
+  try {
+    await expect(card).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
+    await card.click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Rinomina", exact: true }).click();
+    const settings = page.getByRole("dialog", { name: `Impostazioni ${formatCourseName(name)}`, exact: true });
+    await settings.locator(".course-title-input").fill(`${name} rinominato`);
+    await settings.getByRole("button", { name: "Salva impostazioni", exact: true }).click();
+    const renamed = `${name} rinominato`;
+    await page.locator(".exam-overview-card").filter({ hasText: formatCourseName(renamed) }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Apri corso", exact: true }).click();
+    const bytes = await readFile("public/esempio.pdf");
+    await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles(["Primo", "Secondo"].map(item => ({ name: `${item}.pdf`, mimeType: "application/pdf", buffer: bytes })));
+    await expect(page.locator(".material-row")).toHaveCount(2);
+    await expect(page).toHaveURL(`/esami/${folder.id}`);
+    await expect(page.locator(".slide-stage canvas")).toHaveCount(0);
+    await page.locator(".material-row").filter({ has: page.getByRole("button", { name: "Apri Primo", exact: true }) }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Elimina file", exact: true }).click();
+    await page.getByRole("dialog", { name: "Elimina file", exact: true }).getByRole("button", { name: "Elimina file", exact: true }).click();
+    await expect(page.locator(".material-row")).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Apri Secondo", exact: true })).toBeVisible();
+    await page.locator(".sidebar .folder-item").filter({ hasText: formatCourseName(renamed) }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Impostazioni", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: `Impostazioni ${formatCourseName(renamed)}`, exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Chiudi pianificazione" }).click();
+    await page.getByRole("button", { name: "Apri menu account" }).click();
+    await page.getByRole("menuitemcheckbox", { name: /Modalità notte/ }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await expect(page.locator(".main-shell")).toHaveCSS("background-color", "rgb(16, 21, 31)");
+    await page.getByRole("button", { name: "Apri menu account" }).click();
+    await page.getByRole("menuitem", { name: "Account", exact: true }).click();
+    await expect(page.getByRole("dialog").getByRole("textbox", { name: "Nome e cognome" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Modifica nome e cognome" }).click();
+    await expect(page.getByRole("textbox", { name: "Nome e cognome" })).toBeFocused();
+    await page.screenshot({ path: "test-results/night-account.png", fullPage: true });
+  } finally { await request.delete(`/api/folders/${folder.id}`); }
+});

@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { onAuthStateChanged, type User } from "firebase/auth";
+import { browserAuth, firebaseEnabled } from "@/lib/firebase-client";
+import { useStudyProfile } from "./study-profile-provider";
+import { ChatMessageAuthor } from "./chat-message-author";
 import { ClipboardList, ArrowUp, FileText, LoaderCircle, Settings2, Sparkles } from "lucide-react";
 import type { ChatMessage, Explanation } from "@/lib/types";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { MarkdownContent } from "./markdown-content";
-import { QuizCard } from "./quiz-card";
 import { QuizDialog } from "./quiz-dialog";
 import { quizRequestSummary } from "@/lib/quiz";
 import { ExplanationMessage } from "./explanation-message";
@@ -50,13 +53,20 @@ function BatchProgress({ progress, running, onStop }: { progress?: AnalysisProgr
 }
 
 export function StudyChat({ id, controller, documentName = "PDF", page, initial, explanation, onAnalyze, onAnalyzeAll, analyzing = false, batchRunning = false, analysisBusy = false, configured = true, disabled = false, analysisProgress, onStopAnalysis, onSettings }: StudyChatProps) {
+  const { profile } = useStudyProfile();
+  const [user, setUser] = useState<User | null>(null);
+  useEffect(() => {
+    if (!firebaseEnabled) return;
+    return onAuthStateChanged(browserAuth(), setUser);
+  }, []);
+  const authorName = profile?.displayName?.trim() || user?.displayName || "Tu";
   const session = controller.sessions[chatSessionKey(id, page)];
   const [question, setQuestion] = useState(() => session?.status === "error" ? session.question : "");
   const [quizDialog, setQuizDialog] = useState(false);
   const [wholeDocument, setWholeDocument] = useState(false);
   const messages = session?.messages || initial;
   const busy = session?.status === "pending";
-  const pendingQuestion = busy ? session.question : "";
+  const pendingQuestion = busy || session?.streamingText ? session?.question : "";
   const error = session?.error || "";
   const [scrollRequest, setScrollRequest] = useState(0);
   const lock = useRef(false);
@@ -64,6 +74,7 @@ export function StudyChat({ id, controller, documentName = "PDF", page, initial,
   const mounted = useRef(true);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const scrollArea = useRef<HTMLDivElement>(null);
+  const questionInputId = useId();
   const scopeHintId = useId();
   const errorId = useId();
   const conversation = messages.filter(message => message.source !== "analysis");
@@ -96,7 +107,8 @@ export function StudyChat({ id, controller, documentName = "PDF", page, initial,
     lock.current = true;
     setScrollRequest(value => value + 1);
     try {
-      const success = await controller.send({ id, page, name: documentName, question: submittedQuestion, scope: wholeDocument ? "document" : "slide" });
+      const quizIntent = /^\s*(?:puoi\s+|mi\s+|per favore\s+)*(?:genera\w*|crea\w*|fammi|prepara\w*|vorrei|voglio)\b[\s\S]{0,100}\bquiz\b/i.test(submittedQuestion) || /^\s*(?:un\s+)?quiz\b/i.test(submittedQuestion);
+      const success = await controller.send({ id, page, name: documentName, question: submittedQuestion, scope: wholeDocument ? "document" : "slide", quizIntent });
       if (!mounted.current) return;
       if (success) { setQuestion(""); setScrollRequest(value => value + 1); }
     } finally {
@@ -130,17 +142,18 @@ export function StudyChat({ id, controller, documentName = "PDF", page, initial,
           {!configured && <p className="chat-analysis-configure">Configura OpenAI dalle impostazioni della lettura per iniziare.</p>}
         </div>}
         <div className="chat-conversation" aria-live="polite" aria-relevant="additions text">
-          {conversation.map((message, index) => <article className={`chat-message ${message.role}`} key={`conversation-${index}`}><strong>{message.role === "user" ? "Tu" : "Tutor"}</strong>{message.role === "assistant" ? message.quiz ? <QuizCard key={message.quiz.id} quiz={message.quiz} /> : <MarkdownContent>{message.content}</MarkdownContent> : <p>{message.content}</p>}{message.role === "assistant" && !message.quiz && <Button variant="ghost" size="sm" className="deepen-button" disabled={busy || disabled || !configured} onClick={() => void send(`Approfondisci questa spiegazione con passaggi ed esempi: ${message.content.slice(0, 2800)}`)}><Sparkles size={14} /> Approfondisci</Button>}</article>)}
-          {pendingQuestion && <article className="chat-message user is-pending"><strong>Tu</strong><p>{pendingQuestion}</p></article>}
-          {busy && <p className="chat-thinking" role="status"><LoaderCircle className="spin" size={15} aria-hidden="true" /> Sto approfondendo il materiale…</p>}
+          {conversation.filter(message => !message.quiz).map((message, index) => <article className={`chat-message ${message.role}`} key={`conversation-${index}`}><ChatMessageAuthor role={message.role} name={authorName} photoURL={user?.photoURL} />{message.role === "assistant" ? <MarkdownContent>{message.content}</MarkdownContent> : <p>{message.content}</p>}{message.role === "assistant" && <Button variant="ghost" size="sm" className="deepen-button" disabled={busy || disabled || !configured} onClick={() => void send(`Approfondisci questa spiegazione con passaggi ed esempi: ${message.content.slice(0, 2800)}`)}><Sparkles size={14} /> Approfondisci</Button>}</article>)}
+          {pendingQuestion && <article className="chat-message user is-pending"><ChatMessageAuthor role="user" name={authorName} photoURL={user?.photoURL} /><p>{pendingQuestion}</p></article>}
+          {session?.streamingText && session.kind !== "quiz" && <article className="chat-message assistant is-streaming"><ChatMessageAuthor /><MarkdownContent>{session.streamingText}</MarkdownContent></article>}
+          {busy && !session?.streamingText && <p className="chat-thinking" role="status"><LoaderCircle className="spin" size={15} aria-hidden="true" /> Sto approfondendo il materiale…</p>}
         </div>
       </div>
     </div>
-    <div className="chat-composer-area">
+    <div className="chat-composer-area"><label className="form-field-label chat-question-label" htmlFor={questionInputId}>Domanda al tutor</label>
       {showProgress && <BatchProgress progress={analysisProgress} running={batchRunning} onStop={onStopAnalysis} />}
       {error && <p className="chat-error" id={errorId} role="alert">{error}</p>}
       <form className="chat-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
-        <Textarea ref={textarea} className="chat-composer-textarea" aria-label="Domanda al tutor" aria-describedby={error ? errorId : undefined} value={question} onChange={event => setQuestion(event.target.value)} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onKeyDown={event => {
+        <Textarea id={questionInputId} ref={textarea} className="chat-composer-textarea" aria-label="Domanda al tutor" aria-describedby={error ? errorId : undefined} value={question} onChange={event => setQuestion(event.target.value)} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onKeyDown={event => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !composing.current && event.nativeEvent.keyCode !== 229) {
             event.preventDefault(); void send();
           }

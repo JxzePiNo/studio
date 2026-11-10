@@ -17,8 +17,11 @@ export default function AccountGate() {
     catch { setError("Configurazione Firebase incompleta. Controlla le variabili NEXT_PUBLIC_FIREBASE_*."); setReady(true); }
   }, []);
   async function login() {
+    if (busy) return;
     setBusy(true); setError("");
     try {
+      // Start directly from the user's tap, without an async preflight or a
+      // redirect fallback: both can break sign-in on mobile browsers.
       const result = await signInWithPopup(browserAuth(), new GoogleAuthProvider());
       setUser(result.user);
       setReady(true);
@@ -27,11 +30,11 @@ export default function AccountGate() {
       const code = (error as { code?: string }).code;
       const messages: Record<string, string> = {
         "auth/popup-blocked": "Il browser ha bloccato la finestra Google. Consenti i popup per questo sito e riprova.",
-        "auth/popup-closed-by-user": "La finestra Google è stata chiusa prima di completare l’accesso. Riprova.",
+        "auth/popup-closed-by-user": "Accesso Google non completato. Chiudi la finestra Google e riprova dal sito. Se il problema continua, apri il sito direttamente in Safari o Chrome.",
         "auth/unauthorized-domain": "Questo indirizzo non è autorizzato in Firebase Authentication. Aggiungi il dominio nelle impostazioni del progetto.",
         "auth/operation-not-allowed": "Il provider Google non è abilitato in Firebase Authentication.",
         "auth/network-request-failed": "Connessione a Firebase non riuscita. Controlla la connessione e riprova.",
-        "auth/web-storage-unsupported": "Il browser non consente di salvare la sessione. Abilita i dati del sito e riprova.",
+        "auth/web-storage-unsupported": "Il browser non riesce a conservare la sessione di accesso. Apri il sito direttamente in Safari o Chrome e riprova.",
       };
       setError((code && messages[code]) || `Accesso non completato${code ? ` (${code})` : ""}. Riprova.`);
     }

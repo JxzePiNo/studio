@@ -1,0 +1,15 @@
+.picker { display:grid; gap:10px; min-width:0; }
+.search { position:relative; }
+.search > svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--muted-foreground); pointer-events:none; }
+.search input { width:100%; padding-left:36px; }
+.results { overflow:hidden; }
+.list { max-height:min(270px,34dvh); overflow-y:auto; overscroll-behavior:contain; }
+.option { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px; border-radius:7px; font-size:13px; line-height:1.5; cursor:pointer; overflow-wrap:anywhere; }
+.option:hover, .active { background:var(--accent); }
+.option[aria-selected=true] { color:var(--primary); }
+.option > svg { flex-shrink:0; }
+.dialog { max-height:calc(100dvh - 32px); overflow-y:auto; }
+.heading { display:flex; align-items:center; gap:18px; }
+.heading h2 { margin:0; }
+.form { display:grid; gap:16px; margin-top:22px; }
+@media (max-width:540px) { .list { max-height:24dvh; } }

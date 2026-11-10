@@ -41,6 +41,7 @@ test("tutor Markdown renders lists, tables, highlighted code and formulas safely
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
   await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
   const doc = await (await uploaded).json();
+  await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
     const initial = page.locator(".chat-analysis-message");
     await expect(initial.locator(".overview strong")).toHaveText("sintesi");

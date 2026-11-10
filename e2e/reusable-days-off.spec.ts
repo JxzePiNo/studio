@@ -28,8 +28,8 @@ test("riutilizza le pause nella creazione e nella pianificazione senza cambiare 
   const target = await (await created).json() as ExamFolder;
   expect(target.nonStudyWeekdays).toEqual([0]);
   expect(target.nonStudyDates).toEqual(["2030-12-25"]);
-  await expect(page.locator(".selected-exam")).toContainText(formatCourseName(targetName));
-  await page.getByRole("button", { name: "Torna alla home", exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("button", { name: `Apri esame ${targetName}`, exact: true })).toBeVisible();
   await page.getByRole("button", { name: `Impostazioni ${targetName}`, exact: true }).click();
   const plan = page.getByRole("dialog", { name: `Impostazioni ${formatCourseName(targetName)}`, exact: true });
   await plan.locator("summary").filter({ hasText: "Giorni in cui non studio" }).click();

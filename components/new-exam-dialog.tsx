@@ -68,7 +68,7 @@ export function NewExamDialog({ open, onOpenChange, onCreated, folders = [] }: N
       onOpenChange(false);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Operazione non riuscita. Riprova.";
-      setError(created.current ? `L’esame è stato creato. Premi “Apri esame” per riprovare ad aprirlo. ${message}` : message);
+      setError(created.current ? `L’esame è stato creato. Riprova ad aggiornare l’elenco. ${message}` : message);
     } finally { setBusy(false); requestRunning.current = false; }
   }
 
@@ -80,8 +80,8 @@ export function NewExamDialog({ open, onOpenChange, onCreated, folders = [] }: N
         <div className="new-exam-heading"><span className="new-exam-icon"><FolderPlus size={23} /></span><Dialog.Title>Nuovo esame</Dialog.Title></div>
         <Dialog.Description className="new-exam-description">Dai un nome al corso e scegli quando sostenere l’esame.</Dialog.Description>
         <form className="new-exam-form" onSubmit={event => { event.preventDefault(); void create(); }}>
-          <Input ref={titleInput} className="new-exam-title" aria-label="Nome esame" placeholder="Nome del corso" maxLength={100} value={name} onChange={event => setName(event.target.value)} disabled={busy || !!created.current} required />
-          <label>CFU <span className="muted">(facoltativi)</span><Input type="number" min={0.5} max={120} step={0.5} aria-label="CFU" placeholder="Es. 6" value={cfu} onChange={event => setCfu(event.target.value)} disabled={busy || !!created.current} /></label>
+          <label className="form-field"><span className="form-field-label">Nome del corso</span><Input ref={titleInput} className="new-exam-title course-title-input" aria-label="Nome esame" placeholder="Nome del corso" maxLength={100} value={name} onChange={event => setName(event.target.value)} disabled={busy || !!created.current} required /></label>
+          <label className="form-field"><span className="form-field-label">CFU <span className="form-field-optional">(facoltativi)</span></span><Input type="number" min={0.5} max={120} step={0.5} aria-label="CFU" placeholder="Es. 6" value={cfu} onChange={event => setCfu(event.target.value)} disabled={busy || !!created.current} /></label>
           <div className="new-exam-date"><div id={dateLabelId} className="new-exam-date-label">Data dell’esame <span>Facoltativa</span></div>
             <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
               <PopoverTrigger asChild><Button variant="outline" className="new-exam-date-trigger" aria-labelledby={dateLabelId} disabled={busy || !!created.current}><CalendarDays size={18} /><span>{date ? new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric" }).format(date) : "Scegli una data"}</span></Button></PopoverTrigger>
@@ -91,7 +91,7 @@ export function NewExamDialog({ open, onOpenChange, onCreated, folders = [] }: N
           </div>
           <StudyAvailability key={String(open)} folders={folders} nonStudyWeekdays={nonStudyWeekdays} nonStudyDates={nonStudyDates} onWeekdaysChange={setNonStudyWeekdays} onDatesChange={setNonStudyDates} disabled={busy || !!created.current} />
           {error && <p className="plan-error" role="alert">{error}</p>}
-          <div className="new-exam-actions"><Dialog.Close asChild><Button variant="outline" disabled={busy}>Annulla</Button></Dialog.Close><Button type="submit" disabled={busy || !name.trim()}>{busy && <LoaderCircle className="spin" size={16} />}{busy ? "Creazione…" : created.current ? "Apri esame" : "Crea"}</Button></div>
+          <div className="new-exam-actions"><Dialog.Close asChild><Button variant="outline" disabled={busy}>Annulla</Button></Dialog.Close><Button type="submit" disabled={busy || !name.trim()}>{busy && <LoaderCircle className="spin" size={16} />}{busy ? "Creazione…" : created.current ? "Riprova" : "Crea"}</Button></div>
         </form>
       </Dialog.Content>
     </Dialog.Portal>

@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, Check, RotateCcw, Trophy, X } from "lucide-react";
+import { ArrowRight, Check, Trophy, X } from "lucide-react";
+import { authHeaders } from "@/lib/firebase-client";
 import type { StudyQuiz } from "@/lib/quiz";
+import { quizResult } from "@/lib/quiz-score";
 import { MarkdownContent } from "./markdown-content";
 import { TonyMascot } from "./mascot/tony-mascot";
 import styles from "./quiz.module.css";
 
-export function QuizCard({ quiz }: { quiz: StudyQuiz }) {
+export function QuizCard({ quiz, onClose }: { quiz: StudyQuiz; onClose: () => void }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [index, setIndex] = useState(0);
   const [checked, setChecked] = useState(false);
@@ -26,16 +28,37 @@ export function QuizCard({ quiz }: { quiz: StudyQuiz }) {
   useEffect(() => {
     if (ready) { try { localStorage.setItem(`studio-quiz:${quiz.id}`, JSON.stringify({ answers, index, checked, finished })); } catch {} }
   }, [answers, index, checked, finished, ready, quiz.id]);
+  const [expanded, setExpanded] = useState<Record<string, string>>({});
+  const [explanationState, setExplanationState] = useState<"idle" | "loading" | "error">("idle");
+  const [retry, setRetry] = useState(0);
   const total = quiz.questions.length;
   const question = quiz.questions[index];
   const closed = quiz.questions.filter(item => item.type !== "open");
   const score = quiz.questions.filter((item, number) => item.type !== "open" && answers[number] === String(item.correctIndex)).length;
   const open = question?.type === "open";
   const correct = !open && answers[index] === String(question?.correctIndex);
-  const mood = finished ? "happy" : checked && !open ? correct ? "happy" : "wrong" : "neutral";
+  const { percentage, grade, passed } = quizResult(score, closed.length);
+  const mood = finished ? closed.length ? passed ? "happy" : "wrong" : "neutral" : checked && !open ? correct ? "happy" : "wrong" : "neutral";
   const selected = answers[index] || "";
   const canContinue = open ? !!selected.trim() : question?.options.some((_, optionIndex) => selected === String(optionIndex));
-  function restart() { setAnswers({}); setIndex(0); setChecked(false); setFinished(false); }
+  const explanationKey = `${quiz.id}:${index}:${selected}`;
+  useEffect(() => {
+    if (!ready || finished || !checked || open || correct || !canContinue || expanded[explanationKey]) return;
+    const controller = new AbortController();
+    setExplanationState("loading");
+    void (async () => {
+      try {
+        const response = await fetch(`/api/documents/${quiz.documentId}/quiz/${quiz.id}/explain`, {
+          method: "POST", headers: { "Content-Type": "application/json", ...await authHeaders() },
+          body: JSON.stringify({ questionIndex: index, selectedIndex: Number(selected) }), signal: controller.signal,
+        });
+        const data = await response.json();
+        if (!response.ok || typeof data.explanation !== "string" || !data.explanation.trim()) throw new Error("Approfondimento non disponibile");
+        if (!controller.signal.aborted) { setExpanded(value => ({ ...value, [explanationKey]: data.explanation })); setExplanationState("idle"); }
+      } catch { if (!controller.signal.aborted) setExplanationState("error"); }
+    })();
+    return () => controller.abort();
+  }, [ready, finished, checked, open, correct, canContinue, explanationKey, expanded, quiz.documentId, quiz.id, index, selected, retry]);
   function next() {
     if (!checked) { setChecked(true); return; }
     if (index === total - 1) setFinished(true);
@@ -46,10 +69,10 @@ export function QuizCard({ quiz }: { quiz: StudyQuiz }) {
     <header className={styles.playerHeader}><div><strong>{quiz.title}</strong><span>{quiz.documentName}</span></div><span className={styles.step}>{finished ? total : index + 1} / {total}</span></header>
     <progress className={styles.playerProgress} value={finished ? total : index + (checked ? 1 : 0)} max={total} aria-label="Avanzamento quiz" />
     {finished ? <div className={styles.finish}>
-      <TonyMascot size={130} mood="happy" /><Trophy size={26} aria-hidden="true" /><h3>Quiz completato!</h3>
-      <div role="status">{closed.length > 0 && <strong>{score} / {closed.length} risposte chiuse corrette.</strong>}{total > closed.length && <p>Le risposte aperte si confrontano con la risposta di riferimento e non rientrano nel punteggio.</p>}</div>
-      <p>Un altro giro di ripasso? Il prossimo caffè lo preparo io.</p>
-      <button className={styles.continue} type="button" onClick={restart}><RotateCcw size={16} /> Riprova il quiz</button>
+      <span role="img" data-quiz-mood={mood} aria-label={passed ? "Tony è contento: quiz superato" : closed.length ? "Tony chiude gli occhi: quiz da ripassare" : "Tony ti accompagna nel ripasso"}><TonyMascot size={130} mood={mood} /></span>
+      {passed && <Trophy size={26} aria-hidden="true" />}<h3>{closed.length ? passed ? "Quiz superato!" : "Quiz da ripassare" : "Quiz completato!"}</h3>
+      <div role="status">{closed.length > 0 && <><strong>{score} / {closed.length} risposte chiuse corrette.</strong><p className={styles.grade}>Voto: {grade}/30 · {Number(percentage!.toFixed(1))}%</p><p>{passed ? "Ottimo lavoro, hai superato il quiz!" : "Per superare il quiz serve più del 60% di risposte corrette. Ripassa le spiegazioni e continua ad allenarti."}</p></>}{total > closed.length && <p>Le risposte aperte si confrontano con la risposta di riferimento e non rientrano nel punteggio.{closed.length === 0 ? " Questo quiz non prevede un voto automatico." : " Il voto considera solo le domande chiuse."}</p>}</div>
+      <button className={styles.continue} type="button" onClick={onClose}>Chiudi Quiz</button>
     </div> : <>
       <div className={styles.challenge} key={index}>
         <div className={styles.questionHero}>
@@ -66,7 +89,9 @@ export function QuizCard({ quiz }: { quiz: StudyQuiz }) {
       </div>
       <footer className={styles.playerFooter} data-feedback={checked ? open ? "reference" : correct ? "correct" : "wrong" : "idle"}>
         {checked && <div className={styles.feedback} role="status"><strong>{open ? "Confronta la tua risposta" : correct ? "Esatto, ottimo lavoro!" : "Ci siamo quasi. Ripassiamola insieme."}</strong>
-          {(open || !correct) && <><span>{open ? "Risposta di riferimento" : "La risposta corretta è:"}</span><MarkdownContent>{open ? question.modelAnswer : question.options[question.correctIndex!]}</MarkdownContent><span>Perché?</span><MarkdownContent>{question.explanation}</MarkdownContent></>}
+          {(open || !correct) && <><span>{open ? "Risposta di riferimento" : "La risposta corretta è:"}</span><MarkdownContent>{open ? question.modelAnswer : question.options[question.correctIndex!]}</MarkdownContent><span>Perché?</span><MarkdownContent>{!open && expanded[explanationKey] || question.explanation}</MarkdownContent>
+          {!open && !expanded[explanationKey] && explanationState === "loading" && <p className={styles.explanationHint}>Sto preparando una spiegazione più approfondita… Puoi già continuare.</p>}
+          {!open && !expanded[explanationKey] && explanationState === "error" && <p className={styles.explanationHint}>L’approfondimento non è disponibile. Puoi continuare o <button type="button" className={styles.retryExplanation} onClick={() => setRetry(value => value + 1)}>riprova</button>.</p>}</>}
         </div>}
         <button className={styles.continue} type="button" onClick={next} disabled={!ready || !canContinue}>{checked ? index === total - 1 ? "Vedi risultato" : "Prossima domanda" : "Continua"}<ArrowRight size={17} /></button>
       </footer>

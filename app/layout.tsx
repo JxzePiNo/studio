@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Script from "next/script";
+import { ThemeProvider } from "@/components/theme-provider";
 import "react-day-picker/style.css";
 import "katex/dist/katex.min.css";
 import "./globals.css";
@@ -12,8 +14,9 @@ import "./markdown.css";
 import "./sidebar-profile.css";
 import "./workspace-background.css";
 import "./accent-theme.css";
+import "./night-theme.css";
 
-export const metadata: Metadata = { title: "Margine — Lo spazio per capire", description: "Le tue slide, spiegate. Uno spazio locale per studiare PDF, capire i concetti e tradurre le parole." };
+export const metadata: Metadata = { title: "studio.", description: "Le tue slide, spiegate. Uno spazio locale per studiare PDF, capire i concetti e tradurre le parole." };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="it"><body>{children}</body></html>;
+  return <html lang="it" suppressHydrationWarning><head><Script id="studio-theme-init" strategy="beforeInteractive">{`try{document.documentElement.dataset.theme=localStorage.getItem('studio-theme')==='dark'?'dark':'light'}catch{}`}</Script></head><body><ThemeProvider>{children}</ThemeProvider></body></html>;
 }

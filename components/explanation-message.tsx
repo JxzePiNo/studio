@@ -1,4 +1,5 @@
-import { BookOpen, Check, Sparkles } from "lucide-react";
+import { BookOpen, Sparkles } from "lucide-react";
+import { ChatMessageAuthor } from "./chat-message-author";
 import { MarkdownContent } from "./markdown-content";
 import { Button } from "./ui/button";
 import type { Explanation } from "@/lib/types";
@@ -6,9 +7,9 @@ import type { Explanation } from "@/lib/types";
 export function ExplanationMessage({ explanation, page, onDeepen, disabled }: { explanation: Explanation; page?: number; onDeepen?: (topic: string) => void; disabled?: boolean }) {
   const deepen = (topic: string) => onDeepen && <Button variant="ghost" size="sm" className="deepen-button" disabled={disabled} onClick={() => onDeepen(topic)}><Sparkles size={14} /> Approfondisci</Button>;
   return <article className="chat-message assistant chat-analysis-message" data-source="analysis" aria-label={page ? `Analisi della slide ${page}` : "Analisi della slide"}>
-    <strong className="chat-message-author">Tutor · Analisi della slide</strong>
+    <ChatMessageAuthor />
     <div className="explanation-content">
-      <div className="explanation-kicker"><span className="eyebrow">FACCIAMO CHIAREZZA</span><span className="saved-badge"><Check size={12} /> Salvata</span></div>
+      <div className="explanation-kicker"><span className="eyebrow">FACCIAMO CHIAREZZA</span></div>
       <h2>{explanation.title}</h2>
       <div className="explanation-topic"><MarkdownContent className="overview">{explanation.overview}</MarkdownContent>{deepen(explanation.overview)}</div>
       <div className="concepts-heading">I CONCETTI CHIAVE</div>

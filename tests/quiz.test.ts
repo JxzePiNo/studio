@@ -6,7 +6,8 @@ import path from "node:path";
 import { PDFDocument } from "pdf-lib";
 import { quizConfigSchema, validateGeneratedQuiz } from "../lib/quiz";
 import { POST } from "../app/api/documents/[id]/chat/route";
-import { GET } from "../app/api/documents/[id]/quiz/route";
+import { GET, POST as CREATE } from "../app/api/documents/[id]/quiz/route";
+import { listSavedQuizzes } from "../lib/quiz-store";
 import { createDocument, readDocument, updateDocument } from "../lib/store";
 import { createFolder } from "../lib/folders";
 
@@ -58,18 +59,23 @@ test("modal and natural chat requests generate the same persisted quiz using the
     return Response.json({ id: "quiz_response", object: "response", status: "completed", output: [{ type: "message", role: "assistant", id: "quiz_message", status: "completed", content: [{ type: "output_text", text: JSON.stringify(result), annotations: [] }] }] });
   };
   async function ask(explicit: boolean) {
+    if (explicit) return CREATE(new Request(`http://127.0.0.1/api/documents/${document.id}/quiz`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) }), params);
     return POST(new Request(`http://127.0.0.1/api/documents/${document.id}/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ page: 1, scope: "slide", question: "Fammi un quiz di tre domande miste sull'entropia", ...(explicit ? { quiz: config } : {}) }) }), params);
   }
-  const first = await ask(true); assert.equal(first.status, 200);
-  assert.equal((await first.json()).at(-1).quiz.questions.length, 3);
+  const first = await ask(true); assert.equal(first.status, 201);
+  assert.equal((await first.json()).questions.length, 3);
+  assert.equal((await readDocument(document.id)).slides[1].chat, undefined);
   assert.equal(calls, 1);
   const second = await ask(false); assert.equal(second.status, 200);
-  assert.equal((await second.json()).at(-1).quiz.questions.length, 3);
+  assert.ok(second.headers.get("X-Studio-Quiz-Id"));
+  assert.equal((await second.json()).at(-1).quiz, undefined);
   assert.equal(calls, 3);
   const stored = await readDocument(document.id);
   assert.equal(stored.slides[1].notes, "Conserva gli appunti.");
-  assert.equal(stored.slides[1].chat?.length, 4);
+  assert.equal(stored.slides[1].chat?.length, 2);
+  assert.equal((await listSavedQuizzes(stored)).length, 2);
   invalid = true;
   const failed = await ask(true); assert.equal(failed.status, 502);
-  assert.equal((await readDocument(document.id)).slides[1].chat?.length, 4);
+  assert.equal((await readDocument(document.id)).slides[1].chat?.length, 2);
+  assert.equal((await listSavedQuizzes(await readDocument(document.id))).length, 2);
 });

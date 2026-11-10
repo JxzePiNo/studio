@@ -5,26 +5,29 @@ import { useRef, useState } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Check, CircleAlert, Clock3, ChevronRight, FileText, MoreHorizontal, Pencil, ArrowDownAZ, X } from "lucide-react";
+import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Check, CircleAlert, Clock3, ChevronRight, FileText, MoreHorizontal, Pencil, ArrowDownAZ, Trash2, X } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
 import { orderedMaterials, type MaterialMove } from "@/lib/material-order";
 import type { DocumentSummary, ExamFolder, StudyDocument } from "@/lib/types";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ReadRangeDialog } from "./read-range-dialog";
-import { DocumentQuizzes } from "./document-quizzes";
+import { DocumentQuizzes, type PendingQuiz } from "./document-quizzes";
 
 const fileSize = (bytes: number) => bytes < 1024 * 1024
   ? `${Math.ceil(bytes / 1024)} KB`
   : `${(bytes / 1024 / 1024).toLocaleString("it-IT", { maximumFractionDigits: 1 })} MB`;
 
-export function MaterialList({ documents, folder, query, busy, analysisRunning = false, onOpen, onRenamed, onOrdered, onReadUpdated }: {
+export function MaterialList({ documents, folder, query, busy, analysisRunning = false, onOpen, onRenamed, onOrdered, onReadUpdated, onDeleted, isDocumentBusy, pendingQuizzes, openQuiz, onQuizOpened }: {
   documents: DocumentSummary[]; folder: ExamFolder; query: string; busy: boolean; analysisRunning?: boolean;
   onOpen: (id: string) => void; onRenamed: (doc: StudyDocument) => void; onOrdered: (folder: ExamFolder) => void;
   onReadUpdated?: () => Promise<void> | void;
+  onDeleted?: (id: string) => void; isDocumentBusy?: (id: string) => boolean;
+  pendingQuizzes?: (id: string) => PendingQuiz[]; openQuiz?: { documentId: string; quizId: string } | null; onQuizOpened?: () => void;
 }) {
   const [renaming, setRenaming] = useState<DocumentSummary | null>(null);
   const [reading, setReading] = useState<DocumentSummary | null>(null);
+  const [deleting, setDeleting] = useState<DocumentSummary | null>(null);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -56,6 +59,16 @@ export function MaterialList({ documents, folder, query, busy, analysisRunning =
     catch(e) { setError((e as Error).message); }
     finally { setSaving(false); mutation.current = false; }
   }
+  async function remove() {
+    if (!deleting || mutation.current || isDocumentBusy?.(deleting.id)) return;
+    mutation.current = true; setSaving(true); setError("");
+    try {
+      const response = await fetch(`/api/documents/${deleting.id}`, { method: "DELETE", headers: await authHeaders() });
+      await readApiResponse(response, "Impossibile eliminare il file. Riprova.");
+      onDeleted?.(deleting.id); setDeleting(null);
+    } catch (cause) { setError((cause as Error).message); }
+    finally { mutation.current = false; setSaving(false); }
+  }
   function items(doc: DocumentSummary, context: boolean) {
     const Item = context ? ContextMenu.Item : DropdownMenu.Item;
     const Separator = context ? ContextMenu.Separator : DropdownMenu.Separator;
@@ -63,6 +76,7 @@ export function MaterialList({ documents, folder, query, busy, analysisRunning =
     return <>
       <Item className="material-menu-item" onSelect={() => { openingDialog.current = true; lastRenamed.current = doc.id; setReading(doc); }} disabled={busy || saving || analysisRunning || doc.pages < 1}><Check size={15} /> Segna pagine lette</Item>
       <Item className="material-menu-item" onSelect={() => edit(doc)} disabled={busy || saving || analysisRunning}><Pencil size={15} /> Rinomina</Item>
+      <Item className="material-menu-item" onSelect={() => { openingDialog.current = true; lastRenamed.current = doc.id; setDeleting(doc); setError(""); }} disabled={busy || saving || analysisRunning || isDocumentBusy?.(doc.id)}><Trash2 size={15} /> Elimina file</Item>
       <Separator className="material-menu-separator" />
       <Item className="material-menu-item" onSelect={() => void move(doc, "up")} disabled={busy || saving || analysisRunning || index === 0}><ArrowUp size={15} /> Sposta su</Item>
       <Item className="material-menu-item" onSelect={() => void move(doc, "down")} disabled={busy || saving || analysisRunning || index === sorted.length - 1}><ArrowDown size={15} /> Sposta giù</Item>
@@ -84,11 +98,15 @@ export function MaterialList({ documents, folder, query, busy, analysisRunning =
           <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" className="material-more" aria-label={`Azioni ${item.name.replace(/\.pdf$/i, "")}`} disabled={busy || saving || analysisRunning}><MoreHorizontal size={18} /></Button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="material-menu-content" align="end" sideOffset={5} onCloseAutoFocus={closeMenuFocus}>{items(item, false)}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
         </div></ContextMenu.Trigger>
         <ContextMenu.Portal><ContextMenu.Content className="material-menu-content" onCloseAutoFocus={closeMenuFocus}>{items(item, true)}</ContextMenu.Content></ContextMenu.Portal>
-      </ContextMenu.Root><DocumentQuizzes documentId={item.id} documentName={item.name} /></div>)}
+      </ContextMenu.Root><DocumentQuizzes documentId={item.id} documentName={item.name} pending={pendingQuizzes?.(item.id)} autoOpenQuizId={openQuiz?.documentId === item.id ? openQuiz.quizId : undefined} onAutoOpened={onQuizOpened} /></div>)}
     </div>
+    <Dialog.Root open={!!deleting} onOpenChange={open => { if (!open && !saving) setDeleting(null); }}><Dialog.Portal><Dialog.Overlay className="plan-overlay" /><Dialog.Content className="plan-dialog" onEscapeKeyDown={event => { if (saving) event.preventDefault(); }} onPointerDownOutside={event => { if (saving) event.preventDefault(); }}>
+      <Dialog.Title>Elimina file</Dialog.Title><Dialog.Description>Vuoi eliminare “{deleting?.name}”? Verranno eliminati anche i suoi appunti, le spiegazioni e i quiz collegati. Gli altri PDF del corso resteranno disponibili.</Dialog.Description>
+      {error && <p className="plan-error" role="alert">{error}</p>}<div className="plan-form-actions"><Dialog.Close asChild><Button variant="outline" disabled={saving}>Annulla</Button></Dialog.Close><Button variant="destructive" onClick={() => void remove()} disabled={saving || (!!deleting && !!isDocumentBusy?.(deleting.id))}>{saving ? "Eliminazione…" : "Elimina file"}</Button></div>
+    </Dialog.Content></Dialog.Portal></Dialog.Root>
     <Dialog.Root open={!!renaming} onOpenChange={open => { if (!open && !saving) setRenaming(null); }}><Dialog.Portal><Dialog.Overlay className="plan-overlay" /><Dialog.Content className="plan-dialog" onEscapeKeyDown={e => { if (saving) e.preventDefault(); }} onPointerDownOutside={e => { if (saving) e.preventDefault(); }} onCloseAutoFocus={e => { e.preventDefault(); document.querySelector<HTMLButtonElement>(`[data-document-id="${lastRenamed.current}"] .material-open`)?.focus(); }}>
       <Dialog.Title>Rinomina materiale</Dialog.Title><Dialog.Description>Scegli un nome per ritrovarlo nell’esame. Il PDF e gli appunti restano collegati.</Dialog.Description><Dialog.Close asChild><Button variant="ghost" size="icon" className="plan-dialog-close" aria-label="Chiudi rinomina" disabled={saving}><X size={18} /></Button></Dialog.Close>
-      <form className="plan-form" onSubmit={e => { e.preventDefault(); void rename(); }}><label>Nome del materiale<Input value={name} onChange={e => setName(e.target.value)} maxLength={200} placeholder="Es. Lezione 1" disabled={saving} required /></label>{error && <p className="plan-error" role="alert">{error}</p>}<div className="plan-form-actions"><Dialog.Close asChild><Button variant="outline" disabled={saving}>Annulla</Button></Dialog.Close><Button type="submit" disabled={saving || !name.trim()}>{saving ? "Salvataggio…" : "Salva nome"}</Button></div></form>
+      <form className="plan-form" onSubmit={e => { e.preventDefault(); void rename(); }}><label className="form-field"><span className="form-field-label">Nome del materiale</span><Input value={name} onChange={e => setName(e.target.value)} maxLength={200} placeholder="Es. Lezione 1" disabled={saving} required /></label>{error && <p className="plan-error" role="alert">{error}</p>}<div className="plan-form-actions"><Dialog.Close asChild><Button variant="outline" disabled={saving}>Annulla</Button></Dialog.Close><Button type="submit" disabled={saving || !name.trim()}>{saving ? "Salvataggio…" : "Salva nome"}</Button></div></form>
     </Dialog.Content></Dialog.Portal></Dialog.Root>
   </>;
 }

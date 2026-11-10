@@ -12,7 +12,7 @@
 /* Keep the course palette inside the course view; global UI and portals stay blue. */
 .main-shell[data-course-theme="true"] {
   --primary: var(--course-color);
-  --primary-foreground: var(--course-foreground, #ffffff);
+  --primary-foreground: #ffffff;
   --accent: color-mix(in oklab, var(--course-color) 13%, #ffffff);
   --ring: color-mix(in oklab, var(--course-color) 70%, #ffffff);
   --green: var(--primary);

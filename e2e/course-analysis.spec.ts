@@ -224,7 +224,7 @@ test("course analysis continues through reader, home and another exam, with a hi
     const island = page.getByRole("complementary", { name: "Avanzamento analisi in background" });
     await expect(island).toBeVisible();
     await island.hover();
-    await island.getByRole("button", { name: "Nascondi avanzamento analisi", exact: true }).click();
+    await island.getByRole("button", { name: "Riduci avanzamento analisi", exact: true }).click();
     await expect(island).toHaveCount(0);
     await page.getByRole("button", { name: "Mostra avanzamento analisi", exact: true }).click();
     await expect(island).toBeVisible();

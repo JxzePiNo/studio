@@ -27,6 +27,7 @@ async function setup(page: Page, cached: number[] = []) {
   const upload = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
   await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
   const doc = await (await upload).json() as StudyDocument;
+  await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   await expect(page.getByRole("heading", { name: "esempio" })).toBeVisible();
   await page.getByRole("button", { name: "Mostra pannello inferiore" }).click();
   return { id: doc.id, calls, save: (p: number) => { const slide = explained(p); saved!.slides[p] = slide; return slide; } };

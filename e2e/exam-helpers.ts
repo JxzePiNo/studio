@@ -12,6 +12,10 @@ export async function createExam(page: Page, prefix = "Esame di prova") {
   const response = await created;
   expect(response.status()).toBe(201);
   const folder = await response.json() as { id: string; color: string };
+  await expect(page.getByRole("dialog", { name: "Nuovo esame", exact: true })).toHaveCount(0);
+  const menu = page.getByRole("button", { name: "Apri menu", exact: true });
+  if (await menu.isVisible()) await menu.click();
+  await page.locator(".sidebar:visible .folder-item").filter({ hasText: formatCourseName(name) }).click();
   await expect(page.locator(".selected-exam")).toContainText(formatCourseName(name));
   return { ...folder, name };
 }

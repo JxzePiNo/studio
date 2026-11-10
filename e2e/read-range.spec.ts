@@ -10,6 +10,7 @@ test("PDF context menu imports a historical page range once and refreshes readin
   const uploaded = page.waitForResponse(response => response.url().endsWith("/api/documents") && response.request().method() === "POST");
   await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: "Lettura pregressa.pdf", mimeType: "application/pdf", buffer: Buffer.from(await pdf.save()) });
   const document = await (await uploaded).json();
+  await page.getByRole("button", { name: `Apri ${document.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
   const before = new Date(); before.setDate(before.getDate() - 2);
   const startDate = calendarDate(before); const endDate = calendarDate(yesterday);

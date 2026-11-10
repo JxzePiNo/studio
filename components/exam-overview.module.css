@@ -14,7 +14,13 @@
 .top.top > div { flex: 1 1 110px; }
 .top.top > div h3 { font-size: 18px; line-height: 1.4; }
 .top.top > div p { line-height: 1.6; }
-.top.top > div .examDate { margin-top: 7px; color: var(--muted-foreground); font-size: 12px; }
+.top.top > div .examDate { display:flex; align-items:center; flex-wrap:wrap; gap:6px 8px; margin-top:7px; color:var(--muted-foreground); font-size:12px; line-height:1.6; }
+.examDate > span { white-space:nowrap; }
+.urgency { display:inline-flex; align-items:center; padding:3px 7px; border-radius:6px; font-size:11px; font-weight:500; line-height:1.5; }
+.urgency[data-urgency="urgent"] { background:color-mix(in srgb, var(--destructive) 12%, var(--card)); color:var(--destructive); }
+.urgency[data-urgency="soon"] { background:var(--warning); color:var(--warning-foreground); }
+.urgency[data-urgency="later"] { background:var(--success); color:var(--success-foreground); }
+.top.top > div .metadata { margin:8px 0 0; color:var(--muted-foreground); font-size:12px; line-height:1.6; }
 .top.top > .planButton { position: absolute; z-index: 4; top: 10px; right: 12px; margin: 0; }
 .folder { position: relative; isolation: isolate; display: block; flex: 0 0 112px; width: 112px; height: 112px; overflow: hidden; border-radius: 28px; border-top: 2px solid #ffffff80; background: linear-gradient(var(--folder-start), var(--folder-end)); box-shadow: inset 0 -2px 1px #00000008, 0 5px 10px #24332715; }
 .paper { position: absolute; z-index: 1; left: 22px; right: 22px; top: 13px; height: 83px; border-radius: 12px; transform-origin: 50% 100%; transition: transform .3s ease; }

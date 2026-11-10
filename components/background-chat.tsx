@@ -1,20 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, MessageCircle, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, MessageCircle, X } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
+import { readChatStream } from "@/lib/chat-stream";
 import { readApiResponse } from "@/lib/api-response";
 import type { ChatMessage } from "@/lib/types";
 import styles from "./background-chat.module.css";
 
-import type { QuizConfig } from "@/lib/quiz";
+import type { QuizConfig, StudyQuiz } from "@/lib/quiz";
 
-type ChatRequest = { id: string; page: number; name: string; question: string; scope: "document" | "slide"; quiz?: QuizConfig };
-export type BackgroundChatSession = { status: "pending" | "completed" | "error"; question: string; messages?: ChatMessage[]; error?: string; revision: number };
-type ChatNotification = { key: string; id: string; page: number; name: string; error?: string };
+type ChatRequest = { id: string; page: number; name: string; question: string; scope: "document" | "slide"; quiz?: QuizConfig; quizIntent?: boolean };
+export type BackgroundChatSession = { status: "pending" | "completed" | "error"; question: string; messages?: ChatMessage[]; streamingText?: string; error?: string; revision: number; kind?: "chat" | "quiz"; documentId?: string; request?: ChatRequest };
+type ChatNotification = { key: string; id: string; page: number; name: string; error?: string; quizId?: string; kind?: "chat" | "quiz" };
 export const chatSessionKey = (id: string, page: number) => `${id}:${page}`;
 
-export function useBackgroundChat({ onSaved }: { onSaved: (id: string, page: number, messages: ChatMessage[]) => void }) {
+export function useBackgroundChat({ onSaved, onQuizStarted }: { onSaved: (id: string, page: number, messages: ChatMessage[]) => void; onQuizStarted?: (id: string) => void }) {
   const [sessions, setSessions] = useState<Record<string, BackgroundChatSession>>({});
   const [notifications, setNotifications] = useState<ChatNotification[]>([]);
   const requests = useRef(new Map<string, AbortController>());
@@ -22,6 +23,8 @@ export function useBackgroundChat({ onSaved }: { onSaved: (id: string, page: num
   const sequence = useRef(0);
   const savedCallback = useRef(onSaved);
   savedCallback.current = onSaved;
+  const quizStartedCallback = useRef(onQuizStarted);
+  quizStartedCallback.current = onQuizStarted;
   useEffect(() => {
     const changed = (event: Event) => {
       const detail = (event as CustomEvent<{ documentId: string; quizId?: string; title?: string; deleted?: boolean }>).detail;
@@ -48,45 +51,74 @@ export function useBackgroundChat({ onSaved }: { onSaved: (id: string, page: num
     const controller = new AbortController();
     requests.current.set(key, controller);
     const revision = ++sequence.current;
-    setSessions(current => ({ ...current, [key]: { ...current[key], status: "pending", question: input.question, error: undefined, revision } }));
+    let kind: "quiz" | "chat" = input.quiz ? "quiz" : "chat";
+    setSessions(current => ({ ...current, [key]: { ...current[key], status: "pending", question: input.question, error: undefined, streamingText: "", revision, kind, documentId: input.id, request: input } }));
     setNotifications(current => current.filter(item => chatSessionKey(item.id, item.page) !== key));
+    if (kind === "quiz") quizStartedCallback.current?.(input.id);
     try {
-      const response = await fetch(`/api/documents/${input.id}/chat`, {
-        method: "POST", headers: { "Content-Type": "application/json", ...await authHeaders() },
-        body: JSON.stringify({ page: input.page, question: input.question, scope: input.scope, ...(input.quiz ? { quiz: input.quiz } : {}) }), signal: controller.signal,
+      const response = await fetch(`/api/documents/${input.id}/${input.quiz ? "quiz" : "chat"}`, {
+        method: "POST", headers: { "Content-Type": "application/json", ...(!input.quiz ? { Accept: "text/event-stream" } : {}), ...await authHeaders() },
+        body: JSON.stringify(input.quiz || { page: input.page, question: input.question, scope: input.scope }), signal: controller.signal,
       });
-      const messages = await readApiResponse<ChatMessage[]>(response, "Invio non riuscito.");
+      let result: ChatMessage[] | StudyQuiz | undefined;
+      let streamedQuizId: string | undefined;
+      if (response.ok && response.headers.get("Content-Type")?.includes("text/event-stream")) {
+        await readChatStream(response, event => {
+          if (!mounted.current || controller.signal.aborted) return;
+          if (event.event === "delta") setSessions(current => ({ ...current, [key]: { ...current[key], streamingText: (current[key]?.streamingText || "") + event.data.text } }));
+          if (event.event === "quiz-start") {
+            if (kind !== "quiz") quizStartedCallback.current?.(input.id);
+            kind = "quiz";
+            setSessions(current => ({ ...current, [key]: { ...current[key], kind: "quiz", streamingText: "" } }));
+          }
+          if (event.event === "quiz") streamedQuizId = event.data.quizId;
+          if (event.event === "done") { result = event.data.messages; streamedQuizId = event.data.quizId || streamedQuizId; }
+        });
+      } else result = await readApiResponse<ChatMessage[] | StudyQuiz>(response, "Invio non riuscito.");
       if (!mounted.current || controller.signal.aborted) return false;
-      setSessions(current => ({ ...current, [key]: { status: "completed", question: input.question, messages, revision } }));
-      savedCallback.current(input.id, input.page, messages);
-      setNotifications(current => [...current, { key: `${key}:${revision}`, id: input.id, page: input.page, name: input.name }]);
+      const quizId = input.quiz ? (result as StudyQuiz).id : streamedQuizId || response.headers.get("X-Studio-Quiz-Id") || undefined;
+      const messages = Array.isArray(result) ? result : undefined;
+      if (kind === "quiz" && !quizId) throw new Error(messages?.at(-1)?.content || "La richiesta non ha prodotto un quiz. Riprova dal pulsante Quiz.");
+      setSessions(current => ({ ...current, [key]: { status: "completed", question: input.question, messages, revision, kind: quizId ? "quiz" : "chat", documentId: input.id, request: input } }));
+      if (messages) savedCallback.current(input.id, input.page, messages);
+      if (quizId) {
+        window.dispatchEvent(new CustomEvent("studio-quizzes-changed", { detail: { documentId: input.id } }));
+        if (kind !== "quiz") quizStartedCallback.current?.(input.id);
+      }
+      setNotifications(current => [...current, { key: `${key}:${revision}`, id: input.id, page: input.page, name: input.name, quizId, kind: quizId ? "quiz" : "chat" }]);
       return true;
     } catch (cause) {
       if (!mounted.current || controller.signal.aborted) return false;
       const error = cause instanceof Error ? cause.message : "Invio non riuscito. Riprova.";
       setSessions(current => ({ ...current, [key]: { ...current[key], status: "error", question: input.question, error, revision } }));
-      setNotifications(current => [...current, { key: `${key}:${revision}`, id: input.id, page: input.page, name: input.name, error }]);
+      setNotifications(current => [...current, { key: `${key}:${revision}`, id: input.id, page: input.page, name: input.name, error, kind }]);
       return false;
     } finally {
       if (requests.current.get(key) === controller) requests.current.delete(key);
     }
   }
   function dismissNotification(key: string) { setNotifications(current => current.filter(item => item.key !== key)); }
-  return { sessions, notifications, send, dismissNotification, pending: Object.values(sessions).some(session => session.status === "pending") };
+  return { sessions, notifications, send, dismissNotification, pending: Object.values(sessions).some(session => session.status === "pending"), retry: (key: string) => { const request = sessions[key]?.request; if (request) void send(request); } };
 }
 
 export type BackgroundChatController = ReturnType<typeof useBackgroundChat>;
 
-export function ChatNotifications({ controller, onOpen }: { controller: BackgroundChatController; onOpen: (id: string, page: number) => void }) {
+export function ChatNotifications({ controller, onOpen, onOpenQuiz }: { controller: BackgroundChatController; onOpen: (id: string, page: number) => void; onOpenQuiz?: (id: string, quizId?: string) => void }) {
+  const [collapsed, setCollapsed] = useState(false);
   if (!controller.notifications.length) return null;
-  return <div className={styles.notifications} aria-label="Notifiche del tutor">
-    {controller.notifications.map(notification => <div key={notification.key} className={styles.notification} role="status">
-      <span className={styles.icon}>{notification.error ? <MessageCircle size={17} /> : <Check size={17} />}</span>
-      <button className={styles.open} onClick={() => { controller.dismissNotification(notification.key); onOpen(notification.id, notification.page); }}>
-        <strong>{notification.error ? "Il tutor richiede attenzione" : "La risposta è pronta"}</strong>
-        <span>{notification.name} · Pagina {notification.page}</span>
-      </button>
-      <button className={styles.dismiss} onClick={() => controller.dismissNotification(notification.key)} aria-label="Chiudi notifica del tutor"><X size={15} /></button>
-    </div>)}
-  </div>;
+  return <section className={styles.notifications} aria-label="Notifiche del tutor" data-collapsed={collapsed}>
+    <button className={styles.heading} onClick={() => setCollapsed(value => !value)} aria-expanded={!collapsed} aria-label={collapsed ? "Espandi notifiche del tutor" : "Riduci notifiche del tutor"}>
+      <MessageCircle size={15} aria-hidden="true" /><span>{collapsed ? "Notifiche" : "Notifiche del tutor"}</span><span className={styles.count}>{controller.notifications.length}</span>{collapsed ? <ChevronDown size={17} aria-hidden="true" /> : <ChevronUp size={17} aria-hidden="true" />}
+    </button>
+    <div className={styles.items} hidden={collapsed}>
+      {controller.notifications.map(notification => <div key={notification.key} className={styles.notification} role="status">
+        <span className={styles.icon}>{notification.error ? <MessageCircle size={17} /> : <Check size={17} />}</span>
+        <button className={styles.open} onClick={() => { controller.dismissNotification(notification.key); if (notification.kind === "quiz") onOpenQuiz?.(notification.id, notification.quizId); else onOpen(notification.id, notification.page); }}>
+          <strong>{notification.error ? "Il tutor richiede attenzione" : notification.quizId ? "Il quiz è pronto" : "La risposta è pronta"}</strong>
+          <span>{notification.name} · Pagina {notification.page}</span>
+        </button>
+        <button className={styles.dismiss} onClick={() => controller.dismissNotification(notification.key)} aria-label="Chiudi notifica del tutor"><X size={15} /></button>
+      </div>)}
+    </div>
+  </section>;
 }

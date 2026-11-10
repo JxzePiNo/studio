@@ -60,3 +60,23 @@ export async function deleteSavedQuiz(documentId: string, quizId: string) {
   // A tombstone also hides legacy chat copies, so deletion survives reloads.
   await write(documentId, { id: quizId, deleted: true });
 }
+
+// Separate artifacts keep explanations independent of quiz titles and legacy chat copies.
+export async function readQuizExplanation(documentId: string, quizId: string, key: string): Promise<string | undefined> {
+  checkId(quizId); checkId(key);
+  if (cloudEnabled()) return (await (await userRoot()).collection("documents").doc(documentId).collection("quizzes").doc(quizId).collection("explanations").doc(key).get()).data()?.explanation;
+  try { return await readFile(path.join(documentDir(documentId), "quiz-explanations", quizId, `${key}.md`), "utf8"); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+}
+export async function saveQuizExplanation(documentId: string, quizId: string, key: string, explanation: string) {
+  checkId(quizId); checkId(key);
+  if (cloudEnabled()) {
+    await (await userRoot()).collection("documents").doc(documentId).collection("quizzes").doc(quizId).collection("explanations").doc(key).set({ explanation });
+    return;
+  }
+  const directory = path.join(documentDir(documentId), "quiz-explanations", quizId);
+  await mkdir(directory, { recursive: true });
+  const temporary = path.join(directory, `${randomUUID()}.tmp`);
+  try { await writeFile(temporary, explanation, "utf8"); await rename(temporary, path.join(directory, `${key}.md`)); }
+  finally { await rm(temporary, { force: true }).catch(() => {}); }
+}

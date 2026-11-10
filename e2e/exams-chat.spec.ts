@@ -27,6 +27,7 @@ test("a pending tutor reply survives leaving the reader and notifies the exact p
   const uploaded = page.waitForResponse(response => response.url().endsWith("/api/documents") && response.request().method() === "POST");
   await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
   const document = await (await uploaded).json() as StudyDocument;
+  await page.getByRole("button", { name: `Apri ${document.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
     await page.getByRole("button", { name: "Mostra pannello inferiore", exact: true }).click();
     await page.getByRole("button", { name: "Slide successiva", exact: true }).click();
@@ -59,6 +60,7 @@ test("creates an exam, assigns an upload and opens a separate chat for each slid
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
   await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
   const doc = await (await uploaded).json();
+  await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
     await page.getByRole("button", { name: "Mostra pannello inferiore" }).click();
     expect(doc.folderId).toBeTruthy();
@@ -125,6 +127,7 @@ test("la spiegazione salvata apre la chat come primo messaggio e si aggiorna sen
   const uploaded = page.waitForResponse(response => response.url().endsWith("/api/documents") && response.request().method() === "POST");
   await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
   const document = await (await uploaded).json() as StudyDocument;
+  await page.getByRole("button", { name: `Apri ${document.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
     await expect(page.getByRole("tablist")).toHaveCount(0);
     const seed = page.locator('.chat-message.assistant[data-source="analysis"]');

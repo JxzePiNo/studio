@@ -7,6 +7,14 @@
 .open small { display:block; margin-top:4px; color:var(--muted-foreground); font-size:10px; }
 .more { display:grid; place-items:center; width:32px; height:32px; border-radius:8px; margin-right:5px; color:var(--muted-foreground); }
 .more:hover { background:#fff; }
+.pending { display:flex; align-items:center; gap:12px; padding:13px; border:1px solid var(--border); border-radius:12px; background:var(--accent); }
+.pending > div { flex:1; min-width:0; }
+.pending strong { display:block; font-size:12px; color:var(--foreground); }
+.pending small { display:block; margin-top:5px; font-size:11px; line-height:1.5; color:var(--muted-foreground); }
+.pending > button { font-size:11px; color:var(--primary); }
+.pendingPulse { width:8px; height:8px; flex-shrink:0; border-radius:50%; background:var(--primary); animation:quiz-pulse 1.4s ease-in-out infinite; }
+@keyframes quiz-pulse { 50% { opacity:.25; } }
+@media(prefers-reduced-motion:reduce) { .pendingPulse { animation:none; } }
 .viewer { width:min(900px,calc(100vw - 32px)); max-height:calc(100dvh - 40px); overflow-y:auto; padding:0; }
 .viewerHeader { position:sticky; top:0; z-index:3; padding:20px 50px 16px 22px; border-bottom:1px solid var(--border); background:#fff; }
 .viewerHeader h2 { margin:0; font-size:18px; line-height:1.4; }

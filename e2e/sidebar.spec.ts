@@ -48,7 +48,7 @@ test("il profilo apre Account e ripristina il focus chiudendo la finestra", asyn
   await expect(page.getByRole("menuitem", { name: "Esci" })).toHaveCount(0);
   await page.getByRole("menuitem", { name: "Account", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Il tuo account" })).toBeVisible();
-  await expect(page.getByRole("dialog").getByText("Modalità locale", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Modifica nome e cognome" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(trigger).toBeFocused();
@@ -64,6 +64,7 @@ test("il piano dell’esame calcola il carico giornaliero e resta salvato", asyn
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
   await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
   const doc = await (await uploaded).json();
+  await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
     await expect(page.getByRole("heading", { name: "esempio", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Torna alla biblioteca" }).click();
@@ -124,6 +125,7 @@ test("crea un esame dal dialogo con calendario e mostra il conto alla rovescia",
   const folder = await response.json();
   expect(folder.examDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   await expect(dialog).toHaveCount(0);
+  await page.getByRole("button", { name: `Apri esame ${name}`, exact: true }).click();
   await expect(page.getByRole("heading", { name: formatCourseName(name), exact: true })).toBeVisible();
   await expect(page.locator(".course-countdown")).toContainText("Oggi è il giorno dell’esame");
   await expect(page.locator(".course-motivation")).not.toBeEmpty();
@@ -145,6 +147,7 @@ test("il piano esclude le domeniche e le singole pause e gestisce zero giorni di
   const uploaded = page.waitForResponse(response => response.url().endsWith("/api/documents") && response.request().method() === "POST");
   await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
   const document = await (await uploaded).json();
+  await page.getByRole("button", { name: `Apri ${document.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
     await expect(page.getByRole("heading", { name: "esempio", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();

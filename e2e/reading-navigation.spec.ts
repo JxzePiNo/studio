@@ -27,6 +27,7 @@ test("routes, browser history, read progress and reading preferences", async ({ 
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
   await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: "Lettura.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
   const doc = await (await uploaded).json();
+  await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
     await expect(page).toHaveURL(`/esami/${exam.id}/documenti/${doc.id}`);
     await expect(page.locator(".slide-stage canvas")).toBeVisible();
