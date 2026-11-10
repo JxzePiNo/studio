@@ -178,7 +178,7 @@ test("completed files open during course analysis and material badges update wit
     await expect(page.locator(".materials-list")).not.toContainText(/\d+\/\d+ spiegate/);
     await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
     await expect.poll(() => state.calls.length).toBe(2);
-    await expect(page.getByRole("button", { name: "Apri Corso A", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Apri Corso A", exact: true })).toBeEnabled();
     await expect(page.getByRole("button", { name: "Apri Corso C", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "Apri Corso C", exact: true }).click();
     await expect(page.locator(".slide-stage canvas")).toBeVisible();
@@ -198,6 +198,49 @@ test("completed files open during course analysis and material badges update wit
     await expect(row("Corso C").getByRole("status")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: "test-results/material-status-mobile.png", fullPage: true });
+  } finally {
+    state.release();
+    const documents = await (await request.get("/api/documents")).json() as DocumentSummary[];
+    for (const document of documents.filter(item => item.folderId === state.folder.id)) await request.delete(`/api/documents/${document.id}`);
+  }
+});
+
+test("course analysis continues through reader, home and another exam, with a hideable island", async ({ page, request }) => {
+  const state = await setupCourse(page, false, { holdAll: true });
+  try {
+    await page.getByRole("button", { name: "Analizza tutto", exact: true }).click();
+    await expect.poll(() => state.calls.length).toBe(2);
+    const island = page.getByRole("complementary", { name: "Avanzamento analisi in background" });
+    await expect(island).toBeVisible();
+    await island.hover();
+    await island.getByRole("button", { name: "Nascondi avanzamento analisi", exact: true }).click();
+    await expect(island).toHaveCount(0);
+    await page.getByRole("button", { name: "Mostra avanzamento analisi", exact: true }).click();
+    await expect(island).toBeVisible();
+
+    await page.getByRole("button", { name: "Apri Corso A", exact: true }).click();
+    await expect(page.locator(".slide-stage canvas")).toBeVisible();
+    await expect(island).toBeVisible();
+    await expect(page.getByRole("button", { name: "Analizza questa pagina", exact: true })).toBeDisabled();
+    await page.goBack();
+    await expect(page.locator(".materials-list")).toBeVisible();
+    await page.getByRole("button", { name: "Tutti gli esami", exact: true }).click();
+    await expect(page).toHaveURL(/\/$/);
+    const other = await createExam(page, "Altro esame durante analisi");
+    await expect(page).toHaveURL(new RegExp(`/esami/${other.id}$`));
+    await expect(island).toContainText("0%");
+    expect(state.calls).toHaveLength(2);
+    state.release();
+    await expect(island).toContainText("100%");
+    await expect(island).toContainText("Tutte le spiegazioni sono pronte");
+    expect(state.calls).toHaveLength(6);
+    expect(new Set(state.calls).size).toBe(6);
+    await page.getByRole("button", { name: new RegExp(state.folder.name) }).click();
+    await expect(page.locator(".material-analysis-badge.is-analyzed")).toHaveCount(2);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(island).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: "test-results/background-island-mobile.png", fullPage: true });
   } finally {
     state.release();
     const documents = await (await request.get("/api/documents")).json() as DocumentSummary[];

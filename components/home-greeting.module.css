@@ -1,0 +1,15 @@
+.header { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; }
+.intro { flex: 1 1 540px; min-width: 0; }
+.header > button { flex-shrink: 0; }
+.greeting.greeting { margin: 0; font-family: var(--sans); font-weight: 500; font-size: clamp(36px, 4.8vw, 62px); letter-spacing: -.055em; line-height: 1.15; }
+.hello { display: block; color: var(--foreground, #243327); overflow-wrap: anywhere; }
+.phrases { position: relative; display: block; height: 1.24em; margin-top: 3px; color: #77896f; }
+.phrase { position: absolute; inset: 0 auto auto 0; display: block; white-space: nowrap; opacity: 0; animation: rotate 16s infinite; }
+.period { color: #afbb9e; }
+.description.description { margin: 20px 0 0; max-width: 450px; color: #7f897b; font-size: 13px; line-height: 1.7; }
+.brand.brand { display: flex; align-items: center; gap: 9px; padding: 0 5px; }
+.mascot { display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 46px; }
+.brand > span:last-child { padding-top: 2px; }
+@keyframes rotate { 0%, 20% { opacity: 1; transform: translateY(0); filter: blur(0); } 24%, 96% { opacity: 0; transform: translateY(-8px); filter: blur(3px); } 97%, 100% { opacity: 0; transform: translateY(8px); filter: blur(3px); } }
+@media (max-width: 600px) { .greeting.greeting { font-size: clamp(31px, 8vw, 44px); } .description.description { margin-top: 16px; font-size: 12px; } }
+@media (prefers-reduced-motion: reduce) { .phrase { animation: none; filter: none; transform: none; } .phrase:first-child { opacity: 1; } }

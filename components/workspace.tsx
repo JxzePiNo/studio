@@ -15,6 +15,11 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { CourseHeader } from "./course-header";
 import { CourseAnalysis } from "./course-analysis";
+import { useCourseAnalysis } from "./use-course-analysis";
+import { AnalysisIsland, type AnalysisIslandJob } from "./analysis-island";
+import { TonyMascot } from "./mascot/tony-mascot";
+import homeStyles from "./home-greeting.module.css";
+import { mergeAnalysisSlide } from "@/lib/merge-analysis-slide";
 import { NewExamDialog } from "./new-exam-dialog";
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger } from "./ui/sidebar";
 import { MaterialList } from "./material-list";
@@ -32,7 +37,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 }
 const json = (method: string, data: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
 const size = (bytes: number) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-type BatchProgress = { id: string; total: number; completed: number; current: number | null; status: "running" | "stopping" | "stopped" | "completed" | "error" };
+type BatchProgress = { id: string; startedAt: number; total: number; completed: number; current: number | null; status: "running" | "stopping" | "stopped" | "completed" | "error" };
 
 export default function Workspace() {
   const [folders, setFolders] = useState<ExamFolder[]>([]);
@@ -51,6 +56,7 @@ export default function Workspace() {
   const [busy, setBusy] = useState(false);
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [batch, setBatch] = useState<BatchProgress | null>(null);
+  const [pageJob, setPageJob] = useState<AnalysisIslandJob | null>(null);
   const [configured, setConfigured] = useState(false);
   const [error, setError] = useState("");
   const [settings, setSettings] = useState(false);
@@ -72,6 +78,7 @@ export default function Workspace() {
   const analysisLock = useRef(false);
   const courseLock = useRef(false);
   const [courseRunning, setCourseRunning] = useState(false);
+  const [analysisKind, setAnalysisKind] = useState<"course" | "reader">("course");
   const stopBatch = useRef(false);
   const viewer = useRef<HTMLDivElement>(null);
   const activeSlide = doc?.slides[page];
@@ -132,6 +139,25 @@ export default function Workspace() {
     if (sequence !== refreshSequence.current) return;
     setLibrary(documents); setFolders(exams);
   }, []);
+  const courseAnalysis = useCourseAnalysis({
+    folderId, documents: library, configured, disabled: busy || !!analyzing || !!batchRunning,
+    canStart: () => !analysisLock.current && !uploadLock.current,
+    onRunningChange: running => { courseLock.current = running; setCourseRunning(running); if (running) setAnalysisKind("course"); },
+    onProgressSaved: refresh,
+    onSlideSaved: (id, target, result) => mergeSlide(id, target, result, true),
+  });
+  const courseProgress = courseAnalysis.progress;
+  const islandJob: AnalysisIslandJob | null = analysisKind === "course" && courseProgress ? {
+    id: `course:${courseProgress.startedAt}`, label: folders.find(folder => folder.id === courseProgress.folderId)?.name || "Esame",
+    status: courseProgress.status, completed: courseProgress.completed, total: courseProgress.total,
+    detail: courseProgress.active.length ? `${courseProgress.active.length} file in analisi · ${courseProgress.completed} / ${courseProgress.total} pagine` : undefined,
+    error: courseAnalysis.error,
+  } : batch ? {
+    id: `reader:${batch.id}:${batch.startedAt}`, label: library.find(file => file.id === batch.id)?.name || "PDF",
+    status: batch.status, completed: batch.completed, total: batch.total,
+    detail: batch.current ? `Pagina ${batch.current} · ${batch.completed} / ${batch.total} pronte` : undefined,
+  } : pageJob;
+
   useEffect(() => {
     void refresh().catch(e => setError(e.message));
     void api<{ configured: boolean }>("/api/status").then(s => setConfigured(s.configured)).catch(e => setError(e.message));
@@ -157,7 +183,7 @@ export default function Workspace() {
     if (window.location.pathname !== path) window.history.pushState(null, "", path);
   }
   function openFolder(id: string) {
-    if (busy || uploadLock.current || analysisLock.current || courseLock.current) return;
+    if (busy || uploadLock.current) return;
     changeLocation(id); setFolderId(id); setQuery(""); setSidebar(false);
   }
   const restoreRoute = useRef<(path: string) => Promise<void>>(async () => {});
@@ -173,7 +199,7 @@ export default function Workspace() {
   }, []);
   restoreRoute.current = async (path) => {
     const match = path.match(/^\/esami\/([^/]+)(?:\/documenti\/([^/]+))?\/?$/);
-    if (analysisLock.current || uploadLock.current || (courseLock.current && match?.[1] !== folderId)) {
+    if (uploadLock.current) {
       window.history.pushState(null, "", docRef.current ? `/esami/${docRef.current.folderId}/documenti/${docRef.current.id}` : folderId ? `/esami/${folderId}` : "/");
       setError("Attendi il completamento dell'operazione prima di cambiare pagina."); return;
     }
@@ -185,7 +211,6 @@ export default function Workspace() {
   };
 
   async function openDocument(id: string) {
-    if (analysisLock.current || (courseLock.current && !library.some(item => item.id === id && item.analyzedPages >= item.pages))) return;
     const sequence = ++openSequence.current;
     setBusy(true); setError(""); setSidebar(false);
     try {
@@ -199,14 +224,13 @@ export default function Workspace() {
       if (!restoringRoute.current) changeLocation(result.folderId || folderId, id);
       docRef.current = result; setDoc(result); setFolderId(result.folderId || ""); setPdf(loaded); setPage(result.currentPage); setZoom(1);
       setNoteStatus(firebaseEnabled ? "Salvato su Firebase" : "Salvato in locale");
-      setBatch(null);
     } catch (e) { if (sequence === openSequence.current) setError((e as Error).message); }
     finally { if (sequence === openSequence.current) setBusy(false); }
   }
 
   async function uploadFiles(selection: FileList | File[] | null) {
     const files = Array.from(selection || []);
-    if (!files.length || analysisLock.current || courseLock.current || uploadLock.current || busy) return;
+    if (!files.length || uploadLock.current || busy) return;
     if (!folderId || !folders.some(f => f.id === folderId)) { setError("Apri un esame prima di caricare i PDF."); return; }
     const targetFolder = folderId;
     uploadLock.current = true; setBusy(true); setError("");
@@ -287,9 +311,10 @@ export default function Workspace() {
     noteTimer.current = setTimeout(flushNotes, 350);
   }
 
-  function mergeSlide(id: string, target: number, result: SlideData) {
+  function mergeSlide(id: string, target: number, result: SlideData, analysisResult = false) {
     if (docRef.current?.id !== id) return;
-    const updated = { ...docRef.current, slides: { ...docRef.current.slides, [target]: { ...result, ...(docRef.current.slides[target]?.read !== undefined ? { read: docRef.current.slides[target].read } : {}), notes: docRef.current.slides[target]?.notes ?? result.notes ?? "" } } };
+    const slide = analysisResult ? mergeAnalysisSlide(docRef.current.slides[target], result) : { ...result, ...(docRef.current.slides[target]?.read !== undefined ? { read: docRef.current.slides[target].read } : {}), notes: docRef.current.slides[target]?.notes ?? result.notes ?? "" };
+    const updated = { ...docRef.current, slides: { ...docRef.current.slides, [target]: slide } };
     docRef.current = updated; setDoc(updated);
   }
 
@@ -297,26 +322,28 @@ export default function Workspace() {
     if (!doc || busy || analysisLock.current || courseLock.current) return;
     analysisLock.current = true;
     const id = doc.id; const target = page;
-    setAnalyzing(`${id}:${target}`); setError(""); setBatch(null);
+    setAnalysisKind("reader"); setAnalyzing(`${id}:${target}`); setError(""); setBatch(null);
+    setPageJob({ id: `page:${id}:${target}:${Date.now()}`, label: doc.name, status: "running", completed: 0, total: 1, detail: `Analisi della pagina ${target}` });
     try {
-      mergeSlide(id, target, await api<SlideData>(`/api/documents/${id}/analyze`, json("POST", { page: target, regenerate })));
+      mergeSlide(id, target, await api<SlideData>(`/api/documents/${id}/analyze`, json("POST", { page: target, regenerate })), true);
       await refresh();
-    } catch (e) { setError((e as Error).message); }
+      setPageJob(previous => previous && { ...previous, status: "completed", completed: 1, detail: `Pagina ${target} pronta` });
+    } catch (e) { setError((e as Error).message); setPageJob(previous => previous && { ...previous, status: "error", error: (e as Error).message }); }
     finally { analysisLock.current = false; setAnalyzing(null); }
   }
 
   async function analyzeAll() {
     if (!doc || busy || analysisLock.current || courseLock.current) return;
     const id = doc.id;
-    analysisLock.current = true; stopBatch.current = false;
+    analysisLock.current = true; stopBatch.current = false; setAnalysisKind("reader");
     setError("");
-    setBatch({ id, total: doc.pages, completed: analyzedCount, current: null, status: "running" });
+    setBatch({ id, startedAt: Date.now(), total: doc.pages, completed: analyzedCount, current: null, status: "running" });
     try {
       // Read the saved explanations again, including work completed in another tab.
       const saved = await api<StudyDocument>(`/api/documents/${id}`);
       let completed = Object.values(saved.slides).filter(s => s.explanation).length;
       for (const [target, slide] of Object.entries(saved.slides)) {
-        if (slide.explanation) mergeSlide(id, Number(target), slide);
+        if (slide.explanation) mergeSlide(id, Number(target), slide, true);
       }
       setBatch(previous => previous && { ...previous, completed });
       for (let target = 1; target <= saved.pages; target++) {
@@ -325,7 +352,7 @@ export default function Workspace() {
         setBatch(previous => previous && { ...previous, current: target });
         setAnalyzing(`${id}:${target}`);
         const result = await api<SlideData>(`/api/documents/${id}/analyze`, json("POST", { page: target }));
-        mergeSlide(id, target, result);
+        mergeSlide(id, target, result, true);
         completed++;
         setBatch(previous => previous && { ...previous, completed });
       }
@@ -345,7 +372,7 @@ export default function Workspace() {
   }
 
   async function closeDocument(fromRoute = false) {
-    if ((!fromRoute && busy) || analysisLock.current) return;
+    if (!fromRoute && busy) return;
     setBusy(true);
     try {
       flushNotes();
@@ -355,7 +382,7 @@ export default function Workspace() {
       const previousPdf = pdfRef.current;
       pdfRef.current = null; docRef.current = null;
       if (!restoringRoute.current) changeLocation(folderId);
-      setDoc(null); setPdf(null); setBatch(null); setSidebar(false); setSettings(false);
+      setDoc(null); setPdf(null); setSidebar(false); setSettings(false);
       void previousPdf?.destroy();
       await refresh();
     } catch (e) { setError((e as Error).message); }
@@ -365,15 +392,16 @@ export default function Workspace() {
   return <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell ${doc ? "reader-active" : ""}`} onDragOver={e => { e.preventDefault(); if (folderId && !busy && !courseRunning && e.dataTransfer.types.includes("Files")) setDragging(true); }} onDrop={e => { e.preventDefault(); if (!folderId && e.dataTransfer.files.length) setError("Apri un esame prima di caricare un PDF."); }}>
     {folderId && <Input ref={input} type="file" accept="application/pdf,.pdf" multiple className="sr-only" onChange={e => void uploadFiles(e.target.files)} aria-label="Carica un PDF" />}
     {!doc && <Sidebar>
-      <SidebarHeader><a className="studio-brand" href="/" aria-label="Studio, pagina iniziale">Studio</a><Button className="new-document" aria-label="Crea esame" onClick={() => { setSidebar(false); setCreatingFolder(true); }} disabled={busy || courseRunning}><Plus size={18} /> Crea esame</Button></SidebarHeader>
+      <SidebarHeader><a className={`studio-brand ${homeStyles.brand}`} href="/" onClick={event => { event.preventDefault(); openFolder(""); }} aria-label="Studio, pagina iniziale"><span className={homeStyles.mascot} aria-hidden="true"><TonyMascot size={42} /></span><span>Studio</span></a><Button className="new-document" aria-label="Crea esame" onClick={() => { setSidebar(false); setCreatingFolder(true); }} disabled={busy}><Plus size={18} /> Crea esame</Button></SidebarHeader>
       <SidebarContent>
       <nav className="exam-folders" aria-label="Esami"><div className="section-label"><span>I tuoi esami</span><span>{folders.length}</span></div>
-      <SidebarMenu>{folders.map(folder => <SidebarMenuItem key={folder.id}><SidebarMenuButton disabled={busy || courseRunning} isActive={folderId === folder.id} className={folderId === folder.id ? "folder-item active" : "folder-item"} data-exam-color={examColor(folder)} aria-current={folderId === folder.id ? "page" : undefined} onClick={() => { openFolder(folder.id); }}><span className="folder-icon"><FolderOpen size={19} strokeWidth={1.8} /></span><span className="folder-name">{folder.name}</span><small>{library.filter(d => d.folderId === folder.id).length}</small></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu>
+      <SidebarMenu>{folders.map(folder => <SidebarMenuItem key={folder.id}><SidebarMenuButton disabled={busy} isActive={folderId === folder.id} className={folderId === folder.id ? "folder-item active" : "folder-item"} data-exam-color={examColor(folder)} aria-current={folderId === folder.id ? "page" : undefined} onClick={() => { openFolder(folder.id); }}><span className="folder-icon"><FolderOpen size={19} strokeWidth={1.8} /></span><span className="folder-name">{folder.name}</span><small>{library.filter(d => d.folderId === folder.id).length}</small></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu>
       {!folders.length && <p className="exam-list-empty">Ogni esame ha il suo spazio.<br />Crea il primo per iniziare.</p>}
       </nav></SidebarContent>
       <SidebarFooter><SidebarProfile /></SidebarFooter>
     </Sidebar>}
 
+    {islandJob && <AnalysisIsland key={islandJob.id} job={islandJob} onStop={courseRunning ? courseAnalysis.stopAnalysis : batchRunning ? stopAnalysis : undefined} />}
     <main className="main-shell">
       {!doc && <SidebarTrigger />}
       {error && <div className="error-banner" role="alert"><span>{error}</span><Button variant="ghost" aria-label="Chiudi messaggio" onClick={() => setError("")}><X size={16} /></Button></div>}
@@ -381,11 +409,11 @@ export default function Workspace() {
       {uploadProgress && <section className="upload-progress" role="status" aria-live="polite"><div><strong>{uploadProgress.completed < uploadProgress.total ? `Caricamento ${uploadProgress.completed + 1} di ${uploadProgress.total}` : `${uploadProgress.succeeded} PDF caricati`}</strong><span>{uploadProgress.completed < uploadProgress.total ? uploadProgress.name : uploadProgress.failures.length ? `${uploadProgress.failures.length} file non caricati` : "Materiali salvati nell’esame"}</span>{uploadProgress.completed === uploadProgress.total && <Button variant="ghost" size="icon" aria-label="Chiudi avanzamento caricamenti" onClick={() => setUploadProgress(null)}><X size={16} /></Button>}</div><progress value={uploadProgress.completed} max={uploadProgress.total} aria-label="PDF caricati" /></section>}
       {!doc && !folderId && <ExamOverview folders={folders} documents={library} onOpen={openFolder} onCreate={() => { setSidebar(false); setCreatingFolder(true); }} onUpdated={folder => setFolders(current => current.map(f => f.id === folder.id ? folder : f))} />}
       {folderId && <div className="welcome" hidden={!!doc}>
-        <Button variant="ghost" className="exam-home-back" onClick={() => openFolder("")} disabled={busy || courseRunning}><ArrowLeft size={16} /> Tutti gli esami</Button>
+        <Button variant="ghost" className="exam-home-back" onClick={() => openFolder("")} disabled={busy}><ArrowLeft size={16} /> Tutti gli esami</Button>
         <CourseHeader folder={folders.find(f => f.id === folderId) || { id: folderId, name: "Esame", createdAt: "" }} />
         <div className="exam-action-grid">
-        <CourseAnalysis key={folderId} folderId={folderId} documents={library.filter(d => d.folderId === folderId)} configured={configured} disabled={busy} onRunningChange={running => { courseLock.current = running; setCourseRunning(running); }} onProgressSaved={refresh} />
-        <section className="upload-zone upload-banner" aria-label="Aggiungi file" onDrop={e => { e.preventDefault(); setDragging(false); void uploadFiles(e.dataTransfer.files); }}><span className="upload-symbol"><Upload size={22} strokeWidth={1.5} /></span><div className="upload-banner-copy"><h2>Aggiungi file</h2><p>Trascina qui i tuoi PDF · Fino a 30 MB per file</p></div><Button variant="default" className="primary-button" disabled={busy || courseRunning} onClick={() => input.current?.click()}>{busy ? <LoaderCircle className="spin" size={17} /> : <Plus size={17} />}{busy ? "Caricamento in corso…" : "Scegli i PDF"}</Button></section>
+        <CourseAnalysis key={folderId} folderId={folderId} documents={library.filter(d => d.folderId === folderId)} configured={configured} disabled={busy || !!analyzing || !!batchRunning} controller={courseAnalysis} />
+        <section className="upload-zone upload-banner" aria-label="Aggiungi file" onDrop={e => { e.preventDefault(); setDragging(false); void uploadFiles(e.dataTransfer.files); }}><span className="upload-symbol"><Upload size={22} strokeWidth={1.5} /></span><div className="upload-banner-copy"><h2>Aggiungi file</h2><p>Trascina qui i tuoi PDF · Fino a 30 MB per file</p></div><Button variant="default" className="primary-button" disabled={busy} onClick={() => input.current?.click()}>{busy ? <LoaderCircle className="spin" size={17} /> : <Plus size={17} />}{busy ? "Caricamento in corso…" : "Scegli i PDF"}</Button></section>
         </div>
         <div className={`dashboard-columns ${folderId ? "" : "without-upload"}`}><section className="materials-card"><div className="card-heading"><div><h2>{folderId ? "Materiali dell’esame" : "I tuoi materiali"}</h2><p>Slide, spiegazioni e conversazioni. Tutto nello stesso posto.</p></div><span className="count-badge">{library.filter(d => !folderId || d.folderId === folderId).length}</span></div>
         {library.length > 4 && <label className="materials-search"><Search size={16} /><Input aria-label="Cerca un materiale" placeholder="Cerca nei materiali" value={query} onChange={e => setQuery(e.target.value)} /></label>}{library.some(d => !folderId || d.folderId === folderId) ? <MaterialList key={folderId} documents={library.filter(d => d.folderId === folderId)} folder={folders.find(f => f.id === folderId) || { id: folderId, name: "", createdAt: "" }} query={query} busy={busy} analysisRunning={courseRunning} onOpen={id => void openDocument(id)} onRenamed={updated => setLibrary(current => current.map(item => item.id === updated.id ? { ...item, name: updated.name, originalName: updated.originalName } : item))} onOrdered={updated => setFolders(current => current.map(f => f.id === updated.id ? updated : f))} /> : <div className="materials-empty"><span className="empty-document-icon"><FileText size={28} strokeWidth={1.5} /></span><h3>Il tuo prossimo passo inizia qui.</h3><p>{folderId ? "Carica le slide di questo esame per iniziare a studiare." : "Crea o apri un esame, poi aggiungi le tue slide."}</p>{!folderId && <Button variant="outline" className="secondary-button" onClick={() => { setSidebar(false); setCreatingFolder(true); }}><Plus size={16} /> Crea il primo esame</Button>}</div>}
@@ -394,12 +422,12 @@ export default function Workspace() {
       </div>}
       {doc && <>
 
-        <Button variant="ghost" size="icon" className="reader-back reader-floating-back" aria-label="Torna alla biblioteca" title="Torna ai materiali" disabled={busy || batchRunning || !!analyzing} onClick={() => void closeDocument()}><ArrowLeft size={20} /></Button>
+        <Button variant="ghost" size="icon" className="reader-back reader-floating-back" aria-label="Torna alla biblioteca" title="Torna ai materiali" disabled={busy} onClick={() => void closeDocument()}><ArrowLeft size={20} /></Button>
         <ReaderSplit><section className="slide-panel"><div className={`slide-stage ${activeSlide?.read ? "is-read" : ""}`} ref={viewer}>{pdf && <PdfCanvas pdf={pdf} page={page} zoom={zoom} fitHeight />}{busy && <div className="viewer-busy"><LoaderCircle className="spin" /> Apertura documento…</div>}</div><BottomPanel key={doc.id}><div className="slide-tools"><Button variant="outline" className="page-read-toggle" aria-pressed={!!activeSlide?.read} disabled={busy} onClick={toggleRead}><Check size={15} />{activeSlide?.read ? "Letta" : "Da leggere"}</Button><div className="page-navigation"><Button variant="ghost" className="icon-button" disabled={page <= 1 || busy} onClick={() => navigate(page - 1)} aria-label="Slide precedente"><ChevronLeft size={17} /></Button><label><Input aria-label="Numero della slide" type="number" min={1} max={doc.pages} value={page} onChange={e => { const n = Number(e.target.value); if (n >= 1 && n <= doc.pages) navigate(n); }} /> <span>/ {doc.pages}</span></label><Button variant="ghost" className="icon-button" disabled={page >= doc.pages || busy} onClick={() => navigate(page + 1)} aria-label="Slide successiva"><ChevronRight size={17} /></Button></div><div><Button variant="ghost" className="icon-button" onClick={() => setZoom(z => Math.max(0.5, Math.round((z - 0.1) * 10) / 10))} disabled={zoom <= 0.5} aria-label="Riduci zoom"><Minus size={15} /></Button><Button variant="ghost" className="zoom-reset" onClick={() => setZoom(1)} title="Adatta alla larghezza">{Math.round(zoom * 100)}%</Button><Button variant="ghost" className="icon-button" onClick={() => setZoom(z => Math.min(2, Math.round((z + 0.1) * 10) / 10))} disabled={zoom >= 2} aria-label="Aumenta zoom"><Plus size={15} /></Button><span className="tool-divider" /><Button variant="ghost" className="icon-button" aria-label="Schermo intero" onClick={() => { void viewer.current?.requestFullscreen().catch(() => setError("Il browser non permette lo schermo intero.")); }}><Maximize2 size={15} /></Button></div></div>
           <div className="glossary"><div className="glossary-heading"><span><Languages size={17} /> Le parole della slide</span><span className="language-tag">EN <ArrowRight size={10} /> IT</span></div>{explanation?.glossary.length ? <div className="glossary-words">{explanation.glossary.map(g => <div key={g.word} className="glossary-word" title={g.context}><strong>{g.word}</strong><span>{g.translation}</span><small>{g.context}</small></div>)}</div> : <p>{explanation ? explanation.language === "en" ? "Nessun termine da tradurre individuato in questa slide." : "Questa slide non è in inglese. Puoi concentrarti sui concetti." : "Quando spieghi una slide in inglese, trovi qui i termini importanti con la traduzione italiana."}</p>}</div>
           <div className="keyboard-tip"><span>Il tuo ritmo, una slide alla volta.</span><span>Usa <kbd>←</kbd> <kbd>→</kbd> per sfogliare / <kbd>Spazio</kbd> letta / da leggere</span></div></BottomPanel>
         </section>
-        <aside className="explanation-panel reader-chat-panel" style={{ "--reader-text-size": `${textSize}px` } as React.CSSProperties} aria-label="Tutor della slide"><h1 className="sr-only">{doc.name.replace(/\.pdf$/i, "")}</h1><StudyChat key={`${doc.id}:${page}`} id={doc.id} page={page} folder={doc.folderId} initial={activeSlide?.chat || []} explanation={explanation} onAnalyze={() => void analyze()} onAnalyzeAll={() => void analyzeAll()} analyzing={currentAnalyzing} batchRunning={!!batchRunning} configured={configured} disabled={busy} analysisProgress={batch?.id === doc.id ? { completed: batch.completed, total: batch.total, current: batch.current, status: batch.status } : undefined} onStopAnalysis={stopAnalysis} onSettings={() => setSettings(true)} onSaved={messages => { if (docRef.current?.id === doc.id) mergeSlide(doc.id, page, { ...docRef.current.slides[page], notes: docRef.current.slides[page]?.notes || "", chat: messages }); }} />
+        <aside className="explanation-panel reader-chat-panel" style={{ "--reader-text-size": `${textSize}px` } as React.CSSProperties} aria-label="Tutor della slide"><h1 className="sr-only">{doc.name.replace(/\.pdf$/i, "")}</h1><StudyChat key={`${doc.id}:${page}`} id={doc.id} page={page} folder={doc.folderId} initial={activeSlide?.chat || []} explanation={explanation} onAnalyze={() => void analyze()} onAnalyzeAll={() => void analyzeAll()} analyzing={currentAnalyzing} batchRunning={!!batchRunning && batch?.id === doc.id} analysisBusy={courseRunning || !!analyzing || !!batchRunning} configured={configured} disabled={busy} analysisProgress={batch?.id === doc.id ? { completed: batch.completed, total: batch.total, current: batch.current, status: batch.status } : undefined} onStopAnalysis={stopAnalysis} onSettings={() => setSettings(true)} onSaved={messages => { if (docRef.current?.id === doc.id) mergeSlide(doc.id, page, { ...docRef.current.slides[page], notes: docRef.current.slides[page]?.notes || "", chat: messages }); }} />
         </aside></ReaderSplit>
       </>}
     </main>

@@ -67,11 +67,11 @@ test("interrompe dopo la pagina in corso e riprende senza ripetere chiamate", as
   try {
     await page.getByRole("button", { name: "Analizza tutto", exact: true }).click();
     await expect.poll(() => state.calls).toEqual([1]);
-    await expect(page.getByRole("button", { name: "Torna alla biblioteca", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Torna alla biblioteca", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "Slide successiva", exact: true }).click();
     await expect(page.getByRole("spinbutton", { name: "Numero della slide" })).toHaveValue("2");
     await expect(page.getByRole("button", { name: "Analizza questa pagina", exact: true })).toBeDisabled();
-    await page.getByRole("button", { name: "Interrompi analisi" }).click();
+    await page.getByRole("button", { name: "Interrompi analisi", exact: true }).click();
     await expect(page.getByRole("button", { name: "Interruzione richiesta…" })).toBeDisabled();
     release();
     await expect(page.getByText("Analisi interrotta. Puoi riprendere quando vuoi.")).toBeVisible();
@@ -96,11 +96,39 @@ test("si ferma al primo errore e conserva i progressi per il nuovo tentativo", a
     await expect(page.getByRole("alert").filter({ hasText: "Analisi interrotta:" })).toContainText("Quota API esaurita");
     await expect(page.getByText("Analisi sospesa per un errore", { exact: true })).toBeVisible();
     expect(state.calls).toEqual([1, 2]);
-    await expect(page.getByRole("progressbar")).toHaveAttribute("value", "1");
+    await expect(page.getByRole("progressbar", { name: "Pagine analizzate", exact: true })).toHaveAttribute("value", "1");
     fail = false;
     await page.getByRole("spinbutton", { name: "Numero della slide" }).fill("2");
     await page.getByRole("button", { name: "Analizza tutto", exact: true }).click();
     await expect(page.getByText("Analisi completata", { exact: true })).toBeVisible();
     expect(state.calls).toEqual([1, 2, 2, 3]);
   } finally { await request.delete(`/api/documents/${state.id}`); }
+});
+
+test("reader batch keeps analyzing after leaving the PDF and returning home", async ({ page, request }) => {
+  const state = await setup(page);
+  let release: () => void = () => {};
+  const blocked = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/documents/*/analyze", async route => {
+    const number = route.request().postDataJSON().page as number;
+    state.calls.push(number);
+    if (number === 1) await blocked;
+    await route.fulfill({ json: state.save(number) });
+  });
+  try {
+    await page.getByRole("button", { name: "Analizza tutto", exact: true }).click();
+    await expect.poll(() => state.calls).toEqual([1]);
+    await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
+    await expect(page.locator(".materials-list")).toBeVisible();
+    await page.getByRole("button", { name: "Tutti gli esami", exact: true }).click();
+    const island = page.getByRole("complementary", { name: "Avanzamento analisi in background" });
+    await expect(island).toBeVisible();
+    release();
+    await expect(island).toContainText("100%");
+    expect(state.calls).toEqual([1, 2, 3]);
+    await page.goBack();
+    await page.getByRole("button", { name: "Apri esempio", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Spiegazione pagina 1", exact: true })).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: "Pagine analizzate", exact: true })).toHaveAttribute("value", "3");
+  } finally { release(); await request.delete(`/api/documents/${state.id}`); }
 });

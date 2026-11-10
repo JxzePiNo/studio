@@ -15,6 +15,8 @@ import { Input } from "./ui/input";
 import { Calendar } from "./ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { StudyAvailability } from "./study-availability";
+import { HomeGreeting } from "./home-greeting";
+import greetingStyles from "./home-greeting.module.css";
 
 interface ExamOverviewProps {
   folders: ExamFolder[];
@@ -87,7 +89,7 @@ export function ExamOverview({ folders, documents, onOpen, onCreate, onUpdated }
   const selectedDate = validExamDate(examDate) ? new Date(`${examDate}T12:00:00`) : undefined;
 
   return <div className="overview-page">
-    <header className="exam-overview-heading"><div><h1>I tuoi esami</h1><p>Ogni materia, il suo spazio. Organizza il materiale e trova il tuo ritmo.</p></div><Button onClick={onCreate}><Plus size={17} /> Nuovo esame</Button></header>
+    <header className={`exam-overview-heading ${greetingStyles.header}`}><HomeGreeting /><Button onClick={onCreate}><Plus size={17} /> Nuovo esame</Button></header>
     <div className="exam-overview-grid">
       {folders.map(folder => {
         const materials = documents.filter(document => document.folderId === folder.id);

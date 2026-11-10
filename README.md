@@ -4,6 +4,12 @@
 
 Applicazione full stack sviluppata con **Next.js, React e TypeScript**, con persistenza locale oppure **Firebase**, analisi concorrente dei materiali e una suite di test unitari, di integrazione ed end-to-end.
 
+Il login presenta **Tony**, la mascotte animata, su uno sfondo a puntini, con accesso Google e animazioni rispettose delle preferenze di movimento. L'analisi prosegue durante la navigazione nell'app: un indicatore flottante mostra avanzamento e stato, permette di interromperla e si può nascondere o riaprire. La scheda del browser deve restare aperta.
+
+Tony accompagna anche il nome Studio nella sidebar. La home saluta l'utente con il nome Google e alterna frasi dedicate a esami, sfide e scoperte, mantenendo stabile lo spazio del titolo.
+
+La mascotte riutilizza il renderer Onee distribuito con licenza **AGPL-3.0-only**; attribuzione e riferimenti in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 Il progetto esplora problemi concreti di software engineering: gestione della concorrenza, consistenza dei salvataggi, invalidazione della cache, integrazione con un servizio AI e progettazione di un'interfaccia di lettura accessibile.
 
 > **Sviluppo assistito dall'AI:** Margine è stato realizzato attraverso un approccio di **vibe coding**, utilizzando assistenti generativi per implementazione, refactoring e sviluppo dei test. Requisiti, priorità del prodotto e criteri di accettazione sono stati definiti dall'autore. Il codice prodotto con l'AI viene verificato attraverso controlli di tipo, test automatici e verifiche dell'interfaccia. La responsabilità delle scelte tecniche e del risultato rimane dell'autore.

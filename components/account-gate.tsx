@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
 import { browserAuth, firebaseEnabled } from "@/lib/firebase-client";
-import { Button } from "./ui/button";
+import { LoginScreen } from "./login-screen";
 import { StudyProfileProvider } from "./study-profile-provider";
 import Workspace from "./workspace";
 
@@ -43,7 +43,7 @@ export default function AccountGate() {
   }
   if (!firebaseEnabled) return <StudyProfileProvider><Workspace /></StudyProfileProvider>;
   if (!ready) return <main className="account-gate"><p>Caricamento del tuo spazio…</p></main>;
-  if (!user) return <main className="account-gate"><span className="eyebrow">MARGINE · IL TUO SPAZIO DI STUDIO</span><h1>Ogni esame,<br />un passo più vicino.</h1><p>Raccogli le slide, chiarisci i concetti e fai domande al tuo tutor.</p><Button className="primary-button" disabled={busy} onClick={() => void login()}>{busy ? "Accesso in corso…" : "Accedi con Google"}</Button>{error && <p role="alert">{error}</p>}</main>;
+  if (!user) return <LoginScreen busy={busy} error={error} onLogin={() => void login()} />;
   return <StudyProfileProvider key={user.uid} onSignOut={logout}><Workspace /><LogoutHandler /></StudyProfileProvider>;
 }
 function LogoutHandler() {

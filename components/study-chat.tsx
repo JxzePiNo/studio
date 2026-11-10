@@ -28,6 +28,7 @@ export interface StudyChatProps {
   onAnalyzeAll?: () => void;
   analyzing?: boolean;
   batchRunning?: boolean;
+  analysisBusy?: boolean;
   configured?: boolean;
   disabled?: boolean;
   onSaved: (messages: ChatMessage[]) => void;
@@ -46,7 +47,7 @@ function BatchProgress({ progress, running, onStop }: { progress?: AnalysisProgr
   </div>;
 }
 
-export function StudyChat({ id, page, initial, explanation, onAnalyze, onAnalyzeAll, analyzing = false, batchRunning = false, configured = true, disabled = false, onSaved, analysisProgress, onStopAnalysis, onSettings }: StudyChatProps) {
+export function StudyChat({ id, page, initial, explanation, onAnalyze, onAnalyzeAll, analyzing = false, batchRunning = false, analysisBusy = false, configured = true, disabled = false, onSaved, analysisProgress, onStopAnalysis, onSettings }: StudyChatProps) {
   const [question, setQuestion] = useState("");
   const [wholeDocument, setWholeDocument] = useState(false);
   const [messages, setMessages] = useState(initial);
@@ -135,8 +136,8 @@ export function StudyChat({ id, page, initial, explanation, onAnalyze, onAnalyze
           <h2>Partiamo da questa pagina.</h2>
           <p>Una spiegazione completa per capire i concetti. Poi puoi approfondirli con il tutor.</p>
           <div className="chat-analysis-actions">
-            <Button disabled={busy || disabled || analyzing || batchRunning || !configured || !onAnalyze} onClick={onAnalyze}>{analyzing && !batchRunning ? <LoaderCircle size={16} className="spin" /> : <Sparkles size={16} />} Analizza questa pagina</Button>
-            <Button variant="outline" disabled={busy || disabled || analyzing || batchRunning || !configured || !onAnalyzeAll} onClick={onAnalyzeAll}>Analizza tutto</Button>
+            <Button disabled={busy || disabled || analyzing || batchRunning || analysisBusy || !configured || !onAnalyze} onClick={onAnalyze}>{analyzing && !batchRunning ? <LoaderCircle size={16} className="spin" /> : <Sparkles size={16} />} Analizza questa pagina</Button>
+            <Button variant="outline" disabled={busy || disabled || analyzing || batchRunning || analysisBusy || !configured || !onAnalyzeAll} onClick={onAnalyzeAll}>Analizza tutto</Button>
           </div>
           {analyzing && !batchRunning && <p role="status">Analisi di questa pagina in corso…</p>}
           {!configured && <p className="chat-analysis-configure">Configura OpenAI dalle impostazioni della lettura per iniziare.</p>}
