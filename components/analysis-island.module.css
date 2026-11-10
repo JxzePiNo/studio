@@ -17,6 +17,13 @@
 .footer button { display: flex; align-items: center; gap: 5px; border: 0; padding: 3px 4px; border-radius: 5px; background: transparent; color: #e3eae5; font: inherit; cursor: pointer; }
 .footer button:hover { background: #ffffff12; }
 .footer button:disabled { opacity: .6; cursor: default; }
+.jobs { list-style: none; margin: 0; padding: 0; max-height: min(260px, 40svh); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.jobs li { padding: 9px 0; border-top: 1px solid #ffffff12; }
+.jobs li:first-child { border-top: 0; }
+.jobs li:last-child { padding-bottom: 0; }
+.jobHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; font-size: 11px; }
+.jobHeading strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
+.jobHeading > span { font-variant-numeric: tabular-nums; color: #c4e8ca; }
 .restore { position: fixed; z-index: 45; top: 16px; left: 50%; transform: translateX(-50%); display: grid; place-items: center; width: 44px; height: 34px; border: 1px solid #343b38; border-radius: 18px; background: #202724; color: #e1eee4; box-shadow: 0 4px 15px #17251d20; cursor: pointer; }
 .dot, .finishedDot { position: absolute; top: 6px; right: 7px; width: 5px; height: 5px; border-radius: 50%; background: #c4e8ca; }
 .dot { animation: pulse 1.8s ease-in-out infinite; }

@@ -58,5 +58,41 @@ test("parallel estimates account for sequential pages within each file", async (
   assert.equal(parallelPageRounds([10, 1, 1], 3), 10);
   assert.equal(parallelPageRounds([2, 2, 2], 2), 4);
   assert.equal(parallelPageRounds([0, 0], 3), 0);
-  await assert.rejects(runParallelFiles([1], 7, async () => {}), RangeError);
+  await assert.rejects(runParallelFiles([1], 0, async () => {}), RangeError);
+  await assert.rejects(runParallelFiles([1], Infinity, async () => {}), RangeError);
+});
+
+test("automatic concurrency starts every file even beyond six and drains them all", async () => {
+  const gate = deferred();
+  const files = Array.from({ length: 12 }, (_, index) => index);
+  const started: number[] = [];
+  const completed: number[] = [];
+  const running = runParallelFiles(files, files.length, async file => {
+    started.push(file);
+    await gate.promise;
+    completed.push(file);
+  });
+  assert.deepEqual(started, files);
+  gate.resolve();
+  await running;
+  assert.deepEqual(completed, files);
+});
+
+test("stopping one course leaves another course's file workers running", async () => {
+  const gate = deferred();
+  let stopFirst = false;
+  const firstPages: number[] = [];
+  const secondPages: number[] = [];
+  const runCourse = (saved: number[], stop: () => boolean) => runParallelFiles([1, 2], 2, async (file, shouldStop) => {
+    await gate.promise;
+    saved.push(file * 10 + 1);
+    if (!shouldStop()) saved.push(file * 10 + 2);
+  }, stop);
+  const first = runCourse(firstPages, () => stopFirst);
+  const second = runCourse(secondPages, () => false);
+  stopFirst = true;
+  gate.resolve();
+  await Promise.all([first, second]);
+  assert.deepEqual(firstPages, [11, 21]);
+  assert.deepEqual(secondPages, [11, 12, 21, 22]);
 });

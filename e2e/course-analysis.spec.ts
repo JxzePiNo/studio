@@ -52,32 +52,34 @@ async function setupCourse(page: Page, cachedFirst = false, options: { letters?:
     active--;
   });
   await page.goto("/");
-  const folder = await createExam(page, "Analisi del corso");
   const buffer = await readFile("public/esempio.pdf");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles((options.letters || ["A", "B"]).map(letter => ({ name: `Corso ${letter}.pdf`, mimeType: "application/pdf", buffer })));
-  await expect(page.locator(".material-row")).toHaveCount((options.letters || ["A", "B"]).length);
-  await expect(page.getByRole("button", { name: "Analizza tutto", exact: true })).toBeEnabled();
-  return { folder, saved, calls, release, maximumConcurrent: () => maximumConcurrent, expectedCalls: () => [...saved.values()].flatMap(document => [1, 2, 3].filter(number => !(cachedFirst && document.name === "Corso A.pdf" && number === 1)).map(number => `${document.name}:${number}`)) };
+  async function addCourse(prefix: string, letters: string[], filePrefix = "Corso") {
+    const folder = await createExam(page, prefix);
+    await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles(letters.map(letter => ({ name: `${filePrefix} ${letter}.pdf`, mimeType: "application/pdf", buffer })));
+    await expect(page.locator(".material-row")).toHaveCount(letters.length);
+    await expect(page.getByRole("button", { name: "Analizza tutto", exact: true })).toBeEnabled();
+    return folder;
+  }
+  const folder = await addCourse("Analisi del corso", options.letters || ["A", "B"]);
+  return { folder, addCourse, saved, calls, release, maximumConcurrent: () => maximumConcurrent, expectedCalls: () => [...saved.values()].flatMap(document => [1, 2, 3].filter(number => !(cachedFirst && document.name === "Corso A.pdf" && number === 1)).map(number => `${document.name}:${number}`)) };
 }
 
 test("analizza tutti i PDF dell’esame in sequenza con avanzamento e stima del tempo", async ({ page, request }) => {
   const state = await setupCourse(page);
   try {
     const analysis = page.getByRole("region", { name: "Analisi di tutti i materiali", exact: true });
-    await analysis.getByRole("combobox", { name: "File in parallelo", exact: true }).click();
-    await page.getByRole("option", { name: "1 file alla volta", exact: true }).click();
+    await expect(analysis.getByRole("combobox")).toHaveCount(0);
     await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
-    await expect.poll(() => state.calls.length).toBe(1);
-    expect(state.calls).toEqual(state.expectedCalls().slice(0, 1));
+    await expect.poll(() => state.calls.length).toBeGreaterThanOrEqual(2);
     await expect(analysis.locator(".course-analysis-timing")).toContainText("Tempo rimanente stimato");
     await expect(analysis.getByRole("progressbar", { name: "Pagine analizzate dell’esame", exact: true })).toHaveAttribute("max", "6");
     state.release();
     await expect(analysis.getByText("Analisi completata", { exact: true })).toBeVisible();
     await expect(analysis.getByRole("progressbar", { name: "Pagine analizzate dell’esame", exact: true })).toHaveAttribute("value", "6");
     await expect(analysis.getByRole("button", { name: "Tutto analizzato", exact: true })).toBeDisabled();
-    expect(state.calls).toEqual(state.expectedCalls());
+    expect([...state.calls].sort()).toEqual(state.expectedCalls().sort());
     expect(state.calls).toHaveLength(6);
-    expect(state.maximumConcurrent()).toBe(1);
+    expect(state.maximumConcurrent()).toBe(2);
   } finally {
     state.release();
     const documents = await (await request.get("/api/documents")).json() as DocumentSummary[];
@@ -86,25 +88,22 @@ test("analizza tutti i PDF dell’esame in sequenza con avanzamento e stima del 
 });
 
 test("riutilizza la cache e riprende l’analisi dell’esame dopo un’interruzione", async ({ page, request }) => {
-  const state = await setupCourse(page, true);
+  const state = await setupCourse(page, true, { holdAll: true });
   try {
     const analysis = page.getByRole("region", { name: "Analisi di tutti i materiali", exact: true });
-    await analysis.getByRole("combobox", { name: "File in parallelo", exact: true }).click();
-    await page.getByRole("option", { name: "1 file alla volta", exact: true }).click();
     await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
-    await expect.poll(() => state.calls.length).toBe(1);
-    expect(state.calls).toEqual(state.expectedCalls().slice(0, 1));
+    await expect.poll(() => state.calls.length).toBe(2);
     await analysis.getByRole("button", { name: "Interrompi analisi", exact: true }).click();
     state.release();
     await expect(analysis.getByText("Analisi interrotta. Puoi riprendere dalle pagine mancanti.", { exact: true })).toBeVisible();
-    await expect(analysis.getByRole("progressbar", { name: "Pagine analizzate dell’esame", exact: true })).toHaveAttribute("value", "2");
-    expect(state.calls).toEqual(state.expectedCalls().slice(0, 1));
+    await expect(analysis.getByRole("progressbar", { name: "Pagine analizzate dell’esame", exact: true })).toHaveAttribute("value", "3");
+    expect(state.calls).toHaveLength(2);
     await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
     await expect(analysis.getByText("Analisi completata", { exact: true })).toBeVisible();
-    expect(state.calls).toEqual(state.expectedCalls());
+    expect([...state.calls].sort()).toEqual(state.expectedCalls().sort());
     expect(state.calls).toHaveLength(5);
     expect(state.calls).not.toContain("Corso A.pdf:1");
-    expect(state.maximumConcurrent()).toBe(1);
+    expect(state.maximumConcurrent()).toBe(2);
   } finally {
     state.release();
     const documents = await (await request.get("/api/documents")).json() as DocumentSummary[];
@@ -113,30 +112,28 @@ test("riutilizza la cache e riprende l’analisi dell’esame dopo un’interruz
 });
 
 
-test("six files run together, stop drains active pages and resume skips saved work", async ({ page, request }) => {
-  const state = await setupCourse(page, false, { letters: ["A", "B", "C", "D", "E", "F", "G"], holdAll: true });
+test("all eight files run automatically, stop drains active pages and resume skips saved work", async ({ page, request }) => {
+  const state = await setupCourse(page, false, { letters: ["A", "B", "C", "D", "E", "F", "G", "H"], holdAll: true });
   try {
     const analysis = page.getByRole("region", { name: "Analisi di tutti i materiali", exact: true });
-    await analysis.getByRole("combobox", { name: "File in parallelo", exact: true }).click();
-    await page.getByRole("option", { name: "6 file insieme", exact: true }).click();
+    await expect(analysis.getByRole("combobox")).toHaveCount(0);
     await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
-    await expect.poll(() => state.calls.length).toBe(6);
-    await expect(analysis.getByRole("list", { name: "File in analisi", exact: true }).locator("li")).toHaveCount(6);
-    await expect(analysis.getByRole("combobox", { name: "File in parallelo", exact: true })).toBeDisabled();
-    expect(new Set(state.calls.map(call => call.split(":")[0])).size).toBe(6);
-    expect(state.maximumConcurrent()).toBe(6);
+    await expect.poll(() => state.calls.length).toBe(8);
+    await expect(analysis.getByRole("list", { name: "File in analisi", exact: true }).locator("li")).toHaveCount(8);
+    expect(new Set(state.calls.map(call => call.split(":")[0])).size).toBe(8);
+    expect(state.maximumConcurrent()).toBe(8);
     await analysis.getByRole("button", { name: "Interrompi analisi", exact: true }).click();
     state.release();
     await expect(analysis.getByText("Analisi interrotta. Puoi riprendere dalle pagine mancanti.", { exact: true })).toBeVisible();
-    expect(state.calls).toHaveLength(6);
-    await expect(analysis.getByRole("progressbar")).toHaveAttribute("value", "6");
+    expect(state.calls).toHaveLength(8);
+    await expect(analysis.getByRole("progressbar")).toHaveAttribute("value", "8");
     await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
     await expect(analysis.getByText("Analisi completata", { exact: true })).toBeVisible();
-    expect(state.calls).toHaveLength(21);
-    expect(new Set(state.calls).size).toBe(21);
-    expect(state.maximumConcurrent()).toBe(6);
-    for (const name of ["A", "B", "C", "D", "E", "F", "G"]) expect(state.calls.filter(call => call.startsWith(`Corso ${name}.pdf:`)).map(call => Number(call.split(":")[1]))).toEqual([1, 2, 3]);
-    await expect(analysis.getByRole("progressbar")).toHaveAttribute("value", "21");
+    expect(state.calls).toHaveLength(24);
+    expect(new Set(state.calls).size).toBe(24);
+    expect(state.maximumConcurrent()).toBe(8);
+    for (const name of ["A", "B", "C", "D", "E", "F", "G", "H"]) expect(state.calls.filter(call => call.startsWith(`Corso ${name}.pdf:`)).map(call => Number(call.split(":")[1]))).toEqual([1, 2, 3]);
+    await expect(analysis.getByRole("progressbar")).toHaveAttribute("value", "24");
   } finally {
     state.release();
     const documents = await (await request.get("/api/documents")).json() as DocumentSummary[];
@@ -245,5 +242,44 @@ test("course analysis continues through reader, home and another exam, with a hi
     state.release();
     const documents = await (await request.get("/api/documents")).json() as DocumentSummary[];
     for (const document of documents.filter(item => item.folderId === state.folder.id)) await request.delete(`/api/documents/${document.id}`);
+  }
+});
+
+test("two exams analyze concurrently and stopping one preserves the other's work", async ({ page, request }) => {
+  const state = await setupCourse(page, false, { holdAll: true });
+  const folderIds = [state.folder.id];
+  try {
+    const analysis = page.getByRole("region", { name: "Analisi di tutti i materiali", exact: true });
+    await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
+    await expect.poll(() => state.calls.length).toBe(2);
+    const other = await state.addCourse("Seconda materia in parallelo", ["X", "Y"], "Secondo");
+    folderIds.push(other.id);
+    await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
+    await expect.poll(() => state.calls.length).toBe(4);
+    expect(state.maximumConcurrent()).toBe(4);
+
+    const island = page.getByRole("complementary", { name: "Avanzamento analisi in background" });
+    await expect(island).toContainText(state.folder.name);
+    await expect(island).toContainText(other.name);
+    await expect(island.getByRole("button", { name: `Interrompi analisi ${state.folder.name}`, exact: true })).toBeEnabled();
+    await island.getByRole("button", { name: `Interrompi analisi ${state.folder.name}`, exact: true }).click();
+    await expect(island.getByRole("button", { name: `Interrompi analisi ${other.name}`, exact: true })).toBeEnabled();
+    state.release();
+
+    await expect(analysis.getByText("Analisi completata", { exact: true })).toBeVisible();
+    expect(state.calls.filter(call => call.startsWith("Corso "))).toHaveLength(2);
+    expect(state.calls.filter(call => call.startsWith("Secondo "))).toHaveLength(6);
+    expect(new Set(state.calls).size).toBe(8);
+    await page.getByRole("button", { name: new RegExp(state.folder.name) }).click();
+    await expect(analysis.getByText("Analisi interrotta. Puoi riprendere dalle pagine mancanti.", { exact: true })).toBeVisible();
+    await expect(analysis.getByRole("progressbar")).toHaveAttribute("value", "2");
+    await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
+    await expect(analysis.getByText("Analisi completata", { exact: true })).toBeVisible();
+    expect(state.calls).toHaveLength(12);
+    expect(new Set(state.calls).size).toBe(12);
+  } finally {
+    state.release();
+    const documents = await (await request.get("/api/documents")).json() as DocumentSummary[];
+    for (const document of documents.filter(item => folderIds.includes(item.folderId || ""))) await request.delete(`/api/documents/${document.id}`);
   }
 });

@@ -26,7 +26,7 @@ Le spiegazioni generate e i progressi di lettura sono dati distinti: una pagina 
 - **Lettore PDF con tutor affiancato:** zoom, schermo intero, navigazione da tastiera e divisore trascinabile per ridimensionare, chiudere e riaprire la chat, anche su mobile.
 - **Spiegazioni contestuali:** analisi della pagina con concetti chiave, esempi, formule, glossario inglese-italiano e richieste di approfondimento.
 - **Chat per pagina:** conversazioni persistenti, contesto della slide oppure dell'intero PDF aperto, risposte Markdown, tabelle, formule LaTeX e codice evidenziato con copia negli appunti.
-- **Analisi di più materiali:** da 1 a 6 file in parallelo, pagine sequenziali all'interno di ogni file, avanzamento visibile, arresto controllato e ripresa dalle pagine mancanti. I file completati sono apribili mentre gli altri continuano a essere analizzati.
+- **Analisi di più materiali:** tutti i file con pagine mancanti partono automaticamente in parallelo, anche oltre sei, mantenendo sequenziali le pagine di ciascun file. Puoi avviare contemporaneamente più esami, con avanzamento e arresto separati. La ripresa riutilizza le spiegazioni salvate e i PDF restano apribili durante l'analisi.
 - **Tracciamento dello studio:** appunti con salvataggio automatico, pagine lette tramite pulsante o barra spaziatrice, bordo verde pastello e documento considerato letto dal 95% delle pagine. Badge separati indicano lo stato dell'analisi AI.
 - **Pianificazione:** data dell'esame, ritmo di studio, stima del carico giornaliero, giorni di pausa ricorrenti e singole date escluse, riutilizzabili da un altro esame.
 - **Profilo di studio:** percorso universitario o ambito disciplinare utilizzato per contestualizzare le nuove spiegazioni.
@@ -85,7 +85,7 @@ L'applicazione dei principi è documentata rispetto al codice attuale, comprese 
 
 - **Facade e adattamento del provider:** `lib/store.ts` offre un punto di accesso ai documenti; `lib/cloud-store.ts` traduce le operazioni applicative in chiamate Firebase.
 - **Cache-aside:** le letture riutilizzano snapshot compatibili con la revisione corrente, altrimenti caricano i dati dalla persistenza. La fonte persistente rimane autorevole.
-- **Worker pool a concorrenza limitata:** `runParallelFiles` assegna i file a un numero configurabile di worker asincroni. In caso di arresto o errore attende le operazioni già avviate prima di terminare.
+- **Worker pool e coordinamento per esame:** `runParallelFiles` avvia un worker asincrono per ogni file da elaborare; `useCourseAnalysis` conserva lavori e controlli di arresto distinti per esame. In caso di arresto o errore attende le operazioni già avviate nel lavoro interessato prima di terminarlo.
 - **Coda di scrittura per documento:** le modifiche locali dello stesso documento vengono serializzate; la sostituzione atomica evita di pubblicare un JSON scritto solo parzialmente.
 - **Composizione e Context in React:** componenti specializzati compongono il workspace; i provider condividono stato del profilo e della sidebar.
 
@@ -125,7 +125,7 @@ npm.cmd run build
 npm.cmd run test:e2e
 ```
 
-La suite comprende verifiche su salvataggi concorrenti, invalidazione della cache, isolamento delle copie, pianificazione, riutilizzo delle analisi, arresto dei worker e rendering Markdown. I test browser coprono caricamento, navigazione, chat, progressi di lettura, layout responsive e apertura dei file completati durante un'analisi.
+La suite comprende verifiche su salvataggi concorrenti, invalidazione della cache, isolamento delle copie, pianificazione, riutilizzo delle analisi, arresto dei worker e rendering Markdown. I test browser coprono caricamento, navigazione, chat, progressi di lettura, layout responsive, otto file concorrenti e analisi di più esami con arresto indipendente.
 
 Le richieste AI nei test sono simulate: l'esecuzione della suite non richiede una chiave reale. I test end-to-end usano una build separata in `.next-e2e`, dati in `test-results/e2e-data` e Firebase disabilitato. La configurazione attuale richiede Chrome installato e usa `npm.cmd` per avviare il server di test su Windows.
 
@@ -143,7 +143,7 @@ Limiti attuali:
 
 - PDF fino a **30 MB** e **1.000 pagine**; i documenti protetti da password devono essere sbloccati.
 - L'analisi è orchestrata dal browser: occorre mantenere aperta la scheda. La ripresa riutilizza le pagine salvate; non è presente una coda di job durevole lato server.
-- La concorrenza è limitata a **6 file per esecuzione**. Questo valore non rappresenta un limite globale distribuito tra schede, utenti o repliche del server.
+- La concorrenza dei file è automatica, senza un tetto applicativo di sei: una richiesta di analisi per pagina può essere attiva per ogni file del lavoro. Browser, hosting e provider AI possono comunque accodare o limitare le richieste; non è presente un coordinamento globale distribuito tra schede, utenti o repliche del server.
 - La cache è locale al processo e si svuota al riavvio: TTL di 5 minuti, fino a 16 PDF per 64 MiB e 128 documenti per 16 MiB stimati dai dati serializzati.
 - Non sono implementati collaborazione in tempo reale, migrazione automatica dei dati locali o rate limiting applicativo distribuito.
 

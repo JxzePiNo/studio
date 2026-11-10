@@ -1,8 +1,6 @@
-export const MAX_PARALLEL_FILES = 6;
-
 /** Drain in-flight work on stop/error; never leave requests running after return. */
 export async function runParallelFiles<T>(items: readonly T[], concurrency: number, run: (item: T, shouldStop: () => boolean) => Promise<void>, stop: () => boolean = () => false) {
-  if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > MAX_PARALLEL_FILES) throw new RangeError("Scegli da 1 a 6 file in parallelo.");
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1) throw new RangeError("La concorrenza deve essere un intero positivo.");
   let next = 0;
   let failed = false;
   let firstError: unknown;

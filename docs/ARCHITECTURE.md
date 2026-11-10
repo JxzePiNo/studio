@@ -31,13 +31,15 @@ In Firebase, gli aggiornamenti usano transazioni. Le pagine sono salvate in una 
 
 Riferimenti: [`store.ts`](../lib/store.ts), [`cloud-store.ts`](../lib/cloud-store.ts), [`test della persistenza`](../tests/store.test.ts).
 
-## Analisi concorrenti: worker pool limitato
+## Analisi concorrenti: lavori indipendenti per esame
 
-[`runParallelFiles`](../lib/parallel-analysis.ts) gestisce un insieme limitato di worker asincroni. Ogni worker elabora un file; le pagine di quel file restano sequenziali. La UI permette di selezionare da 1 a 6 file concorrenti.
+[`runParallelFiles`](../lib/parallel-analysis.ts) gestisce worker asincroni: ogni worker elabora un file e mantiene sequenziali le pagine di quel file. La UI avvia automaticamente tutti i file con pagine mancanti, senza selettore e senza il precedente tetto di sei file.
 
-Quando viene richiesto l'arresto, non vengono avviate altre pagine. Le richieste già in corso possono concludersi e salvare il risultato. In caso di errore il pool interrompe l'assegnazione di nuovo lavoro e attende i worker attivi prima di propagare l'errore. La ripresa rilegge i dati salvati e salta le pagine già analizzate.
+[`useCourseAnalysis`](../components/use-course-analysis.ts) mantiene progressi e runtime separati per esame, inclusi controllo di arresto e richieste attive. Si può avviare un secondo esame mentre il primo continua; l'avvio ripetuto dello stesso lavoro e la sovrapposizione sui suoi documenti sono bloccati. L'indicatore globale aggrega l'avanzamento e conserva controlli di arresto per i singoli lavori.
 
-Il pool è un meccanismo di concorrenza asincrona lato client, non un insieme di thread né una coda persistente lato server. Il limite vale per la singola esecuzione, senza coordinamento globale tra più browser o istanze. La rapidità effettiva dipende anche dal servizio esterno: non è assunto un miglioramento lineare al crescere dei worker.
+Quando viene richiesto l'arresto, non vengono avviate altre pagine del lavoro interessato. Le richieste già in corso possono concludersi e salvare il risultato; gli altri esami continuano. In caso di errore il pool del singolo esame interrompe l'assegnazione di nuovo lavoro e attende i suoi worker attivi prima di propagare l'errore. La ripresa rilegge i dati salvati e salta le pagine già analizzate.
+
+Il pool è un meccanismo di concorrenza asincrona lato client, non un insieme di thread né una coda persistente lato server: la scheda deve restare aperta. Browser, hosting e provider possono accodare o limitare le richieste effettive; non esiste un coordinamento globale tra più browser o istanze. La rapidità effettiva dipende anche dal servizio esterno: non è assunto un miglioramento lineare al crescere dei worker.
 
 Riferimenti: [`test del pool`](../tests/parallel-analysis.test.ts), [`test browser delle analisi`](../e2e/course-analysis.spec.ts).
 
