@@ -1,0 +1,54 @@
+# Firebase e studio per esami
+
+Il codice supporta due modalità. Con `NEXT_PUBLIC_FIREBASE_ENABLED=false` continua a usare `data/`. Con `true` richiede un account Google e usa esclusivamente i dati Firebase dell’utente autenticato. I documenti locali preesistenti non vengono trasferiti automaticamente: si possono ricaricare dopo l’accesso.
+
+## Collega il progetto
+
+1. Nella console Firebase crea o scegli il progetto e registra un’app Web. Copia i valori della sua configurazione nelle variabili `NEXT_PUBLIC_FIREBASE_*` di `.env.local`, seguendo `.env.example`. Non sovrascrivere la tua configurazione OpenAI esistente.
+2. In Authentication → Sign-in method abilita Google e scegli l’email di assistenza. In Settings → Authorized domains aggiungi il dominio utilizzato, compreso `127.0.0.1` o `localhost` per lo sviluppo. Vedi [accesso Google](https://firebase.google.com/docs/auth/web/google-signin).
+3. Crea il database Cloud Firestore predefinito in modalità produzione e attiva Cloud Storage. Copia il nome esatto del bucket nella variabile `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`. Verifica nella console i requisiti del piano di fatturazione del progetto per Storage.
+4. Per il server usa credenziali Application Default (`GOOGLE_APPLICATION_CREDENTIALS` con percorso al JSON di un account di servizio, esterno al repository) oppure `FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY`. La chiave privata va tra virgolette con le interruzioni di riga rappresentate da `\n`. Il server necessita dei permessi per Firestore, Storage e verifica degli account Firebase Auth. Queste credenziali non devono avere il prefisso `NEXT_PUBLIC_`.
+5. Pubblica le regole con `firebase deploy --only firestore:rules,storage --project ID_PROGETTO`, oppure copia i due file delle regole nelle rispettive sezioni della console. Le regole negano gli accessi diretti dal browser: il server usa Admin SDK e verifica i token Google, inclusa la revoca, prima di accedere ai dati. Vedi [verifica dei token](https://firebase.google.com/docs/auth/admin/verify-id-tokens).
+6. Imposta `NEXT_PUBLIC_FIREBASE_ENABLED=true`, riavvia il server e accedi. Le variabili pubbliche sono incluse nella build: ricompila quando le cambi in produzione. Il server deve avere accesso alle credenziali anche durante l’esecuzione.
+
+## Dati
+
+- Firestore: `users/{uid}/folders/{folderId}`, `users/{uid}/documents/{documentId}`, e sottocollezione `slides/{numero}` per appunti, spiegazioni e chat. Le slide separate evitano di concentrare un intero PDF nel limite di dimensione di un documento Firestore.
+- Storage: `users/{uid}/documents/{documentId}/original.pdf`. Il PDF viene servito dall’API autenticata senza link pubblici.
+- I salvataggi Firebase usano transazioni per conservare modifiche simultanee a slide e appunti. La cancellazione elimina PDF e sottocollezioni. Non sono previsti condivisione, collaborazione in tempo reale o migrazione automatica dei dati locali.
+
+## Cartelle e chat
+
+Premi **Crea esame** nella sidebar **Studio**: il dialog mostra il nome del corso in grande e un calendario per scegliere la data facoltativa. Ogni esame ha un colore pastello, conservato anche dopo il ricaricamento. La home mostra soltanto gli esami; aprine uno per visualizzare e caricare i materiali. Il caricamento, anche tramite trascinamento o API, richiede un esame esistente.
+
+Dal calendario sulla scheda dell’esame puoi impostare la data e le pagine da studiare in un’ora. Il ritmo iniziale è **10 pagine/ora**, modificabile per includere lettura, appunti e ripasso. Le ore totali sono `pagine caricate / pagine all’ora`; le ore giornaliere dividono questo totale per i giorni di calendario da oggi al giorno prima dell’esame. Se l’esame è oggi, resta un giorno; per una data trascorsa viene richiesto di aggiornarla. Il giorno dell’esame non è incluso nel conteggio futuro. La stima visualizzata arrotonda per eccesso a cinque minuti. Le pagine già spiegate dall’AI restano nel totale: una spiegazione generata non significa che una pagina sia stata studiata. Cambiare data, ritmo o materiali aggiorna la stima.
+
+Nella creazione e nella pianificazione dell’esame, **Giorni in cui non studio** permette di escludere giorni ricorrenti (per esempio tutte le domeniche) e singole date dal calendario, come Natale o un impegno personale. Il calcolo delle ore giornaliere usa solo i giorni effettivamente disponibili. Una data che coincide con un giorno settimanale già escluso viene sottratta una sola volta. Se non resta alcun giorno, il piano invita a modificare pause o scadenza e non mostra valori infiniti.
+
+Il menu profilo in fondo alla sidebar mostra foto e nome Google e permette di aprire **Account** o **Esci**. In modalità locale mostra le informazioni sullo spazio locale. Pulsanti, campi, schede e selettori usano componenti condivisi nello stile shadcn, con primitive Radix per menu, dialoghi, tabs e select.
+
+Puoi selezionare o trascinare più PDF insieme nell’esame. Ogni file può pesare fino a 30 MB; il caricamento procede in sequenza e mostra avanzamento ed eventuali errori senza annullare i file riusciti. Un PDF singolo apre il lettore; una selezione multipla resta nell’elenco dei materiali. Il totale delle pagine e la stima del piano si aggiornano dopo il caricamento.
+
+Fai clic con il tasto destro su un materiale, oppure usa i tre puntini, per **Rinomina**, **Sposta su/giù**, **Sposta all’inizio/in fondo** o **Ordina per nome**. L’ordinamento per nome riconosce i numeri delle lezioni (1, 2, 10). Nomi e ordine sono salvati nell’account; la rinomina conserva PDF, spiegazioni, chat e appunti. I nuovi materiali vengono aggiunti alla fine dell’ordine esistente.
+
+La barra superiore e il footer con impostazioni e slide di prova sono stati rimossi. La scritta **Studio** torna alla home; sui telefoni un pulsante apre la sidebar. **Aggiungi file** si trova sotto il titolo del corso, affiancato al pannello di analisi su desktop e disposto in verticale su mobile. Il riepilogo dei caricamenti completati scompare dopo quattro secondi; gli errori restano visibili. Il pannello inferiore con controlli e traduzioni parte chiuso e si riapre con la freccia.
+
+Se hai impostato una data, il corso mostra i giorni mancanti e una frase motivazionale con il primo nome dell'account Google. **Analizza tutto** elabora da 1 a 6 PDF del corso in parallelo, con 3 come valore iniziale; le pagine di ogni file restano sequenziali e quelle già spiegate vengono saltate. Il pannello mostra i file attivi e una stima aggiornata usando i tempi delle richieste completate. **Interrompi analisi** attende il salvataggio delle pagine già in corso e non ne avvia altre; una nuova esecuzione riprende dalle pagine mancanti. I file completati sono apribili mentre gli altri proseguono. L'analisi viene coordinata nel browser: mantieni aperta la scheda. Il limite di concorrenza vale per la singola esecuzione, non per tutte le schede o istanze del servizio.
+
+I test browser (`npm.cmd run test:e2e`) compilano una versione locale isolata in `.next-e2e`, utilizzano `test-results/e2e-data` e disabilitano Firebase e le richieste OpenAI reali. Non modificano gli esami del tuo account.
+
+Il lettore affianca PDF e chat a tutta altezza, senza tab o selettori dell’esame. L’input resta in basso mentre i messaggi scorrono. **Invio** manda la domanda; **Maiusc + Invio** aggiunge una riga. Di default viene inviata solo la pagina selezionata, comprese immagini e formule. Il pulsante **Tutto PDF**, spento all’apertura, allega invece tutte le pagine del PDF aperto, incluse quelle non analizzate: non comprende gli altri PDF del corso. Tornando a un’altra pagina il contesto riparte dalla singola slide.
+
+La freccia bianca in alto a sinistra torna ai materiali. L’icona bianca delle impostazioni in alto a destra apre gli appunti della pagina e le opzioni di lettura. Non sono presenti pulsanti di esportazione o cancellazione nel lettore. Solo quando manca l’analisi della pagina viene mostrato un riquadro centrale con **Analizza questa pagina** e **Analizza tutto**; quest’ultimo prepara le pagine mancanti del PDF aperto. L’analisi dell’intero corso resta disponibile dalla pagina dell’esame.
+
+L’analisi salvata della slide viene mostrata integralmente come primo messaggio del tutor, con lo stesso layout della spiegazione: titolo, concetti numerati, esempio e idea da ricordare. È inclusa nel contesto delle domande successive senza generarla una seconda volta. Se rigeneri l’analisi dalle **Impostazioni della lettura**, questo primo messaggio si aggiorna conservando domande e risposte. Anche le analisi precedenti funzionano: non richiedono una migrazione. Le nuove analisi e risposte sono richieste a livello magistrale, con prerequisiti, definizioni, assunzioni, passaggi matematici o algoritmici pertinenti, esempi svolti e limiti. Le vecchie spiegazioni non vengono rigenerate automaticamente.
+
+Al primo accesso viene chiesto **Cosa studi?**. Puoi indicare il corso di laurea o l’ambito, oppure scegliere **Lo imposto dopo**. Il percorso è modificabile da **Account → Cosa studi?** e viene incluso nelle nuove richieste di analisi e chat, insieme a corso e documento. In Firebase è salvato in `users/{uid}/settings/profile`; in locale è `data/profile.json`. Non vengono condivisi i profili tra account. Le istruzioni del tutor distinguono il contesto personale dai comandi del modello, seguendo la [guida OpenAI al prompting](https://developers.openai.com/api/docs/guides/prompt-engineering).
+
+Le conversazioni sono separate per slide; vengono conservati fino a 40 messaggi, con un limite aggiuntivo di dimensione per risposte molto lunghe, e le ultime 6 coppie domanda-risposta accompagnano la richiesta successiva insieme all’analisi iniziale. La chat usa la chiave OpenAI del server, `store: false`, e invia a OpenAI la slide selezionata, il percorso di studio, la cronologia recente e il contesto descritto sopra. Le richieste AI possono avere un costo.
+
+## Verifica manuale Firebase
+
+Dopo la configurazione: accedi, crea un esame, carica un PDF, salva un appunto, analizza una pagina e fai una domanda. Ricarica e verifica che tutto sia presente. Esci e accedi con un secondo account: la biblioteca deve risultare separata. Verifica anche progressi di lettura, riapertura dei documenti e ripresa delle analisi interrotte. Senza un progetto e credenziali validi non è possibile certificare questi passaggi contro i servizi reali.
+
+Le dipendenze Firebase sono fissate per Node 22; gli override di `@firebase/app` e `@firebase/app-compat` evitano che i peer installino versioni che richiedono Node 24. L’override gRPC elimina la segnalazione di gravità alta rilevata durante l’installazione. L’audit npm segnala ancora sei vulnerabilità moderate nella catena indiretta `glob/minimatch/rimraf` del client Google; `npm audit fix` non le risolve con queste versioni. Ricontrollare gli aggiornamenti prima della pubblicazione del servizio.

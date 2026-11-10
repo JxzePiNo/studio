@@ -1,0 +1,44 @@
+import { NextResponse } from "next/server";
+import { PDFDocument } from "pdf-lib";
+import { z } from "zod";
+import { readDocument, readPdf, updateDocument } from "@/lib/store";
+import { explainSlide, openaiError } from "@/lib/openai";
+import { apiError, requestGuard } from "@/lib/http";
+import { getStudyProfile } from "@/lib/study-profile";
+import { listFolders } from "@/lib/folders";
+export const runtime = "nodejs";
+export const maxDuration = 180;
+const inFlight = new Set<string>();
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requestGuard(request); if (denied) return denied;
+  let lock: string | undefined;
+  try {
+    const input = z.object({ page: z.number().int().positive(), regenerate: z.boolean().optional() }).safeParse(await request.json());
+    if (!input.success) return NextResponse.json({ error: "Pagina non valida." }, { status: 400 });
+    const { id } = await params;
+    const { page, regenerate } = input.data;
+    const doc = await readDocument(id);
+    if (page > doc.pages) return NextResponse.json({ error: "Pagina non valida." }, { status: 400 });
+    if (doc.slides[page]?.explanation && !regenerate) return NextResponse.json(doc.slides[page]);
+    if (!process.env.OPENAI_API_KEY?.trim()) return NextResponse.json({ error: "Aggiungi OPENAI_API_KEY in .env.local e riavvia il server per generare le spiegazioni." }, { status: 503 });
+    const lockId = `${id}:${page}`;
+    if (inFlight.has(lockId)) return NextResponse.json({ error: "Questa slide è già in analisi. Attendi qualche secondo." }, { status: 409 });
+    lock = lockId; inFlight.add(lock);
+    const original = await PDFDocument.load(await readPdf(id));
+    const single = await PDFDocument.create();
+    const [copied] = await single.copyPages(original, [page - 1]); single.addPage(copied);
+    let explanation;
+    try {
+      const [profile, folders] = await Promise.all([getStudyProfile(), listFolders()]);
+      explanation = await explainSlide(await single.save(), page, { studyProgram: profile.studyProgram, courseName: folders.find(folder => folder.id === doc.folderId)?.name, documentName: doc.name });
+    }
+    catch (e) {
+      const known = openaiError(e);
+      if (known) return NextResponse.json({ error: known.error }, { status: known.status });
+      return NextResponse.json({ error: e instanceof Error && e.message.startsWith("L’AI") ? e.message : "La risposta AI non è valida. Riprova." }, { status: 502 });
+    }
+    const updated = await updateDocument(id, d => { d.slides[page] = { ...d.slides[page], notes: d.slides[page]?.notes || "", explanation, generatedAt: new Date().toISOString() }; });
+    return NextResponse.json(updated.slides[page]);
+  } catch (e) { return apiError(e); }
+  finally { if (lock) inFlight.delete(lock); }
+}

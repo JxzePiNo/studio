@@ -1,0 +1,47 @@
+import { test, expect } from "@playwright/test";
+import type { ExamFolder } from "../lib/types";
+
+test("riutilizza le pause nella creazione e nella pianificazione senza cambiare l’esame di origine", async ({ page, request }) => {
+  const name = `Pause salvate ${Date.now()}`;
+  const sourceResponse = await request.post("/api/folders", { data: { name, nonStudyWeekdays: [0, 6], nonStudyDates: ["2030-12-25"] } });
+  expect(sourceResponse.status()).toBe(201);
+  const source = await sourceResponse.json() as ExamFolder;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Nuovo esame", exact: true }).click();
+  const create = page.getByRole("dialog", { name: "Nuovo esame", exact: true });
+  const targetName = `Piano riutilizzato ${Date.now()}`;
+  await create.getByRole("textbox", { name: "Nome esame", exact: true }).fill(targetName);
+  await create.locator("summary").filter({ hasText: "Giorni in cui non studio" }).click();
+  await create.getByRole("combobox", { name: "Riusa le tue pause", exact: true }).click();
+  await page.getByRole("option", { name, exact: true }).click();
+  await create.getByRole("button", { name: "Usa queste pause", exact: true }).click();
+  await expect(create.getByRole("button", { name: "domenica", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(create.getByRole("button", { name: "sabato", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(create.getByRole("list", { name: "Date escluse dallo studio", exact: true })).toContainText("25 dicembre 2030");
+  await expect(create.getByRole("status")).toContainText(name);
+  // A copied schedule is a draft: customize it before creating the new exam.
+  await create.getByRole("button", { name: "sabato", exact: true }).click();
+  const created = page.waitForResponse(response => response.url().endsWith("/api/folders") && response.request().method() === "POST");
+  await create.getByRole("button", { name: "Crea", exact: true }).click();
+  const target = await (await created).json() as ExamFolder;
+  expect(target.nonStudyWeekdays).toEqual([0]);
+  expect(target.nonStudyDates).toEqual(["2030-12-25"]);
+  await expect(page.locator(".selected-exam")).toContainText(targetName);
+  await page.getByRole("button", { name: "Tutti gli esami", exact: true }).click();
+  await page.getByRole("button", { name: `Pianifica ${targetName}`, exact: true }).click();
+  const plan = page.getByRole("dialog", { name: `Pianifica ${targetName}`, exact: true });
+  await plan.locator("summary").filter({ hasText: "Giorni in cui non studio" }).click();
+  await plan.getByRole("combobox", { name: "Riusa le tue pause", exact: true }).click();
+  await expect(page.getByRole("option", { name: targetName, exact: true })).toHaveCount(0);
+  await page.getByRole("option", { name, exact: true }).click();
+  await plan.getByRole("button", { name: "Usa queste pause", exact: true }).click();
+  const saved = page.waitForResponse(response => response.url().endsWith(`/api/folders/${target.id}`) && response.request().method() === "PATCH");
+  await plan.getByRole("button", { name: "Salva piano", exact: true }).click();
+  expect((await saved).status()).toBe(200);
+  await expect(plan).toHaveCount(0);
+  const folders = await (await request.get("/api/folders")).json() as ExamFolder[];
+  expect(folders.find(folder => folder.id === target.id)?.nonStudyWeekdays).toEqual([0, 6]);
+  expect(folders.find(folder => folder.id === source.id)).toMatchObject({ nonStudyWeekdays: [0, 6], nonStudyDates: ["2030-12-25"] });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

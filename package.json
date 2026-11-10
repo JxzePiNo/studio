@@ -1,0 +1,59 @@
+{
+  "name": "margine",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "node scripts/copy-worker.mjs && next build",
+    "start": "next start --hostname 127.0.0.1",
+    "postinstall": "node scripts/copy-worker.mjs && node scripts/create-demo.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "test:e2e": "node scripts/test-e2e.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "5.3.0",
+    "@fontsource/dm-sans": "5.3.0",
+    "@fontsource/instrument-serif": "5.3.0",
+    "@radix-ui/react-context-menu": "^2.4.1",
+    "@radix-ui/react-dialog": "^1.3.1",
+    "@radix-ui/react-dropdown-menu": "^2.2.1",
+    "@radix-ui/react-popover": "^1.3.1",
+    "@radix-ui/react-select": "^2.4.1",
+    "@radix-ui/react-slot": "^1.5.0",
+    "@radix-ui/react-tabs": "^1.2.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "firebase": "12.10.0",
+    "firebase-admin": "14.5.0",
+    "katex": "^0.19.1",
+    "lucide-react": "^0.468.0",
+    "next": "^16.0.0",
+    "openai": "7.50.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "4.10.38",
+    "react": "^19.2.0",
+    "react-day-picker": "^10.0.2",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "zod": "^4.0.0"
+  },
+  "overrides": {
+    "@firebase/app": "0.14.9",
+    "@firebase/app-compat": "0.5.9",
+    "@grpc/grpc-js": "^1.14.6",
+    "katex": "$katex"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

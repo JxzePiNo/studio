@@ -1,0 +1,157 @@
+:root {
+  --sans: 'Bricolage Grotesque Variable', Arial, sans-serif;
+  --serif: 'Bricolage Grotesque Variable', Arial, sans-serif;
+}
+
+.account-gate { min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:32px; background:#f7f9f3; gap:24px; }
+.account-gate h1 { font-size:clamp(36px,6vw,64px); line-height:1.12; letter-spacing:-2px; margin:0; font-weight:500; }
+.account-gate p { max-width:460px; line-height:1.7; }
+.account-control { position:fixed; bottom:12px; left:12px; z-index:35; display:flex; align-items:center; gap:12px; padding:9px 12px; border:1px solid #dce4d4; border-radius:9px; background:#fff; font-size:11px; box-shadow:0 3px 12px #263c1810; max-width:230px; }
+.account-control span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.account-control button { color:#385b2d; text-decoration:underline; }
+.exam-folders { padding:14px 0 8px; border-bottom:1px solid var(--line); max-height:32vh; overflow:auto; }
+.exam-folders .section-label { display:flex; align-items:center; justify-content:space-between; }
+.folder-item { width:100%; display:flex; align-items:center; gap:9px; padding:10px 9px; border-radius:7px; text-align:left; font-size:12px; }
+.folder-item.active { background:#e8efde; color:#385b2d; }
+.folder-item span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.folder-item small { margin-left:auto; }
+.folder-create { display:flex; gap:5px; padding:8px 0; }
+.folder-create input { width:100%; min-width:0; padding:8px; border:1px solid #dce4d4; border-radius:5px; font-size:12px; background:white; }
+.folder-create button { font-size:12px; padding:6px; }
+.selected-exam { display:flex; align-items:center; gap:9px; color:#385b2d; margin-bottom:20px; font-size:15px; }
+.document-folder { display:flex; align-items:center; gap:12px; padding:12px 23px; font-size:12px; border-bottom:1px solid var(--line); }
+.document-folder select, .chat-pane select { max-width:100%; min-width:0; flex:1; padding:8px; border:1px solid #dce4d4; border-radius:6px; background:#fff; font:inherit; }
+.reader-active .explanation-tabs { gap:18px; padding-inline:20px; }
+.chat-pane { padding:24px; }
+.chat-pane h2 { font-size:25px; font-weight:500; letter-spacing:-.7px; margin:0 0 20px; }
+.chat-pane label { display:flex; flex-direction:column; gap:8px; font-size:12px; }
+.chat-hint, .chat-pane>small { display:block; font-size:11px; line-height:1.7; color:#738267; }
+.chat-messages { display:flex; flex-direction:column; gap:12px; padding-block:18px; font-size:13px; line-height:1.7; }
+.chat-message { padding:14px; border-radius:10px; background:#f3f6ee; overflow-wrap:anywhere; }
+.chat-message.user { background:#e6efdc; margin-left:18px; }
+.chat-message strong { font-size:11px; color:#50713c; }
+.chat-message p { white-space:pre-wrap; margin:6px 0 0; }
+.chat-pane form { display:flex; flex-direction:column; gap:10px; margin-block:12px; }
+.chat-pane textarea { width:100%; min-height:100px; resize:vertical; border:1px solid #dce4d4; border-radius:8px; padding:12px; font:inherit; font-size:13px; background:white; }
+body:has(.account-control) .sidebar-bottom { padding-bottom:55px; }
+@media(max-width:700px) { .account-control { bottom:6px; left:6px; padding:5px 8px; font-size:10px; } .chat-pane { padding:20px; } }
+
+.welcome h1 { font-weight: 500; font-size: clamp(40px, 4.4vw, 62px); letter-spacing: -2.5px; }
+.welcome h1 em { font-style: normal; }
+.welcome h2, .settings-modal h2 { font-weight: 500; letter-spacing: -1px; }
+.reader-active { height: 100dvh; min-height: 0; overflow: hidden; }
+.reader-active .main-shell { margin-left: 0; display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.reader-active .document-header { flex-shrink: 0; min-height: 82px; padding: 15px 24px; border-bottom: 1px solid var(--line); background: #fbfcf8; gap: 16px; }
+.reader-active .document-header .eyebrow { font-size: 9px; letter-spacing: 1.2px; }
+.reader-active .document-header h1 { margin: 5px 0 0; font-size: 23px; font-weight: 550; letter-spacing: -.8px; max-width: none; }
+.reader-active .document-header p { display: none; }
+.reader-active .document-actions { gap: 12px; }
+.reader-back { display: inline-flex; justify-content: center; align-items: center; width: 44px; height: 44px; border-radius: 12px; border: 1px solid #dce4d4; background: #edf2e7; color: #385b2d; margin-left: 8px; flex-shrink: 0; }
+.reader-back:hover { background: #e0e9d7; }
+.reader-active .study-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(355px, 32vw, 500px); padding: 0; gap: 0; align-items: stretch; overflow: hidden; }
+.reader-active .slide-panel { min-height: 0; display: flex; flex-direction: column; border: 0; border-radius: 0; background: #edf0e9; }
+.reader-active .panel-toolbar { flex-shrink: 0; padding: 0 24px; height: 51px; background: #f7f9f3; }
+.reader-active .panel-label { font-size: 10px; }
+.reader-active .page-navigation { gap: 9px; }
+.reader-active .page-navigation label, .reader-active .page-navigation input { font-size: 12px; }
+.reader-active .page-navigation input { width: 36px; }
+.reader-active .slide-stage { flex: 1; min-height: 0; padding: 24px; overflow: auto; align-items: center; }
+.reader-active .pdf-canvas { min-height: 0; }
+.reader-active .pdf-canvas canvas { margin-inline: auto; box-shadow: 0 8px 30px #263c1810; }
+.reader-active .slide-tools { flex-shrink: 0; height: 44px; padding: 0 23px; background: #f7f9f3; font-size: 11px; }
+.reader-active .zoom-reset { font-size: 11px; }
+.reader-active .glossary { flex-shrink: 0; padding: 17px 24px; min-height: 0; max-height: 180px; overflow: auto; background: #fff; }
+.reader-active .glossary-heading>span:first-child { font-size: 13px; }
+.reader-active .glossary>p { font-size: 12px; margin: 10px 0 0; }
+.reader-active .glossary-words { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 13px; margin-top: 14px; }
+.reader-active .glossary-word strong { font-size: 12px; }
+.reader-active .glossary-word>span { font-size: 12px; }
+.reader-active .glossary-word small { font-size: 11px; }
+.reader-active .keyboard-tip { flex-shrink: 0; padding: 10px 24px; font-size: 10px; }
+.reader-active .keyboard-tip>span:first-child { display: block; }
+.reader-active .explanation-panel { min-height: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; overflow-y: auto; overscroll-behavior: contain; }
+.reader-active .document-analysis { margin: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 20px 23px; background: #f7f9f2; }
+.reader-active .analysis-actions { gap: 12px; }
+.reader-active .analysis-actions>.primary-button { width: 100%; font-size: 12px; padding: 12px 15px; }
+.reader-active .analysis-actions>p { font-size: 12px; line-height: 1.6; }
+.reader-active .analysis-configure { font-size: 12px; }
+.reader-active .batch-progress>div { flex-direction: column; gap: 5px; font-size: 12px; }
+.reader-active .batch-progress>small { font-size: 11px; }
+.reader-active .explanation-tabs { height: 55px; padding: 0 24px; gap: 24px; position: sticky; top: 0; z-index: 2; background: #fff; }
+.reader-active .explanation-tabs>button { font-size: 12px; }
+.reader-active .explanation-content { padding: 25px 26px 0; }
+.reader-active .explanation-content h2 { font-size: 28px; font-weight: 550; line-height: 1.14; letter-spacing: -1px; }
+.reader-active .overview { font-size: 14px; line-height: 1.8; }
+.reader-active .concept h3 { font-size: 14px; }
+.reader-active .concept p, .reader-active .example-box p { font-size: 13px; line-height: 1.8; }
+.reader-active .takeaway p { font-size: 19px; line-height: 1.5; font-weight: 500; letter-spacing: -.5px; }
+.reader-active .ai-footer { font-size: 10px; }
+.reader-active .explanation-empty { padding-top: 38px; }
+.reader-active .explanation-empty h2 { font-size: 30px; font-weight: 500; letter-spacing: -1.2px; }
+.reader-active .explanation-empty>p { font-size: 13px; }
+.reader-active .explanation-empty>.primary-button { font-size: 12px; }
+.reader-active .explanation-empty>small, .reader-active .configure-hint { font-size: 11px; }
+.reader-active .notes-pane h2 { font-weight: 500; font-size: 28px; letter-spacing: -.8px; }
+.reader-active .notes-pane>p { font-size: 13px; }
+.reader-active .notes-pane textarea { font-size: 14px; min-height: 280px; }
+.reader-active .error-banner { flex-shrink: 0; margin: 10px 20px; }
+.reader-active .delete-confirm { flex-shrink: 0; margin: 12px 20px; }
+
+@media(max-width:900px) and (min-width:701px) {
+  .reader-active .study-grid { grid-template-columns: minmax(0, 1fr) 330px; }
+  .reader-active .slide-stage { padding: 15px; }
+  .reader-active .keyboard-tip>span:first-child { display: none; }
+}
+@media(max-width:700px) {
+  .reader-active { height: auto; min-height: 100dvh; overflow: visible; }
+  .reader-active .main-shell { height: auto; }
+  .reader-active .document-header { padding: 12px 14px; min-height: 76px; position: sticky; top: 0; z-index: 10; }
+  .reader-active .document-header h1 { font-size: 18px; max-width: none; }
+  .reader-active .document-header .eyebrow { font-size: 7px; letter-spacing: 1px; }
+  .reader-active .document-actions { gap: 4px; }
+  .reader-back { width: 40px; height: 40px; margin-left: 4px; }
+  .reader-active .study-grid { display: flex; flex-direction: column; overflow: visible; }
+  .reader-active .slide-panel { flex: none; height: 64dvh; min-height: 400px; }
+  .reader-active .slide-stage { padding: 16px; }
+  .reader-active .panel-toolbar { padding: 0 16px; }
+  .reader-active .glossary { max-height: 130px; padding: 13px 16px; }
+  .reader-active .glossary>p { font-size: 11px; }
+  .reader-active .keyboard-tip { display: none; }
+  .reader-active .explanation-panel { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+  .reader-active .explanation-tabs { position: static; }
+  .reader-active .explanation-empty { padding-top: 32px; }
+}
+
+/* Reader canvas uses the full window; its controls live in the lower drawer. */
+.reader-active .study-grid { grid-template-columns: minmax(0, 1fr) clamp(320px, 27vw, 420px); }
+.reader-active .slide-stage { padding: 8px 10px; }
+.reader-floating-actions { display: flex; justify-content: flex-end; align-items: center; padding: 12px 18px; min-height: 64px; background: #fff; }
+.reader-floating-actions .document-actions { gap: 9px; }
+.reader-floating-actions .reader-back { margin-left: 4px; }
+.reader-active .keyboard-tip { display: none; }
+.bottom-panel { flex-shrink: 0; display: flex; flex-direction: column; min-height: 32px; max-height: 55%; background: #fff; border-top: 1px solid var(--line); overflow: hidden; }
+.bottom-panel-handle { display: flex; flex-shrink: 0; align-items: center; height: 32px; border-bottom: 1px solid #edf0e7; background: #f8faf5; }
+.bottom-panel-grip { height: 100%; flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: row-resize; touch-action: none; user-select: none; padding-left: 34px; }
+.bottom-panel-grip>span { width: 34px; height: 4px; border-radius: 8px; background: #c5d1bc; }
+.bottom-panel-grip>small { font-size: 10px; color: #8b9a7e; }
+.bottom-panel-handle>button { display: grid; place-items: center; height: 28px; width: 34px; color: #758c62; margin-right: 5px; border-radius: 6px; }
+.bottom-panel-handle>button:hover { background: #e8efdf; }
+.bottom-panel-content { flex: 1; min-height: 0; overflow-y: auto; }
+.bottom-panel-content[hidden] { display: none; }
+.bottom-panel.is-dragging { user-select: none; }
+.bottom-panel.is-collapsed { border-bottom: 0; }
+.reader-active .bottom-panel .slide-tools { min-height: 44px; padding: 0 16px; }
+.reader-active .bottom-panel .glossary { max-height: none; overflow: visible; }
+@media(max-width:900px) and (min-width:701px) {
+  .reader-active .study-grid { grid-template-columns: minmax(0, 1fr) 310px; }
+  .reader-active .bottom-panel .slide-tools { padding: 0 8px; }
+  .reader-active .bottom-panel .page-navigation { gap: 0; }
+}
+@media(max-width:700px) {
+  .reader-active .slide-panel { height: 80dvh; min-height: 420px; }
+  .reader-active .slide-stage { padding: 6px; }
+  .reader-floating-actions { position: sticky; top: 0; z-index: 5; min-height: 60px; padding: 8px 14px; }
+  .reader-active .bottom-panel .slide-tools { padding: 0 12px; }
+  .reader-active .bottom-panel .page-navigation { gap: 2px; }
+  .bottom-panel-grip>small { font-size: 9px; }
+}

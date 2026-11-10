@@ -1,0 +1,23 @@
+/* A single card anchors the account controls at the foot of the sidebar. */
+.sidebar [data-slot="sidebar-footer"] {
+  margin-top:auto;
+  padding:4px;
+  border:0;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 2px 12px #263c1807;
+}
+.sidebar .sidebar-profile-trigger {
+  min-height:66px;
+  padding:11px 10px;
+  border-radius:12px;
+  background:transparent;
+}
+.sidebar .sidebar-profile-trigger:hover,
+.sidebar .sidebar-profile-trigger[data-state="open"] {
+  background:#f4f7f5;
+}
+.sidebar .sidebar-profile-trigger:focus-visible {
+  outline:2px solid #b6d9bf;
+  outline-offset:-2px;
+}

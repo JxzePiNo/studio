@@ -1,0 +1,58 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { PDFDocument } from "pdf-lib";
+import { POST } from "../app/api/documents/[id]/chat/route";
+import { createDocument, readDocument, updateDocument } from "../lib/store";
+import { createFolder } from "../lib/folders";
+import { saveStudyProfile } from "../lib/study-profile";
+import type { Explanation } from "../lib/types";
+
+test("chat uses the current study profile and analysis as its opening context without persisting duplicates", async t => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "studio-chat-context-"));
+  const previous = { data: process.env.DATA_DIR, enabled: process.env.NEXT_PUBLIC_FIREBASE_ENABLED, key: process.env.OPENAI_API_KEY, fetch: globalThis.fetch };
+  process.env.DATA_DIR = directory; process.env.NEXT_PUBLIC_FIREBASE_ENABLED = "false"; process.env.OPENAI_API_KEY = "fake-key-no-network";
+  t.after(async () => {
+    globalThis.fetch = previous.fetch;
+    for (const [key, value] of Object.entries({ DATA_DIR: previous.data, NEXT_PUBLIC_FIREBASE_ENABLED: previous.enabled, OPENAI_API_KEY: previous.key })) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+    await rm(directory, { recursive: true, force: true });
+  });
+  const folder = await createFolder("Meccanica statistica");
+  const pdf = await PDFDocument.create(); pdf.addPage(); pdf.addPage();
+  const doc = await createDocument("Lezione 1.pdf", await pdf.save(), 2, folder.id);
+  const explanation: Explanation = { title: "Entropia", language: "it", overview: "Una spiegazione iniziale completa della slide.", concepts: [{ title: "Ipotesi", explanation: "Un sistema in equilibrio." }], example: "Un esempio svolto.", takeaway: "L’entropia caratterizza gli stati accessibili.", glossary: [] };
+  await updateDocument(doc.id, d => { d.slides[1] = { notes: "Un appunto personale.", explanation }; });
+  let expectedProgram = "Laurea magistrale in fisica";
+  let calls = 0;
+  let expectedPages = 1;
+  globalThis.fetch = async (url, options) => {
+    calls++;
+    assert.equal(String(url), "https://api.openai.com/v1/responses");
+    const body = JSON.parse(String(options?.body));
+    assert.equal(body.store, false); assert.equal(body.max_output_tokens, 7000);
+    assert.match(body.instructions, /laurea magistrale/);
+    const text = body.input[0].content.find((part: { type: string }) => part.type === "input_text").text;
+    const file = body.input[0].content.find((part: { type: string }) => part.type === "input_file");
+    const attachedPdf = await PDFDocument.load(Buffer.from(file.file_data.split(",")[1], "base64"));
+    assert.equal(attachedPdf.getPageCount(), expectedPages);
+    for (const content of [expectedProgram, folder.name, explanation.overview, explanation.example, "Un appunto personale."]) assert.ok(text.includes(content));
+    return Response.json({ id: `response_${calls}`, object: "response", status: "completed", output: [{ id: `message_${calls}`, type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: "Un approfondimento tecnico con ipotesi e derivazione.", annotations: [] }] }] });
+  };
+  async function ask(scope = "slide") {
+    const response = await POST(new Request(`http://127.0.0.1/api/documents/${doc.id}/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ page: 1, question: "Approfondisci la derivazione.", scope }) }), { params: Promise.resolve({ id: doc.id }) });
+    assert.equal(response.status, 200); return response.json();
+  }
+  await saveStudyProfile({ studyProgram: expectedProgram, onboardingCompleted: true });
+  const first = await ask(); assert.equal(first.length, 2);
+  expectedProgram = "Laurea magistrale in matematica";
+  await saveStudyProfile({ studyProgram: expectedProgram, onboardingCompleted: true });
+  const second = await ask(); assert.equal(second.length, 4);
+  expectedPages = 2;
+  const full = await ask("document"); assert.equal(full.length, 6);
+  const stored = await readDocument(doc.id);
+  assert.deepEqual(stored.slides[1].explanation, explanation);
+  assert.ok(stored.slides[1].chat?.every(message => message.source !== "analysis"));
+  assert.equal(calls, 3);
+});
