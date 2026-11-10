@@ -1,0 +1,56 @@
+import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { studyDay } from "../lib/study-session";
+import { formatCourseName } from "../lib/course-name";
+
+test("course CFU, title, dates, width and archive/delete settings stay consistent", async ({ page, request }) => {
+  const rawName = `fundamentals OF machine learning ${Date.now()}`;
+  const title = formatCourseName(rawName);
+  const date = new Date(); date.setDate(date.getDate() + 5);
+  const created = await request.post("/api/folders", { data: { name: rawName, examDate: studyDay(date), cfu: 6 } });
+  expect(created.status()).toBe(201);
+  const folder = await created.json();
+  try {
+    await page.setViewportSize({ width: 1800, height: 1000 });
+    await page.goto("/");
+    await page.getByRole("searchbox", { name: "Cerca un esame", exact: true }).fill(rawName);
+    const card = page.locator(".exam-overview-card").filter({ hasText: title });
+    await expect(card.getByRole("heading", { level: 3 })).toHaveText(title);
+    await expect(card).toContainText("6 CFU");
+    await expect(card).toContainText("Tra 5 giorni");
+    const homeWidth = await page.locator(".overview-page").evaluate(element => element.getBoundingClientRect().width);
+    await card.getByRole("button", { name: `Apri esame ${rawName}`, exact: true }).click();
+    await expect(page.locator(".selected-exam")).toContainText(title);
+    await expect(page.locator(".selected-exam")).toContainText("6 CFU");
+    const courseWidth = await page.locator(".welcome:visible").evaluate(element => element.getBoundingClientRect().width);
+    expect(Math.abs(homeWidth - courseWidth)).toBeLessThanOrEqual(1);
+    await page.getByRole("link", { name: "Studio, pagina iniziale", exact: true }).click();
+    await card.getByRole("button", { name: `Impostazioni ${rawName}`, exact: true }).click();
+    const settings = page.getByRole("dialog", { name: `Impostazioni ${title}`, exact: true });
+    await settings.getByLabel("CFU (facoltativi)", { exact: false }).fill("9");
+    await settings.getByRole("button", { name: "Salva impostazioni", exact: true }).click();
+    await expect(card).toContainText("9 CFU");
+    await card.getByRole("button", { name: `Apri esame ${rawName}`, exact: true }).click();
+    const uploaded = page.waitForResponse(response => response.url().endsWith("/api/documents") && response.request().method() === "POST");
+    await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: "Da conservare.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
+    const document = await (await uploaded).json();
+    await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
+    await page.getByRole("link", { name: "Studio, pagina iniziale", exact: true }).click();
+    await card.getByRole("button", { name: `Impostazioni ${rawName}`, exact: true }).click();
+    await expect(settings.getByRole("button", { name: "Rimuovi data", exact: true })).toHaveCount(0);
+    await settings.getByRole("button", { name: "Archivia esame", exact: true }).click();
+    await expect(card).toHaveCount(0);
+    expect((await request.get(`/api/documents/${document.id}`)).status()).toBe(200);
+    await page.getByRole("button", { name: "Mostra archiviati", exact: true }).click();
+    await expect(card).toContainText("Archiviato");
+    await card.getByRole("button", { name: `Impostazioni ${rawName}`, exact: true }).click();
+    await settings.getByRole("button", { name: "Ripristina esame", exact: true }).click();
+    await page.getByRole("button", { name: "Mostra prossimi esami", exact: true }).click();
+    await expect(card).toContainText("9 CFU");
+    await card.getByRole("button", { name: `Impostazioni ${rawName}`, exact: true }).click();
+    await settings.getByRole("button", { name: "Elimina esame", exact: true }).click();
+    await settings.getByRole("button", { name: "Conferma eliminazione", exact: true }).click();
+    await expect(card).toHaveCount(0);
+    expect((await request.get(`/api/documents/${document.id}`)).status()).toBe(404);
+  } finally { await request.delete(`/api/folders/${folder.id}`).catch(() => {}); }
+});

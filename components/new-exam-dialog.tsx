@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { CalendarDays, FolderPlus, LoaderCircle, X } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
+import { validExamCfu } from "@/lib/exam-cfu";
 import type { ExamFolder } from "@/lib/types";
 import { Button } from "./ui/button";
 import { Calendar } from "./ui/calendar";
@@ -26,6 +27,7 @@ function calendarDate(date: Date) {
 
 export function NewExamDialog({ open, onOpenChange, onCreated, folders = [] }: NewExamDialogProps) {
   const [name, setName] = useState("");
+  const [cfu, setCfu] = useState("");
   const [date, setDate] = useState<Date | undefined>();
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [nonStudyWeekdays, setNonStudyWeekdays] = useState<number[]>([]);
@@ -40,7 +42,7 @@ export function NewExamDialog({ open, onOpenChange, onCreated, folders = [] }: N
 
   useEffect(() => {
     if (open && !previouslyOpen.current) {
-      setName(""); setDate(undefined); setCalendarOpen(false); setError("");
+      setName(""); setCfu(""); setDate(undefined); setCalendarOpen(false); setError("");
       setNonStudyWeekdays([]); setNonStudyDates([]);
       created.current = null;
     }
@@ -49,6 +51,7 @@ export function NewExamDialog({ open, onOpenChange, onCreated, folders = [] }: N
 
   async function create() {
     if (requestRunning.current || !name.trim()) return;
+    if (cfu.trim() && !validExamCfu(Number(cfu))) { setError("Indica CFU tra 0,5 e 120, a incrementi di 0,5."); return; }
     requestRunning.current = true; setBusy(true); setError("");
     try {
       let folder = created.current;
@@ -56,7 +59,7 @@ export function NewExamDialog({ open, onOpenChange, onCreated, folders = [] }: N
         const response = await fetch("/api/folders", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...await authHeaders() },
-          body: JSON.stringify({ name: name.trim(), ...(date ? { examDate: calendarDate(date) } : {}), nonStudyWeekdays, nonStudyDates }),
+          body: JSON.stringify({ name: name.trim(), ...(cfu.trim() ? { cfu: Number(cfu) } : {}), ...(date ? { examDate: calendarDate(date) } : {}), nonStudyWeekdays, nonStudyDates }),
         });
         folder = await readApiResponse<ExamFolder>(response, "Impossibile creare l'esame. Riprova.");
         created.current = folder;
@@ -78,6 +81,7 @@ export function NewExamDialog({ open, onOpenChange, onCreated, folders = [] }: N
         <Dialog.Description className="new-exam-description">Dai un nome al corso e scegli quando sostenere l’esame.</Dialog.Description>
         <form className="new-exam-form" onSubmit={event => { event.preventDefault(); void create(); }}>
           <Input ref={titleInput} className="new-exam-title" aria-label="Nome esame" placeholder="Nome del corso" maxLength={100} value={name} onChange={event => setName(event.target.value)} disabled={busy || !!created.current} required />
+          <label>CFU <span className="muted">(facoltativi)</span><Input type="number" min={0.5} max={120} step={0.5} aria-label="CFU" placeholder="Es. 6" value={cfu} onChange={event => setCfu(event.target.value)} disabled={busy || !!created.current} /></label>
           <div className="new-exam-date"><div id={dateLabelId} className="new-exam-date-label">Data dell’esame <span>Facoltativa</span></div>
             <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
               <PopoverTrigger asChild><Button variant="outline" className="new-exam-date-trigger" aria-labelledby={dateLabelId} disabled={busy || !!created.current}><CalendarDays size={18} /><span>{date ? new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric" }).format(date) : "Scegli una data"}</span></Button></PopoverTrigger>

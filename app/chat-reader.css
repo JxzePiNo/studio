@@ -154,3 +154,18 @@
   .reader-splitter-toggle { width:48px; height:20px; border-radius:7px; }
   .reader-active .reader-split.is-resizing, .reader-active .reader-split.is-resizing * { cursor:row-resize !important; }
 }
+
+/* Keep explanations compact; hover actions do not reserve empty rows. */
+.reader-active .chat-analysis-message > .chat-message-author { margin-bottom:12px; }
+.reader-active .chat-analysis-message .explanation-content h2 { margin:12px 0; }
+.reader-active .chat-analysis-message .overview { margin:0 0 14px; line-height:1.7; }
+.reader-active .chat-analysis-message .concepts-heading { margin:18px 0 12px; padding-top:14px; }
+.reader-active .chat-analysis-message .concept { margin-bottom:14px; }
+.reader-active .chat-analysis-message .example-box { margin:16px 0; padding:14px; }
+.reader-active .chat-analysis-message .takeaway { margin-top:16px; padding:15px; }
+.reader-active :is(.explanation-topic, .concept > div, .example-box, .takeaway > div, .chat-conversation .chat-message.assistant) { position:relative; }
+.reader-active .chat-message .deepen-button { position:absolute; right:0; top:-12px; z-index:1; min-height:26px; padding:4px 8px; margin:0; background:var(--card,#fff); border:1px solid var(--border,#e0e8df); border-radius:8px; box-shadow:0 3px 10px #24362b0d; font-size:11px; }
+.reader-active .chat-conversation { gap:18px; padding-top:18px; }
+@media (hover:none) {
+  .reader-active .chat-message .deepen-button { position:static; margin-top:6px; box-shadow:none; min-height:24px; }
+}

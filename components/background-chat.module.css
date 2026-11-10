@@ -1,0 +1,8 @@
+.notifications { display: flex; flex-direction: column; gap: 8px; width: 100%; max-height: 35svh; overflow-y: auto; pointer-events: auto; }
+.notification { display: flex; align-items: center; gap: 10px; background: #fff; color: var(--foreground); padding: 12px 14px; border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 8px 30px #24362b17; }
+.icon { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; color: var(--primary); background: var(--accent); }
+.open { display: grid; gap: 3px; text-align: left; padding: 0; min-width: 0; flex: 1; }
+.open strong { font-size: 12px; font-weight: 600; }
+.open > span { font-size: 11px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dismiss { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: var(--muted-foreground); flex-shrink: 0; }
+.dismiss:hover { background: var(--accent); }

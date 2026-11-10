@@ -44,7 +44,7 @@ export function apiError(error: unknown) {
   const code = (error as NodeJS.ErrnoException)?.code;
   if (code === "ENOENT") return NextResponse.json({ error: "Documento non trovato." }, { status: 404 });
   const status = (error as { status?: number })?.status;
-  if (status === 401 || status === 400 || status === 404 || status === 503) return NextResponse.json({ error: (error as Error).message }, { status });
+  if (status === 401 || status === 400 || status === 404 || status === 409 || status === 502 || status === 503) return NextResponse.json({ error: (error as Error).message }, { status });
   console.error(error);
   return NextResponse.json({ error: "Impossibile completare l’operazione. Controlla i file e riprova." }, { status: 500 });
 }

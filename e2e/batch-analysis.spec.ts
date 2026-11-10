@@ -120,7 +120,7 @@ test("reader batch keeps analyzing after leaving the PDF and returning home", as
     await expect.poll(() => state.calls).toEqual([1]);
     await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
     await expect(page.locator(".materials-list")).toBeVisible();
-    await page.getByRole("button", { name: "Tutti gli esami", exact: true }).click();
+    await page.getByRole("button", { name: "Torna alla home", exact: true }).click();
     const island = page.getByRole("complementary", { name: "Avanzamento analisi in background" });
     await expect(island).toBeVisible();
     release();

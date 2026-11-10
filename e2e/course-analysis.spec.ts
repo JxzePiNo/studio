@@ -1,3 +1,4 @@
+import { formatCourseName } from "../lib/course-name";
 import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import type { DocumentSummary, SlideData, StudyDocument } from "../lib/types";
@@ -71,15 +72,28 @@ test("analizza tutti i PDF dell’esame in sequenza con avanzamento e stima del 
     await expect(analysis.getByRole("combobox")).toHaveCount(0);
     await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
     await expect.poll(() => state.calls.length).toBeGreaterThanOrEqual(2);
+    const details = analysis.getByRole("button", { name: "Stato dei file", exact: true });
+    await expect(details).toHaveAttribute("aria-expanded", "false");
+    await expect(analysis.getByRole("list", { name: "File in analisi", exact: true })).toBeHidden();
+    const compactCard = await analysis.boundingBox();
+    const upload = page.locator(".exam-action-grid .upload-banner");
+    const uploadCompact = await upload.boundingBox();
+    expect(Math.abs(compactCard!.height - uploadCompact!.height)).toBeLessThanOrEqual(2);
+    await details.click();
     await expect(analysis.locator(".course-analysis-timing")).toContainText("Tempo rimanente stimato");
+    expect(Math.abs((await upload.boundingBox())!.height - uploadCompact!.height)).toBeLessThanOrEqual(2);
+    await details.click();
+    await expect(details).toHaveAttribute("aria-expanded", "false");
     await expect(analysis.getByRole("progressbar", { name: "Pagine analizzate dell’esame", exact: true })).toHaveAttribute("max", "6");
     state.release();
-    await expect(analysis.getByText("Analisi completata", { exact: true })).toBeVisible();
-    await expect(analysis.getByRole("progressbar", { name: "Pagine analizzate dell’esame", exact: true })).toHaveAttribute("value", "6");
-    await expect(analysis.getByRole("button", { name: "Tutto analizzato", exact: true })).toBeDisabled();
+    await expect(analysis).toHaveCount(0);
     expect([...state.calls].sort()).toEqual(state.expectedCalls().sort());
     expect(state.calls).toHaveLength(6);
     expect(state.maximumConcurrent()).toBe(2);
+    expect((await upload.boundingBox())!.width).toBeCloseTo((await page.locator(".exam-action-grid").boundingBox())!.width, 0);
+    expect((await request.post("/api/documents", { multipart: { folderId: state.folder.id, file: { name: "Corso C.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") } } })).ok()).toBe(true);
+    await page.reload();
+    await expect(analysis).toBeVisible();
   } finally {
     state.release();
     const documents = await (await request.get("/api/documents")).json() as DocumentSummary[];
@@ -99,7 +113,7 @@ test("riutilizza la cache e riprende l’analisi dell’esame dopo un’interruz
     await expect(analysis.getByRole("progressbar", { name: "Pagine analizzate dell’esame", exact: true })).toHaveAttribute("value", "3");
     expect(state.calls).toHaveLength(2);
     await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
-    await expect(analysis.getByText("Analisi completata", { exact: true })).toBeVisible();
+    await expect(analysis).toHaveCount(0);
     expect([...state.calls].sort()).toEqual(state.expectedCalls().sort());
     expect(state.calls).toHaveLength(5);
     expect(state.calls).not.toContain("Corso A.pdf:1");
@@ -119,6 +133,7 @@ test("all eight files run automatically, stop drains active pages and resume ski
     await expect(analysis.getByRole("combobox")).toHaveCount(0);
     await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
     await expect.poll(() => state.calls.length).toBe(8);
+    await analysis.getByRole("button", { name: "Stato dei file", exact: true }).click();
     await expect(analysis.getByRole("list", { name: "File in analisi", exact: true }).locator("li")).toHaveCount(8);
     expect(new Set(state.calls.map(call => call.split(":")[0])).size).toBe(8);
     expect(state.maximumConcurrent()).toBe(8);
@@ -128,12 +143,11 @@ test("all eight files run automatically, stop drains active pages and resume ski
     expect(state.calls).toHaveLength(8);
     await expect(analysis.getByRole("progressbar")).toHaveAttribute("value", "8");
     await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
-    await expect(analysis.getByText("Analisi completata", { exact: true })).toBeVisible();
+    await expect(analysis).toHaveCount(0);
     expect(state.calls).toHaveLength(24);
     expect(new Set(state.calls).size).toBe(24);
     expect(state.maximumConcurrent()).toBe(8);
     for (const name of ["A", "B", "C", "D", "E", "F", "G", "H"]) expect(state.calls.filter(call => call.startsWith(`Corso ${name}.pdf:`)).map(call => Number(call.split(":")[1]))).toEqual([1, 2, 3]);
-    await expect(analysis.getByRole("progressbar")).toHaveAttribute("value", "24");
   } finally {
     state.release();
     const documents = await (await request.get("/api/documents")).json() as DocumentSummary[];
@@ -189,7 +203,7 @@ test("completed files open during course analysis and material badges update wit
     state.release();
     await expect.poll(() => state.calls.length).toBe(5);
     await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
-    await expect(analysis.getByText("Analisi completata", { exact: true })).toBeVisible();
+    await expect(analysis).toHaveCount(0);
     await expect(page.locator(".material-analysis-badge.is-analyzed")).toHaveCount(3);
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(row("Corso C").getByRole("status")).toBeVisible();
@@ -221,7 +235,7 @@ test("course analysis continues through reader, home and another exam, with a hi
     await expect(page.getByRole("button", { name: "Analizza questa pagina", exact: true })).toBeDisabled();
     await page.goBack();
     await expect(page.locator(".materials-list")).toBeVisible();
-    await page.getByRole("button", { name: "Tutti gli esami", exact: true }).click();
+    await page.getByRole("button", { name: "Torna alla home", exact: true }).click();
     await expect(page).toHaveURL(/\/$/);
     const other = await createExam(page, "Altro esame durante analisi");
     await expect(page).toHaveURL(new RegExp(`/esami/${other.id}$`));
@@ -232,7 +246,7 @@ test("course analysis continues through reader, home and another exam, with a hi
     await expect(island).toContainText("Tutte le spiegazioni sono pronte");
     expect(state.calls).toHaveLength(6);
     expect(new Set(state.calls).size).toBe(6);
-    await page.getByRole("button", { name: new RegExp(state.folder.name) }).click();
+    await page.getByRole("button", { name: new RegExp(formatCourseName(state.folder.name)) }).click();
     await expect(page.locator(".material-analysis-badge.is-analyzed")).toHaveCount(2);
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(island).toBeVisible();
@@ -259,22 +273,22 @@ test("two exams analyze concurrently and stopping one preserves the other's work
     expect(state.maximumConcurrent()).toBe(4);
 
     const island = page.getByRole("complementary", { name: "Avanzamento analisi in background" });
-    await expect(island).toContainText(state.folder.name);
-    await expect(island).toContainText(other.name);
-    await expect(island.getByRole("button", { name: `Interrompi analisi ${state.folder.name}`, exact: true })).toBeEnabled();
-    await island.getByRole("button", { name: `Interrompi analisi ${state.folder.name}`, exact: true }).click();
-    await expect(island.getByRole("button", { name: `Interrompi analisi ${other.name}`, exact: true })).toBeEnabled();
+    await expect(island).toContainText(formatCourseName(state.folder.name));
+    await expect(island).toContainText(formatCourseName(other.name));
+    await expect(island.getByRole("button", { name: `Interrompi analisi ${formatCourseName(state.folder.name)}`, exact: true })).toBeEnabled();
+    await island.getByRole("button", { name: `Interrompi analisi ${formatCourseName(state.folder.name)}`, exact: true }).click();
+    await expect(island.getByRole("button", { name: `Interrompi analisi ${formatCourseName(other.name)}`, exact: true })).toBeEnabled();
     state.release();
 
-    await expect(analysis.getByText("Analisi completata", { exact: true })).toBeVisible();
+    await expect(analysis).toHaveCount(0);
     expect(state.calls.filter(call => call.startsWith("Corso "))).toHaveLength(2);
     expect(state.calls.filter(call => call.startsWith("Secondo "))).toHaveLength(6);
     expect(new Set(state.calls).size).toBe(8);
-    await page.getByRole("button", { name: new RegExp(state.folder.name) }).click();
+    await page.getByRole("button", { name: new RegExp(formatCourseName(state.folder.name)) }).click();
     await expect(analysis.getByText("Analisi interrotta. Puoi riprendere dalle pagine mancanti.", { exact: true })).toBeVisible();
     await expect(analysis.getByRole("progressbar")).toHaveAttribute("value", "2");
     await analysis.getByRole("button", { name: "Analizza tutto", exact: true }).click();
-    await expect(analysis.getByText("Analisi completata", { exact: true })).toBeVisible();
+    await expect(analysis).toHaveCount(0);
     expect(state.calls).toHaveLength(12);
     expect(new Set(state.calls).size).toBe(12);
   } finally {

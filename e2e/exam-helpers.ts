@@ -1,3 +1,4 @@
+import { formatCourseName } from "../lib/course-name";
 import { expect, type Page } from "@playwright/test";
 
 export async function createExam(page: Page, prefix = "Esame di prova") {
@@ -11,7 +12,7 @@ export async function createExam(page: Page, prefix = "Esame di prova") {
   const response = await created;
   expect(response.status()).toBe(201);
   const folder = await response.json() as { id: string; color: string };
-  await expect(page.locator(".selected-exam")).toContainText(name);
+  await expect(page.locator(".selected-exam")).toContainText(formatCourseName(name));
   return { ...folder, name };
 }
 

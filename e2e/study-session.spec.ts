@@ -1,0 +1,66 @@
+import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { createExam } from "./exam-helpers";
+import { studyDay } from "../lib/study-session";
+
+test("study summary counts saved reads and keeps the timer while navigating and hiding", async ({ page, request }) => {
+  await page.clock.install();
+  await page.goto("/");
+  const exam = await createExam(page, "Sessione di studio");
+  const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
+  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: "Studio.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
+  const document = await (await uploaded).json();
+  const baseline = ((await (await request.get(`/api/study-sessions?day=${studyDay()}`)).json()).activity[studyDay()] || 0) as number;
+  try {
+    await expect(page.locator(".slide-stage canvas")).toBeVisible();
+    const bar = page.getByRole("region", { name: "Riepilogo studio", exact: true });
+    await expect(bar).toContainText("0 / 3");
+    await page.getByRole("button", { name: "Mostra pannello inferiore" }).click();
+    await page.getByRole("button", { name: "Da leggere", exact: true }).click();
+    await expect(bar.getByText("pag oggi", { exact: true }).locator("..").locator("strong")).toHaveText(String(baseline + 1));
+    await expect(bar).toContainText("1 / 3");
+    await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
+    await bar.getByRole("button", { name: "Play", exact: true }).click();
+    await page.clock.runFor(3100);
+    await expect(bar.getByRole("timer")).toHaveText("00:03");
+    await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
+    await page.clock.runFor(2100);
+    await expect(bar.getByRole("timer")).toHaveText("00:05");
+    await bar.getByRole("button", { name: "Pausa", exact: true }).click();
+    await page.clock.runFor(5000);
+    await expect(bar.getByRole("timer")).toHaveText("00:05");
+    await bar.getByRole("button", { name: "Nascondi riepilogo studio", exact: true }).click();
+    await expect(bar).toHaveCount(0);
+    await page.getByRole("button", { name: "Mostra riepilogo studio", exact: true }).click();
+    await expect(bar.getByRole("timer")).toHaveText("00:05");
+    await page.reload();
+    await expect(bar.getByRole("timer")).toHaveText("00:05");
+    await expect(bar.getByText("pag oggi", { exact: true }).locator("..").locator("strong")).toHaveText(String(baseline + 1));
+    await bar.getByRole("button", { name: "Play", exact: true }).click();
+    await page.clock.runFor(2100);
+    await expect(bar.getByRole("timer")).toHaveText("00:07");
+    await bar.getByRole("button", { name: "Pausa", exact: true }).click();
+    const handle = bar.getByRole("button", { name: "Sposta riepilogo studio", exact: true });
+    const initial = (await bar.boundingBox())!;
+    await handle.focus();
+    await handle.press("Shift+ArrowDown");
+    await expect.poll(async () => (await bar.boundingBox())!.y).toBe(initial.y + 40);
+    const grip = (await handle.boundingBox())!;
+    const beforeDrag = (await bar.boundingBox())!;
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(grip.x + grip.width / 2 + 50, grip.y + grip.height / 2 + 30, { steps: 5 });
+    await page.mouse.up();
+    await expect.poll(async () => (await bar.boundingBox())!.y).toBe(beforeDrag.y + 30);
+    const moved = (await bar.boundingBox())!;
+    await page.reload();
+    await expect.poll(async () => (await bar.boundingBox())?.y).toBe(moved.y);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(async () => {
+      const bounds = (await bar.boundingBox())!;
+      return bounds.x >= 0 && bounds.x + bounds.width <= 390;
+    }).toBe(true);
+    await bar.getByRole("button", { name: "Fine sessione", exact: true }).click();
+    await expect(bar.getByRole("timer")).toHaveText("00:00");
+  } finally { await request.delete(`/api/documents/${document.id}`); await request.delete(`/api/folders/${exam.id}`); }
+});

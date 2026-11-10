@@ -11,16 +11,20 @@ import { orderedMaterials, type MaterialMove } from "@/lib/material-order";
 import type { DocumentSummary, ExamFolder, StudyDocument } from "@/lib/types";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { ReadRangeDialog } from "./read-range-dialog";
+import { DocumentQuizzes } from "./document-quizzes";
 
 const fileSize = (bytes: number) => bytes < 1024 * 1024
   ? `${Math.ceil(bytes / 1024)} KB`
   : `${(bytes / 1024 / 1024).toLocaleString("it-IT", { maximumFractionDigits: 1 })} MB`;
 
-export function MaterialList({ documents, folder, query, busy, analysisRunning = false, onOpen, onRenamed, onOrdered }: {
+export function MaterialList({ documents, folder, query, busy, analysisRunning = false, onOpen, onRenamed, onOrdered, onReadUpdated }: {
   documents: DocumentSummary[]; folder: ExamFolder; query: string; busy: boolean; analysisRunning?: boolean;
   onOpen: (id: string) => void; onRenamed: (doc: StudyDocument) => void; onOrdered: (folder: ExamFolder) => void;
+  onReadUpdated?: () => Promise<void> | void;
 }) {
   const [renaming, setRenaming] = useState<DocumentSummary | null>(null);
+  const [reading, setReading] = useState<DocumentSummary | null>(null);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -57,6 +61,7 @@ export function MaterialList({ documents, folder, query, busy, analysisRunning =
     const Separator = context ? ContextMenu.Separator : DropdownMenu.Separator;
     const index = sorted.findIndex(d => d.id === doc.id);
     return <>
+      <Item className="material-menu-item" onSelect={() => { openingDialog.current = true; lastRenamed.current = doc.id; setReading(doc); }} disabled={busy || saving || analysisRunning || doc.pages < 1}><Check size={15} /> Segna pagine lette</Item>
       <Item className="material-menu-item" onSelect={() => edit(doc)} disabled={busy || saving || analysisRunning}><Pencil size={15} /> Rinomina</Item>
       <Separator className="material-menu-separator" />
       <Item className="material-menu-item" onSelect={() => void move(doc, "up")} disabled={busy || saving || analysisRunning || index === 0}><ArrowUp size={15} /> Sposta su</Item>
@@ -69,16 +74,17 @@ export function MaterialList({ documents, folder, query, busy, analysisRunning =
   }
   const closeMenuFocus = (event: Event) => { if (openingDialog.current) { event.preventDefault(); openingDialog.current = false; } };
   return <>
+    {reading && <ReadRangeDialog key={reading.id} document={reading} onSaved={onReadUpdated} onClose={() => setReading(null)} />}
     {error && !renaming && <p className="material-error" role="alert">{error}</p>}
     <div className="materials-list" aria-label="Materiali dell’esame" aria-busy={saving}>
       {!visible.length && <p className="materials-no-results">Nessun materiale corrisponde alla ricerca.</p>}
-      {visible.map(item => <ContextMenu.Root key={item.id}>
+      {visible.map(item => <div key={item.id}><ContextMenu.Root>
         <ContextMenu.Trigger asChild disabled={busy || saving || analysisRunning}><div className="material-row" data-document-id={item.id} tabIndex={0}>
           <Button variant="ghost" className="material-open" disabled={busy || saving} aria-label={`Apri ${item.name.replace(/\.pdf$/i, "")}`} onClick={() => onOpen(item.id)}><span className="material-icon"><FileText size={20} /></span><span className="material-info"><strong>{item.name.replace(/\.pdf$/i, "")}</strong><span className="material-details"><small>{item.pages} slide / {fileSize(item.size)}</small><span className={`material-analysis-badge ${item.analyzedPages >= item.pages && item.pages > 0 ? "is-analyzed" : item.analyzedPages > 0 ? "is-partial" : "is-pending"}`} role="status">{item.analyzedPages >= item.pages && item.pages > 0 ? <><Check size={12} aria-hidden="true" />Analizzato</> : item.analyzedPages > 0 ? <><Clock3 size={12} aria-hidden="true" />Parzialmente analizzato</> : <><CircleAlert size={12} aria-hidden="true" />Da analizzare</>}</span></span></span><span className="material-progress"><span>{(item.readPages || 0) / item.pages >= .95 ? `Letto / ${item.readPages}/${item.pages}` : `${item.readPages || 0}/${item.pages} lette`}</span><progress max={item.pages} value={item.readPages || 0} aria-label={`Avanzamento ${item.name}`} /></span><ChevronRight size={16} /></Button>
           <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" className="material-more" aria-label={`Azioni ${item.name.replace(/\.pdf$/i, "")}`} disabled={busy || saving || analysisRunning}><MoreHorizontal size={18} /></Button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="material-menu-content" align="end" sideOffset={5} onCloseAutoFocus={closeMenuFocus}>{items(item, false)}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
         </div></ContextMenu.Trigger>
         <ContextMenu.Portal><ContextMenu.Content className="material-menu-content" onCloseAutoFocus={closeMenuFocus}>{items(item, true)}</ContextMenu.Content></ContextMenu.Portal>
-      </ContextMenu.Root>)}
+      </ContextMenu.Root><DocumentQuizzes documentId={item.id} documentName={item.name} /></div>)}
     </div>
     <Dialog.Root open={!!renaming} onOpenChange={open => { if (!open && !saving) setRenaming(null); }}><Dialog.Portal><Dialog.Overlay className="plan-overlay" /><Dialog.Content className="plan-dialog" onEscapeKeyDown={e => { if (saving) e.preventDefault(); }} onPointerDownOutside={e => { if (saving) e.preventDefault(); }} onCloseAutoFocus={e => { e.preventDefault(); document.querySelector<HTMLButtonElement>(`[data-document-id="${lastRenamed.current}"] .material-open`)?.focus(); }}>
       <Dialog.Title>Rinomina materiale</Dialog.Title><Dialog.Description>Scegli un nome per ritrovarlo nell’esame. Il PDF e gli appunti restano collegati.</Dialog.Description><Dialog.Close asChild><Button variant="ghost" size="icon" className="plan-dialog-close" aria-label="Chiudi rinomina" disabled={saving}><X size={18} /></Button></Dialog.Close>

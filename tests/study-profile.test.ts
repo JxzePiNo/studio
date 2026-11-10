@@ -56,6 +56,15 @@ test("study profile persistence", async t => {
     assert.deepEqual(await readdir(directory), ["profile.json"]);
   });
 
+  await t.test("persists a custom name across subsequent program-only saves", async () => {
+    await saveStudyProfile({ studyProgram: "Informatica", onboardingCompleted: true, displayName: "  Iacopo Rossi  " });
+    assert.equal((await getStudyProfile()).displayName, "Iacopo Rossi");
+    await saveStudyProfile({ studyProgram: "Ingegneria", onboardingCompleted: true });
+    assert.equal((await getStudyProfile()).displayName, "Iacopo Rossi");
+    await assert.rejects(saveStudyProfile({ studyProgram: "Ingegneria", onboardingCompleted: true, displayName: "x".repeat(81) }), /Profilo di studio non valido/);
+    assert.equal((await getStudyProfile()).displayName, "Iacopo Rossi");
+  });
+
   await t.test("does not replace corrupt stored JSON with an empty profile", async () => {
     await writeFile(path.join(directory, "profile.json"), "not json");
     await assert.rejects(getStudyProfile(), SyntaxError);

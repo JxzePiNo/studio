@@ -1,3 +1,4 @@
+import { formatCourseName } from "../lib/course-name";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { createExam } from "./exam-helpers";
@@ -11,17 +12,17 @@ test("routes, browser history, read progress and reading preferences", async ({ 
   const analysis = await page.locator(".course-analysis").boundingBox();
   expect(upload!.y).toBeGreaterThan(header!.y);
   expect(Math.abs(upload!.width - analysis!.width)).toBeLessThan(2);
-  await page.getByRole("button", { name: "Tutti gli esami" }).click();
-  await page.getByRole("button", { name: `Pianifica ${exam.name}`, exact: true }).click();
+  await page.getByRole("button", { name: "Torna alla home" }).click();
+  await page.getByRole("button", { name: `Impostazioni ${exam.name}`, exact: true }).click();
   const plan = page.getByRole("dialog");
   exam.name += " aggiornato";
   await plan.getByRole("textbox", { name: "Nome esame", exact: true }).fill(exam.name);
-  await plan.getByRole("button", { name: "Menta", exact: true }).click();
-  await plan.getByRole("button", { name: "Salva piano", exact: true }).click();
+  await plan.getByRole("button", { name: "Arancione", exact: true }).click();
+  await plan.getByRole("button", { name: "Salva impostazioni", exact: true }).click();
   await expect(plan).toHaveCount(0);
   const card = page.locator(".exam-overview-card").filter({ hasText: exam.name });
-  await expect(card).toHaveAttribute("data-exam-color", "mint");
-  await card.locator(".exam-overview-card-body").click();
+  await expect(card).toHaveAttribute("data-folder-color", "orange");
+  await card.getByRole("button", { name: `Apri esame ${exam.name}`, exact: true }).click();
   await expect(page).toHaveURL(`/esami/${exam.id}`);
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
   await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: "Lettura.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
@@ -50,7 +51,7 @@ test("routes, browser history, read progress and reading preferences", async ({ 
     await page.keyboard.press("Space");
     await page.keyboard.press("Escape");
     await page.goBack();
-    await expect(page.locator(".selected-exam")).toContainText(exam.name);
+    await expect(page.locator(".selected-exam")).toContainText(formatCourseName(exam.name));
     await page.goForward();
     await expect(page.locator(".slide-stage canvas")).toBeVisible();
     await page.reload();

@@ -2,6 +2,56 @@ import { test, expect } from "@playwright/test";
 import { createExam } from "./exam-helpers";
 import type { Explanation, StudyDocument } from "../lib/types";
 
+test("a pending tutor reply survives leaving the reader and notifies the exact page", async ({ page, request }) => {
+  let saved: StudyDocument;
+  let calls = 0;
+  let release!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/status", route => route.fulfill({ json: { configured: true } }));
+  await page.route(/\/api\/documents\/[^/]+$/, async route => {
+    if (route.request().method() !== "GET") return route.fallback();
+    if (!saved) saved = await (await route.fetch()).json();
+    await route.fulfill({ json: saved });
+  });
+  await page.route("**/api/documents/*/chat", async route => {
+    calls++;
+    const body = route.request().postDataJSON();
+    expect(body.page).toBe(2);
+    await waiting;
+    const messages = [{ role: "user" as const, content: body.question }, { role: "assistant" as const, content: "Risposta completata mentre esploravi gli esami." }];
+    saved.slides[2] = { ...saved.slides[2], notes: saved.slides[2]?.notes || "", chat: messages };
+    await route.fulfill({ json: messages });
+  });
+  await page.goto("/");
+  await createExam(page, "Tutor in background");
+  const uploaded = page.waitForResponse(response => response.url().endsWith("/api/documents") && response.request().method() === "POST");
+  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
+  const document = await (await uploaded).json() as StudyDocument;
+  try {
+    await page.getByRole("button", { name: "Mostra pannello inferiore", exact: true }).click();
+    await page.getByRole("button", { name: "Slide successiva", exact: true }).click();
+    await page.getByRole("textbox", { name: "Domanda al tutor", exact: true }).fill("Spiegami la seconda pagina.");
+    await page.getByRole("button", { name: "Invia domanda", exact: true }).click();
+    await expect.poll(() => calls).toBe(1);
+    await expect(page.locator(".chat-thinking")).toBeVisible();
+    await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
+    await page.getByRole("button", { name: "Torna alla home", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "I tuoi esami", exact: true })).toBeVisible();
+    release();
+    const ready = page.getByRole("button", { name: /La risposta è pronta/ });
+    await expect(ready).toContainText("Pagina 2");
+    await ready.click();
+    await expect(page.locator(".chat-slide-label")).toHaveText("Slide 2");
+    await expect(page.locator(".chat-conversation .chat-message.assistant")).toContainText("Risposta completata mentre esploravi gli esami.");
+    await expect(page.locator(".chat-conversation .chat-message.user")).toContainText("Spiegami la seconda pagina.");
+    await expect(page.getByRole("button", { name: /La risposta è pronta/ })).toHaveCount(0);
+    expect(calls).toBe(1);
+    await page.getByRole("button", { name: "Mostra pannello inferiore", exact: true }).click();
+    await page.getByRole("button", { name: "Slide precedente", exact: true }).click();
+    await expect(page.locator(".chat-conversation .chat-message")).toHaveCount(0);
+  } finally { release(); await request.delete(`/api/documents/${document.id}`); }
+});
+
 test("creates an exam, assigns an upload and opens a separate chat for each slide", async ({ page, request }) => {
   await page.route("**/api/status", route => route.fulfill({ json: { configured: true } }));
   await page.goto("/");

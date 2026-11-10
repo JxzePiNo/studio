@@ -1,3 +1,4 @@
+import { formatCourseName } from "../lib/course-name";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { calendarDate, chooseCalendarDate, createExam } from "./exam-helpers";
@@ -33,7 +34,7 @@ test("la sidebar contiene solo esami e il caricamento richiede un esame aperto",
   await expect(page.getByRole("button", { name: "Scegli i PDF" })).toBeVisible();
   await firstButton.click();
   await expect(firstButton).toHaveAttribute("aria-current", "page");
-  await expect(page.locator(".selected-exam")).toContainText(first.name);
+  await expect(page.locator(".selected-exam")).toContainText(formatCourseName(first.name));
   await expect(page.getByLabel("Carica un PDF", { exact: true })).toHaveCount(1);
   await page.screenshot({ path: "test-results/exam-sidebar.png", fullPage: true });
 });
@@ -41,8 +42,6 @@ test("la sidebar contiene solo esami e il caricamento richiede un esame aperto",
 test("il profilo apre Account e ripristina il focus chiudendo la finestra", async ({ page }) => {
   await page.goto("/");
   const footer = page.locator('.sidebar [data-slot="sidebar-footer"]');
-  await expect(footer).toHaveCSS("background-color", "rgb(255, 255, 255)");
-  await expect(footer).toHaveCSS("border-radius", "16px");
   await expect(footer).toHaveCSS("border-top-width", "0px");
   const trigger = page.getByRole("button", { name: "Apri menu account" });
   await trigger.click();
@@ -71,9 +70,9 @@ test("il piano dell’esame calcola il carico giornaliero e resta salvato", asyn
     await page.getByRole("link", { name: "Studio, pagina iniziale", exact: true }).click();
     await expect(page.getByRole("heading", { name: "I tuoi esami", exact: true })).toBeVisible();
     const card = page.locator(".exam-overview-card").filter({ hasText: folder.name });
-    await expect(card).toContainText("1 materiale · 3 pagine");
-    await page.getByRole("button", { name: `Pianifica ${folder.name}`, exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: `Pianifica ${folder.name}`, exact: true });
+    await expect(card).not.toContainText("1 materiale");
+    await page.getByRole("button", { name: `Impostazioni ${folder.name}`, exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: `Impostazioni ${formatCourseName(folder.name)}`, exact: true });
     const future = new Date();
     future.setDate(future.getDate() + 10);
     const date = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, "0")}-${String(future.getDate()).padStart(2, "0")}`;
@@ -82,15 +81,15 @@ test("il piano dell’esame calcola il carico giornaliero e resta salvato", asyn
     await dialog.getByLabel("Pagine all’ora", { exact: false }).fill("10");
     await expect(dialog.locator(".plan-preview")).toContainText("3 pagine caricate");
     const saved = page.waitForResponse(r => r.url().endsWith(`/api/folders/${folder.id}`) && r.request().method() === "PATCH");
-    await dialog.getByRole("button", { name: "Salva piano", exact: true }).click();
+    await dialog.getByRole("button", { name: "Salva impostazioni", exact: true }).click();
     expect((await saved).status()).toBe(200);
     await expect(dialog).toHaveCount(0);
-    await expect(card.locator(".exam-daily-time")).toContainText("5 min");
-    await expect(card).toContainText("10 giorni disponibili");
-    await expect(card).toContainText("Stima con 10 pagine/ora");
+    await expect(card).toContainText("5 min");
+    await expect(card).toContainText("Tra 10 giorni");
+
     await page.reload();
-    await expect(card.locator(".exam-daily-time")).toContainText("5 min");
-    await page.getByRole("button", { name: `Pianifica ${folder.name}`, exact: true }).click();
+    await expect(card).toContainText("5 min");
+    await page.getByRole("button", { name: `Impostazioni ${folder.name}`, exact: true }).click();
     await expect(dialog.getByRole("button", { name: "Data dell’esame", exact: true })).not.toContainText("Scegli una data");
     await expect(dialog.getByLabel("Pagine all’ora", { exact: false })).toHaveValue("10");
     await page.keyboard.press("Escape");
@@ -125,7 +124,7 @@ test("crea un esame dal dialogo con calendario e mostra il conto alla rovescia",
   const folder = await response.json();
   expect(folder.examDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: formatCourseName(name), exact: true })).toBeVisible();
   await expect(page.locator(".course-countdown")).toContainText("Oggi è il giorno dell’esame");
   await expect(page.locator(".course-motivation")).not.toBeEmpty();
 
@@ -135,7 +134,7 @@ test("crea un esame dal dialogo con calendario e mostra il conto alla rovescia",
   expect((await request.patch(`/api/folders/${folder.id}`, { data: { examDate: future } })).status()).toBe(200);
   await page.reload();
   await page.getByRole("button", { name: "Apri menu", exact: true }).click();
-  await page.locator(".sidebar .folder-item").filter({ hasText: name }).click();
+  await page.locator(".sidebar .folder-item").filter({ hasText: formatCourseName(name) }).click();
   await expect(page.locator(".course-countdown")).toContainText("Mancano 14 giorni all’esame");
   await expect(page.locator(".course-motivation")).not.toBeEmpty();
 });
@@ -150,8 +149,8 @@ test("il piano esclude le domeniche e le singole pause e gestisce zero giorni di
     await expect(page.getByRole("heading", { name: "esempio", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
     await page.getByRole("link", { name: "Studio, pagina iniziale", exact: true }).click();
-    await page.getByRole("button", { name: `Pianifica ${folder.name}`, exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: `Pianifica ${folder.name}`, exact: true });
+    await page.getByRole("button", { name: `Impostazioni ${folder.name}`, exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: `Impostazioni ${formatCourseName(folder.name)}`, exact: true });
     const today = new Date();
     today.setHours(12, 0, 0, 0);
     const exam = new Date(today);
@@ -178,24 +177,23 @@ test("il piano esclude le domeniche e le singole pause e gestisce zero giorni di
     await expect(dialog.getByRole("list", { name: "Date escluse dallo studio", exact: true }).locator("li")).toHaveCount(1);
     await expect(dialog.locator(".plan-preview")).toContainText(`${availableDays} giorni disponibili`);
     const saved = page.waitForResponse(response => response.url().endsWith(`/api/folders/${folder.id}`) && response.request().method() === "PATCH");
-    await dialog.getByRole("button", { name: "Salva piano", exact: true }).click();
+    await dialog.getByRole("button", { name: "Salva impostazioni", exact: true }).click();
     expect((await saved).status()).toBe(200);
     const card = page.locator(".exam-overview-card").filter({ hasText: folder.name });
-    await expect(card).toContainText(`${availableDays} giorni disponibili`);
+    await expect(card).toContainText("Tra 10 giorni");
     const persisted = (await (await request.get("/api/folders")).json()).find((item: { id: string }) => item.id === folder.id);
     expect(persisted.nonStudyWeekdays).toEqual([0]);
     expect(persisted.nonStudyDates).toEqual([dayOff]);
     await page.reload();
-    await page.getByRole("button", { name: `Pianifica ${folder.name}`, exact: true }).click();
+    await page.getByRole("button", { name: `Impostazioni ${folder.name}`, exact: true }).click();
     await dialog.locator("summary").filter({ hasText: "Giorni in cui non studio" }).click();
     await expect(dialog.getByRole("button", { name: "domenica", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(dialog.getByRole("list", { name: "Date escluse dallo studio", exact: true }).locator("li")).toHaveCount(1);
     for (const weekday of ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"]) await dialog.getByRole("button", { name: weekday, exact: true }).click();
     await expect(dialog.locator(".plan-preview")).toContainText("Nessun giorno di studio disponibile");
-    await dialog.getByRole("button", { name: "Salva piano", exact: true }).click();
+    await dialog.getByRole("button", { name: "Salva impostazioni", exact: true }).click();
     await expect(dialog).toHaveCount(0);
-    await expect(card).toContainText("Nessun giorno di studio disponibile");
-    await expect(card.locator(".exam-daily-time")).toHaveCount(0);
+    await expect(card).toContainText("Nessun giorno disponibile");
     await expect(card).not.toContainText(/Infinity|NaN/);
   } finally { await request.delete(`/api/documents/${document.id}`); }
 });

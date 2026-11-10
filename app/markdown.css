@@ -42,3 +42,12 @@
 .reader-active .markdown-content.overview { color:#475569; }
 .reader-active .takeaway .markdown-content { color:inherit; }
 @media(max-width:700px) { .reader-active .markdown-content :is(h1,h2,h3) { margin-top:22px; } .reader-active .markdown-content pre { font-size:12px; padding:13px; } }
+
+/* Match the tutor's reading rhythm without double gaps between sections. */
+.reader-active .chat-message .markdown-content p { margin-bottom:10px; }
+.reader-active .chat-message .markdown-content :is(h1,h2,h3,h4,h5,h6) { margin:20px 0 10px; }
+.reader-active .chat-message .markdown-content > :first-child { margin-top:0; }
+.reader-active .chat-message .markdown-content > :last-child { margin-bottom:0; }
+.reader-active .markdown-content :is(ul,ol) { margin:10px 0 12px; }
+.reader-active .markdown-content li { margin:3px 0; }
+.reader-active .markdown-content blockquote { margin:12px 0; }

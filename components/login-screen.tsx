@@ -14,7 +14,6 @@ export function LoginScreen({ busy, error, onLogin }: { busy: boolean; error: st
         <TonyMascot size="100%" />
       </div>
       <div className={styles.greeting}>
-        <span className={styles.eyebrow}>UN PO’ DI CURIOSITÀ. UN MONDO DA CAPIRE.</span>
         <h1 id="tony-greeting">Ciao sono <span>Tony<span className={styles.period}>,</span></span></h1>
         <p className={styles.introduction} aria-label={introduction}>
           {introduction.split(" ").map((word, index) => <span aria-hidden="true" key={index} style={{ "--word": index } as CSSProperties}>{word}{" "}</span>)}
@@ -28,7 +27,6 @@ export function LoginScreen({ busy, error, onLogin }: { busy: boolean; error: st
       <p className={styles.note}>Il tuo spazio per imparare, una domanda alla volta.</p>
       {error && <p className={styles.error} role="alert">{error}</p>}
     </section>
-    <footer className={styles.footer}>Le tue idee, con un po’ di spazio in più.</footer>
   </main>;
 }
 

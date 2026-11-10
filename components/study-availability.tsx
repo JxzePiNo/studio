@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { CalendarDays, Check, ChevronDown, Copy, X } from "lucide-react";
+import { formatCourseName } from "@/lib/course-name";
 import { validExamDate } from "@/lib/study-plan";
 import type { ExamFolder } from "@/lib/types";
 import { Button } from "./ui/button";
@@ -50,7 +51,7 @@ export function StudyAvailability({ nonStudyWeekdays, nonStudyDates, onWeekdaysC
     if (!source || disabled) return;
     onWeekdaysChange([...(source.nonStudyWeekdays || [])]);
     onDatesChange([...(source.nonStudyDates || [])]);
-    setAppliedSource(source.name);
+    setAppliedSource(formatCourseName(source.name));
   }
 
   function toggleWeekday(day: number) {
@@ -65,7 +66,7 @@ export function StudyAvailability({ nonStudyWeekdays, nonStudyDates, onWeekdaysC
         <div className="study-availability-reuse-heading"><span className="study-availability-reuse-icon"><Copy size={17} aria-hidden="true" /></span><div><h3 id={sourceLabel}>Riusa le tue pause</h3><p>Copia i giorni liberi da un altro esame e adattali a questo piano.</p></div></div>
         <div className="study-availability-reuse-controls"><Select value={sourceId} onValueChange={value => { setSourceId(value); setAppliedSource(""); }} disabled={disabled}>
           <SelectTrigger aria-labelledby={sourceLabel}><SelectValue placeholder="Scegli un esame" /></SelectTrigger>
-          <SelectContent className="study-availability-reuse-options">{savedSchedules.map(folder => <SelectItem key={folder.id} value={folder.id}>{folder.name}</SelectItem>)}</SelectContent>
+          <SelectContent className="study-availability-reuse-options">{savedSchedules.map(folder => <SelectItem key={folder.id} value={folder.id}>{formatCourseName(folder.name)}</SelectItem>)}</SelectContent>
         </Select><Button variant="outline" size="sm" disabled={disabled || !source} onClick={applySavedSchedule}><Copy size={14} aria-hidden="true" /> Usa queste pause</Button></div>
         {source && <p className="study-availability-reuse-preview">{weekdays.filter(({ day }) => source.nonStudyWeekdays?.includes(day)).map(({ label }) => label).join(", ") || "Nessuna pausa settimanale"}{source.nonStudyDates?.length ? ` · ${source.nonStudyDates.length} ${source.nonStudyDates.length === 1 ? "data esclusa" : "date escluse"}` : ""}</p>}
         <p className="study-availability-reuse-note">Le pause attuali saranno sostituite. L’esame di origine resta invariato.</p>

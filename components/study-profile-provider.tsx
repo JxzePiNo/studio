@@ -14,7 +14,7 @@ type StudyProfileContextValue = {
   profile: StudyProfile | null;
   loading: boolean;
   error: string;
-  saveProfile: (studyProgram: string, onboardingCompleted?: boolean) => Promise<void>;
+  saveProfile: (studyProgram: string, onboardingCompleted?: boolean, displayName?: string) => Promise<void>;
   reload: () => Promise<void>;
 };
 
@@ -57,13 +57,13 @@ export function StudyProfileProvider({ children, onSignOut }: { children: ReactN
     return () => { requestSequence.current++; };
   }, [reload]);
 
-  const saveProfile = useCallback(async (studyProgram: string, onboardingCompleted?: boolean) => {
+  const saveProfile = useCallback(async (studyProgram: string, onboardingCompleted?: boolean, displayName?: string) => {
     if (saveLock.current) throw new Error("Salvataggio già in corso.");
     saveLock.current = true;
     const sequence = ++requestSequence.current;
     setError("");
     try {
-      const result = await profileRequest({ method: "PATCH", body: JSON.stringify({ studyProgram: studyProgram.trim(), onboardingCompleted: onboardingCompleted ?? profile?.onboardingCompleted ?? true }) });
+      const result = await profileRequest({ method: "PATCH", body: JSON.stringify({ studyProgram: studyProgram.trim(), onboardingCompleted: onboardingCompleted ?? profile?.onboardingCompleted ?? true, ...(displayName !== undefined ? { displayName: displayName.trim() } : {}) }) });
       if (sequence === requestSequence.current) setProfile(result);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Impossibile salvare il profilo di studio.";

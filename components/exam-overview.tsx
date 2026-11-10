@@ -4,19 +4,25 @@ import { readApiResponse } from "@/lib/api-response";
 
 import { useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowRight, CalendarDays, Check, Clock3, FolderOpen, LoaderCircle, Plus, X } from "lucide-react";
+import { CalendarDays, Check, Clock3, FolderOpen, LoaderCircle, Plus, Search, Settings2, X } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
 import { examColors, type ExamColor, examColor } from "@/lib/exam-colors";
-import { calculateStudyPlan, DEFAULT_PAGES_PER_HOUR, validExamDate } from "@/lib/study-plan";
+import { visibleExams, type ExamSort } from "@/lib/exam-list";
+import { validExamCfu } from "@/lib/exam-cfu";
+import { formatCourseName } from "@/lib/course-name";
+import { calculateStudyPlan, DEFAULT_PAGES_PER_HOUR, localStudyDate, validExamDate } from "@/lib/study-plan";
 import type { DocumentSummary, ExamFolder } from "@/lib/types";
 import { Button } from "./ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Calendar } from "./ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { StudyAvailability } from "./study-availability";
 import { HomeGreeting } from "./home-greeting";
 import greetingStyles from "./home-greeting.module.css";
+import folderStyles from "./exam-overview.module.css";
+import { ReadingHeatmap } from "./reading-heatmap";
+import type { ReadingActivity } from "@/lib/study-session";
 
 interface ExamOverviewProps {
   folders: ExamFolder[];
@@ -24,6 +30,11 @@ interface ExamOverviewProps {
   onOpen: (id: string) => void;
   onCreate: () => void;
   onUpdated: (folder: ExamFolder) => void;
+  onDeleted?: (id: string) => void;
+  isCourseBusy?: (id: string) => boolean;
+  activity?: ReadingActivity;
+  today?: string;
+  onActivityDaySelect?: (day: string) => void;
 }
 
 function duration(hours: number): string {
@@ -38,9 +49,29 @@ function dateLabel(date: string): string {
   return new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${date}T12:00:00`));
 }
 
-export function ExamOverview({ folders, documents, onOpen, onCreate, onUpdated }: ExamOverviewProps) {
+// Recreates the layered folder used in ArchAIve's ui/folder-components.tsx
+// with the original palette and CSS motion.
+const archiveColors = ["blue", "orange", "yellow", "red", "grey", "black"] as const;
+const archiveColorLabels = ["Blu", "Arancione", "Giallo", "Rosso", "Grigio", "Nero"];
+
+function ExamFolderVisual() {
+  return <span className={folderStyles.folder} aria-hidden="true">
+    <span className={`${folderStyles.paper} ${folderStyles.paperBack}`} />
+    <span className={`${folderStyles.paper} ${folderStyles.paperMiddle}`} />
+    <span className={`${folderStyles.paper} ${folderStyles.paperFront}`}><i /><i /><i /></span>
+    <span className={folderStyles.flap}><span className={folderStyles.tab} /><span className={folderStyles.flapBody} /></span>
+  </span>;
+}
+
+export function ExamOverview({ folders, documents, onOpen, onCreate, onUpdated, onDeleted, isCourseBusy, activity, today, onActivityDaySelect }: ExamOverviewProps) {
+  const [showArchived, setShowArchived] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<ExamSort>("deadline");
   const [editing, setEditing] = useState<ExamFolder | null>(null);
   const [name, setName] = useState("");
+  const [cfu, setCfu] = useState("");
+  const [optional, setOptional] = useState(false);
   const [color, setColor] = useState<ExamColor>("lavender");
   const [examDate, setExamDate] = useState("");
   const [pace, setPace] = useState(String(DEFAULT_PAGES_PER_HOUR));
@@ -53,8 +84,11 @@ export function ExamOverview({ folders, documents, onOpen, onCreate, onUpdated }
   const opener = useRef<HTMLElement | null>(null);
 
   function edit(folder: ExamFolder) {
+    setConfirmDelete(false);
     opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setEditing(folder); setName(folder.name); setColor(examColor(folder));
+    setCfu(folder.cfu === undefined ? "" : String(folder.cfu));
+    setOptional(folder.optional === true);
     setExamDate(folder.examDate || "");
     setPace(String(folder.pagesPerHour || DEFAULT_PAGES_PER_HOUR));
     setCalendarOpen(false);
@@ -65,6 +99,7 @@ export function ExamOverview({ folders, documents, onOpen, onCreate, onUpdated }
 
   async function save() {
     if (!editing || busy || !name.trim()) return;
+    if (cfu.trim() && !validExamCfu(Number(cfu))) { setError("Indica CFU tra 0,5 e 120, a incrementi di 0,5."); return; }
     const pagesPerHour = Number(pace);
     if ((examDate && !validExamDate(examDate)) || !Number.isFinite(pagesPerHour) || pagesPerHour < 1 || pagesPerHour > 200) {
       setError("Indica una data valida e un ritmo tra 1 e 200 pagine all’ora.");
@@ -75,7 +110,7 @@ export function ExamOverview({ folders, documents, onOpen, onCreate, onUpdated }
       const response = await fetch(`/api/folders/${editing.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...await authHeaders() },
-        body: JSON.stringify({ name: name.trim(), color, examDate: examDate || null, pagesPerHour, nonStudyWeekdays, nonStudyDates }),
+        body: JSON.stringify({ name: name.trim(), color, optional, cfu: cfu.trim() ? Number(cfu) : null, examDate: examDate || null, pagesPerHour, nonStudyWeekdays, nonStudyDates }),
       });
       const folder = await readApiResponse<ExamFolder>(response, "Impossibile salvare il piano. Riprova.");
       onUpdated(folder);
@@ -84,39 +119,78 @@ export function ExamOverview({ folders, documents, onOpen, onCreate, onUpdated }
     finally { setBusy(false); }
   }
 
+  async function archive() {
+    if (!editing || busy) return;
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/folders/${editing.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...await authHeaders() }, body: JSON.stringify({ archived: !editing.archived }) });
+      onUpdated(await readApiResponse<ExamFolder>(response, "Impossibile aggiornare l’esame. Riprova."));
+      setEditing(null);
+    } catch (error) { setError((error as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  async function remove() {
+    if (!editing || busy || isCourseBusy?.(editing.id) || !confirmDelete) return;
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/folders/${editing.id}`, { method: "DELETE", headers: await authHeaders() });
+      await readApiResponse(response, "Impossibile eliminare tutti i materiali. Riprova per completare l’eliminazione.");
+      onDeleted?.(editing.id);
+      setEditing(null);
+    } catch (error) { setError((error as Error).message); }
+    finally { setBusy(false); }
+  }
+
   const draftPages = editing ? documents.filter(document => document.folderId === editing.id).reduce((sum, document) => sum + document.pages, 0) : 0;
   const draftPlan = calculateStudyPlan(draftPages, examDate, Number(pace), undefined, { nonStudyWeekdays, nonStudyDates });
   const selectedDate = validExamDate(examDate) ? new Date(`${examDate}T12:00:00`) : undefined;
+  const displayedFolders = visibleExams(folders.filter(folder => showArchived ? folder.archived : !folder.archived), search, sort, today);
 
   return <div className="overview-page">
-    <header className={`exam-overview-heading ${greetingStyles.header}`}><HomeGreeting /><Button onClick={onCreate}><Plus size={17} /> Nuovo esame</Button></header>
+    <header className={`exam-overview-heading ${greetingStyles.header}`}><HomeGreeting /><Button className={greetingStyles.action} onClick={onCreate}><Plus size={17} /> Nuovo esame</Button></header>
+    {activity && today && <ReadingHeatmap activity={activity} today={today} onDaySelect={onActivityDaySelect} />}
+    <div className={folderStyles.sectionHeading}><h2>{showArchived ? "I tuoi esami archiviati" : "I tuoi prossimi esami"}</h2>{(showArchived || folders.some(folder => folder.archived)) && <Button variant="ghost" onClick={() => setShowArchived(value => !value)} aria-pressed={showArchived}>{showArchived ? "Mostra prossimi esami" : "Mostra archiviati"}</Button>}</div>
+    {folders.length > 0 && <div className={folderStyles.toolbar}>
+      <div className={folderStyles.search}><Search size={17} aria-hidden="true" /><Input type="search" aria-label="Cerca un esame" placeholder="Cerca un esame" value={search} onChange={event => setSearch(event.target.value)} /></div>
+      <label className={folderStyles.sort}><span>Ordina per</span><select aria-label="Ordina esami" value={sort} onChange={event => setSort(event.target.value as ExamSort)}><option value="deadline">Data più vicina</option><option value="name">Nome A–Z</option><option value="newest">Più recenti</option></select></label>
+    </div>}
     <div className="exam-overview-grid">
-      {folders.map(folder => {
+      {displayedFolders.map(folder => {
         const materials = documents.filter(document => document.folderId === folder.id);
         const pages = materials.reduce((sum, document) => sum + document.pages, 0);
-        const plan = calculateStudyPlan(pages, folder.examDate, folder.pagesPerHour, undefined, { nonStudyWeekdays: folder.nonStudyWeekdays, nonStudyDates: folder.nonStudyDates });
-        return <Card className="exam-overview-card" onClick={event => { if (!(event.target as HTMLElement).closest("button, a, input")) onOpen(folder.id); }} data-exam-color={examColor(folder)} key={folder.id}>
-          <CardHeader className="exam-overview-card-top"><span className="exam-overview-card-icon"><FolderOpen size={24} strokeWidth={1.6} /></span><div><CardTitle><button className="exam-card-title" onClick={() => onOpen(folder.id)}>{folder.name}</button></CardTitle><p>{materials.length} {materials.length === 1 ? "materiale" : "materiali"} · {pages} pagine</p></div><Button variant="ghost" size="icon" aria-label={`Pianifica ${folder.name}`} onClick={() => edit(folder)}><CalendarDays size={18} /></Button></CardHeader>
-          <CardContent className="exam-overview-card-body">
-            <div className="exam-overview-card-date"><CalendarDays size={15} /><span>{folder.examDate && validExamDate(folder.examDate) ? dateLabel(folder.examDate) : "Data da definire"}</span>{plan.state === "today" && <small className="exam-plan-status">Oggi</small>}{plan.state === "overdue" && <small className="exam-plan-status is-overdue">Data trascorsa</small>}</div>
-            <div className="exam-overview-card-planning">
-              {plan.state === "overdue" ? <p>Imposta la prossima data per aggiornare il piano.</p> : !pages ? <p>Carica i materiali per stimare il tempo di studio.</p> : plan.daysAvailable === 0 ? <><p>Nessun giorno di studio disponibile.</p><small>Modifica le pause o la data dell’esame per distribuire {duration(plan.totalHours)} di studio.</small></> : plan.hoursPerDay !== null ? <><span className="exam-daily-time"><Clock3 size={18} /><strong>{duration(plan.hoursPerDay)}</strong><span>/ giorno</span></span><p>{duration(plan.totalHours)} totali · {plan.daysAvailable} {plan.daysAvailable === 1 ? "giorno disponibile" : "giorni disponibili"}</p><small>Stima con {plan.pagesPerHour} pagine/ora</small></> : <><p>{duration(plan.totalHours)} di studio stimato</p><small>Imposta la data per calcolare il carico giornaliero.</small></>}
+        const plan = calculateStudyPlan(pages, folder.examDate, folder.pagesPerHour, today, { nonStudyWeekdays: folder.nonStudyWeekdays, nonStudyDates: folder.nonStudyDates });
+        const remainingDays = folder.examDate && validExamDate(folder.examDate) ? Math.max(0, Math.round((Date.parse(`${folder.examDate}T00:00:00Z`) - Date.parse(`${today || localStudyDate()}T00:00:00Z`)) / 86400000)) : null;
+        return <Card className={`exam-overview-card ${folderStyles.card}`} onClick={event => { if (!(event.target as HTMLElement).closest("button, a, input")) onOpen(folder.id); }} data-folder-color={archiveColors[examColors.indexOf(examColor(folder))]} key={folder.id}>
+          <CardHeader className={`exam-overview-card-top ${folderStyles.top}`}><ExamFolderVisual /><div><CardTitle><button className={`exam-card-title ${folderStyles.openButton}`} aria-label={`Apri esame ${folder.name}`} onClick={() => onOpen(folder.id)}>{formatCourseName(folder.name)}</button></CardTitle>{folder.examDate && validExamDate(folder.examDate) && <p className={folderStyles.examDate}>{dateLabel(folder.examDate)}</p>}</div><Button className={folderStyles.planButton} variant="ghost" size="icon" aria-label={`Impostazioni ${folder.name}`} onClick={() => edit(folder)}><Settings2 size={18} /></Button></CardHeader>
+          <CardContent className={folderStyles.body}>
+            <div className={folderStyles.tags}>
+              {folder.archived && <span className={folderStyles.tag}>Archiviato</span>}
+              {folder.optional && <span className={folderStyles.tag}>Facoltativo</span>}
+              {folder.cfu !== undefined && <span className={folderStyles.tag}>{new Intl.NumberFormat("it-IT").format(folder.cfu)} CFU</span>}
+              <span className={folderStyles.tag}><CalendarDays size={13} />{plan.state === "overdue" ? "Data trascorsa" : plan.state === "today" ? "Esame oggi" : remainingDays !== null ? `Tra ${remainingDays} ${remainingDays === 1 ? "giorno" : "giorni"}` : "Data da definire"}</span>
+              {plan.state !== "overdue" && plan.state !== "unscheduled" && <span className={folderStyles.tag}><Clock3 size={13} />{plan.daysAvailable === 0 ? "Nessun giorno disponibile" : !pages ? "Aggiungi materiali" : `${duration(plan.hoursPerDay || 0)} / giorno`}</span>}
             </div>
           </CardContent>
-          <CardFooter className="exam-overview-card-actions"><Button variant="ghost" onClick={() => edit(folder)}>{folder.examDate ? "Modifica piano" : "Imposta la data"}</Button><Button variant="outline" aria-label={`Apri esame ${folder.name}`} onClick={() => onOpen(folder.id)}>Apri esame <ArrowRight size={15} /></Button></CardFooter>
         </Card>;
       })}
+      {folders.length > 0 && !displayedFolders.length && <Card className={`exam-overview-empty ${folderStyles.noResults}`}><Search size={25} aria-hidden="true" /><h2>{search ? "Nessun esame trovato" : showArchived ? "Nessun esame archiviato" : "Nessun esame in programma"}</h2><p>{search ? "Prova con un altro nome." : showArchived ? "Gli esami che archivi saranno visibili qui." : "Crea un nuovo esame o ripristinane uno dall’archivio."}</p>{search && <Button variant="outline" onClick={() => setSearch("")}>Cancella ricerca</Button>}</Card>}
       {!folders.length && <Card className="exam-overview-empty"><span className="exam-overview-card-icon"><FolderOpen size={30} strokeWidth={1.5} /></span><h2>Il tuo primo esame inizia qui.</h2><p>Crea una cartella, aggiungi le slide e scegli quando prepararti.</p><Button variant="outline" onClick={onCreate}><Plus size={17} /> Crea il primo esame</Button></Card>}
     </div>
 
     <Dialog.Root open={!!editing} onOpenChange={open => { if (!open && !busy) setEditing(null); }}>
-      <Dialog.Portal><Dialog.Overlay className="plan-overlay" /><Dialog.Content className="plan-dialog" onCloseAutoFocus={event => { event.preventDefault(); opener.current?.focus(); }} onEscapeKeyDown={event => { if (busy) event.preventDefault(); }} onPointerDownOutside={event => { if (busy) event.preventDefault(); }}>
-        <Dialog.Title>Pianifica {editing?.name}</Dialog.Title>
+      <Dialog.Portal><Dialog.Overlay className="plan-overlay" /><Dialog.Content className={`plan-dialog ${folderStyles.settingsDialog}`} onCloseAutoFocus={event => { event.preventDefault(); opener.current?.focus(); }} onEscapeKeyDown={event => { if (busy) event.preventDefault(); }} onPointerDownOutside={event => { if (busy) event.preventDefault(); }}>
+        <Dialog.Title>Impostazioni {editing ? formatCourseName(editing.name) : ""}</Dialog.Title>
         <Dialog.Description>La stima considera tutte le pagine caricate e i giorni di studio prima dell’esame, escludendo le tue pause. Scegli un ritmo adatto alla materia.</Dialog.Description>
         <Dialog.Close asChild><Button variant="ghost" size="icon" className="plan-dialog-close" aria-label="Chiudi pianificazione" disabled={busy}><X size={18} /></Button></Dialog.Close>
         <form className="plan-form" onSubmit={event => { event.preventDefault(); void save(); }}>
           <label>Nome esame<Input value={name} onChange={event => setName(event.target.value)} maxLength={100} disabled={busy} required /></label>
-          <fieldset className="exam-color-options"><legend>Colore della cartella</legend>{examColors.map((option, index) => <button key={option} type="button" data-exam-color={option} className="exam-color-option folder-icon" aria-label={["Lavanda", "Menta", "Pesca", "Cielo", "Rosa", "Sabbia"][index]} aria-pressed={color === option} onClick={() => setColor(option)} disabled={busy}><FolderOpen size={20} />{color === option && <Check size={12} aria-hidden="true" />}</button>)}</fieldset>
+          <div className={folderStyles.optionalSetting}>
+            <div><label htmlFor={`${formId}-optional`}>Corso obbligatorio</label><p id={`${formId}-optional-hint`}>{optional ? "A scelta nel tuo piano di studi." : "Obbligatorio nel tuo piano di studi."}</p></div>
+            <input id={`${formId}-optional`} className={folderStyles.optionalSwitch} type="checkbox" role="switch" aria-describedby={`${formId}-optional-hint`} checked={!optional} onChange={event => setOptional(!event.target.checked)} disabled={busy} />
+          </div>
+          <label>CFU (facoltativi)<Input type="number" min={0.5} max={120} step={0.5} value={cfu} onChange={event => setCfu(event.target.value)} disabled={busy} placeholder="Es. 6" /><small>Lascia vuoto se non indicati.</small></label>
+          <fieldset className="exam-color-options"><legend>Colore della cartella</legend>{examColors.map((option, index) => <button key={option} type="button" data-folder-color={archiveColors[index]} className={`exam-color-option folder-icon ${folderStyles.swatch}`} aria-label={archiveColorLabels[index]} aria-pressed={color === option} onClick={() => setColor(option)} disabled={busy}><FolderOpen size={20} />{color === option && <Check size={12} aria-hidden="true" />}</button>)}</fieldset>
           <div className="plan-date-field"><span>Data dell’esame</span><Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
             <PopoverTrigger asChild><Button variant="outline" className="new-exam-date-trigger" aria-label="Data dell’esame" disabled={busy}><CalendarDays size={18} /><span>{selectedDate ? dateLabel(examDate) : "Scegli una data"}</span></Button></PopoverTrigger>
             <PopoverContent className="new-exam-calendar" align="start"><Calendar mode="single" selected={selectedDate} defaultMonth={selectedDate} onSelect={selected => { setExamDate(selected ? `${selected.getFullYear()}-${String(selected.getMonth() + 1).padStart(2, "0")}-${String(selected.getDate()).padStart(2, "0")}` : ""); setCalendarOpen(false); }} autoFocus labels={{ labelPrevious: () => "Vai al mese precedente", labelNext: () => "Vai al mese successivo" }} /></PopoverContent>
@@ -125,7 +199,13 @@ export function ExamOverview({ folders, documents, onOpen, onCreate, onUpdated }
           <StudyAvailability key={editing?.id || "planning"} folders={folders} currentFolderId={editing?.id} nonStudyWeekdays={nonStudyWeekdays} nonStudyDates={nonStudyDates} onWeekdaysChange={setNonStudyWeekdays} onDatesChange={setNonStudyDates} disabled={busy} />
           <div className="plan-preview" aria-live="polite"><strong>{draftPages} pagine caricate</strong><p>{draftPlan.state === "overdue" ? "La data è trascorsa: scegli un nuovo giorno." : !draftPages ? "La stima si aggiornerà quando caricherai i materiali." : draftPlan.daysAvailable === 0 ? `Nessun giorno di studio disponibile. Modifica le pause o la data dell’esame per distribuire ${duration(draftPlan.totalHours)} di studio.` : draftPlan.hoursPerDay !== null ? `Circa ${duration(draftPlan.hoursPerDay)} al giorno · ${duration(draftPlan.totalHours)} totali · ${draftPlan.daysAvailable} giorni disponibili` : `Circa ${duration(draftPlan.totalHours)} totali. Aggiungi una data per distribuirli sui giorni disponibili.`}</p></div>
           {error && <p className="plan-error" role="alert">{error}</p>}
-          <div className="plan-form-actions"><Button variant="ghost" disabled={busy || !examDate} onClick={() => setExamDate("")}>Rimuovi data</Button><Button type="submit" disabled={busy}>{busy && <LoaderCircle size={16} className="spin" />}{busy ? "Salvataggio…" : "Salva piano"}</Button></div>
+          <div className="plan-form-actions"><Button type="submit" disabled={busy}>{busy && <LoaderCircle size={16} className="spin" />}{busy ? "Salvataggio…" : "Salva impostazioni"}</Button></div>
+          <div className={folderStyles.courseActions}>
+            <Button type="button" variant="outline" disabled={busy} onClick={() => void archive()}>{editing?.archived ? "Ripristina esame" : "Archivia esame"}</Button>
+            <p>{editing?.archived ? "Ripristina l’esame tra i prossimi esami." : "Conserva tutti i PDF e i progressi nell’archivio."}</p>
+            {!confirmDelete ? <Button type="button" variant="ghost" className={folderStyles.deleteButton} disabled={busy || !!(editing && isCourseBusy?.(editing.id))} onClick={() => setConfirmDelete(true)}>Elimina esame</Button> : <div role="group" aria-label="Conferma eliminazione esame"><p>Eliminare definitivamente {editing ? formatCourseName(editing.name) : ""} e tutti i suoi PDF, appunti e progressi? Questa operazione è irreversibile.</p><div className={folderStyles.confirmActions}><Button type="button" variant="outline" disabled={busy} onClick={() => setConfirmDelete(false)}>Annulla</Button><Button type="button" className={folderStyles.deleteButton} disabled={busy || !!(editing && isCourseBusy?.(editing.id))} onClick={() => void remove()}>Conferma eliminazione</Button></div></div>}
+            {editing && isCourseBusy?.(editing.id) && <p>Attendi il termine dell’analisi prima di eliminare l’esame.</p>}
+          </div>
         </form>
       </Dialog.Content></Dialog.Portal>
     </Dialog.Root>

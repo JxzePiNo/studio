@@ -22,7 +22,7 @@ function statusTitle(job: AnalysisIslandJob) {
   return job.status === "completed" ? "Tutte le spiegazioni sono pronte" : job.status === "stopped" ? "Analisi interrotta" : job.status === "error" ? "Analisi sospesa" : job.status === "stopping" ? "Salvo le pagine in corso…" : job.status === "checking" ? "Controllo le pagine salvate…" : "Tony sta analizzando";
 }
 
-export function AnalysisIsland({ jobs }: { jobs: AnalysisIslandJob[] }) {
+export function AnalysisIsland({ jobs, embedded = false }: { jobs: AnalysisIslandJob[]; embedded?: boolean }) {
   const [hidden, setHidden] = useState(false);
   const activeJobs = jobs.filter(isActive);
   const active = activeJobs.length > 0;
@@ -34,8 +34,8 @@ export function AnalysisIsland({ jobs }: { jobs: AnalysisIslandJob[] }) {
   const title = multiple && active ? `Tony sta analizzando · ${activeJobs.length} in corso` : statusTitle(job);
   const Icon = active ? LoaderCircle : job.status === "completed" ? Check : job.status === "error" ? CircleAlert : Pause;
 
-  if (hidden) return <button className={styles.restore} onClick={() => setHidden(false)} aria-label="Mostra avanzamento analisi" title={`${title} · ${percent}%`}><Eye size={17} /><span className={active ? styles.dot : styles.finishedDot} /></button>;
-  return <aside className={styles.island} aria-label="Avanzamento analisi in background" data-active={active}>
+  if (hidden) return <button className={`${styles.restore} ${embedded ? styles.embeddedRestore : ""}`} onClick={() => setHidden(false)} aria-label="Mostra avanzamento analisi" title={`${title} · ${percent}%`}><Eye size={17} /><span className={active ? styles.dot : styles.finishedDot} /></button>;
+  return <aside className={`${styles.island} ${embedded ? styles.embedded : ""}`} aria-label="Avanzamento analisi in background" data-active={active}>
     <div className={styles.summary}>
       <span className={styles.icon}><Icon size={18} className={active ? "spin" : undefined} /></span>
       <div className={styles.copy}><strong role="status" aria-live="polite">{title}</strong><span title={multiple ? `${jobs.length} analisi` : job.label}>{multiple ? `${jobs.length} analisi · ${totals.completed} / ${totals.total} pagine` : job.label}</span></div>

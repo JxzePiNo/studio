@@ -10,6 +10,8 @@ import "./course-analysis-parallel.css";
 import "./material-status.css";
 import "./markdown.css";
 import "./sidebar-profile.css";
+import "./workspace-background.css";
+import "./accent-theme.css";
 
 export const metadata: Metadata = { title: "Margine — Lo spazio per capire", description: "Le tue slide, spiegate. Uno spazio locale per studiare PDF, capire i concetti e tradurre le parole." };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

@@ -87,8 +87,9 @@ export async function listDocuments(): Promise<DocumentSummary[]> {
 export async function deleteDocument(id: string) {
   if (cloudEnabled()) return cloud.remove(id);
   return inDocumentQueue(id, async () => {
-    await readDocument(id);
-    await rm(documentDir(id), { recursive: true });
+    // A previous removal may have deleted metadata before the PDF. Retry the
+    // validated directory itself so remaining files cannot become orphans.
+    await rm(documentDir(id), { recursive: true, force: true });
     documentSnapshots.delete(path.join(documentDir(id), "document.json"));
     pdfBytes.delete(path.join(documentDir(id), "original.pdf"));
   });

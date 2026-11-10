@@ -3,10 +3,17 @@ import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { LoaderCircle } from "lucide-react";
 
-export async function loadPdf(url: string, httpHeaders?: Record<string, string>) {
+export async function loadPdf(url: string, httpHeaders?: Record<string, string>, signal?: AbortSignal) {
   const pdfjs = await import("pdfjs-dist");
+  signal?.throwIfAborted();
   pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-  return pdfjs.getDocument({ url, httpHeaders, isEvalSupported: false }).promise;
+  const task = pdfjs.getDocument({ url, httpHeaders, isEvalSupported: false });
+  let rejectAbort!: (reason: unknown) => void;
+  const aborted = new Promise<never>((_, reject) => { rejectAbort = reject; });
+  const abort = () => { void task.destroy().catch(() => {}); rejectAbort(signal?.reason || new DOMException("Caricamento annullato", "AbortError")); };
+  signal?.addEventListener("abort", abort, { once: true });
+  try { return await Promise.race([task.promise, aborted]); }
+  finally { signal?.removeEventListener("abort", abort); }
 }
 export function PdfCanvas({ pdf, page, zoom = 1, thumbnail = false, fitHeight = false }: { pdf: PDFDocumentProxy; page: number; zoom?: number; thumbnail?: boolean; fitHeight?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);

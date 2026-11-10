@@ -12,6 +12,7 @@ export const defaultStudyProfile: Readonly<StudyProfile> = Object.freeze({ study
 export const studyProfileInputSchema = z.object({
   studyProgram: z.string().trim().max(300),
   onboardingCompleted: z.boolean(),
+  displayName: z.string().trim().max(80).optional(),
 }).strict();
 
 const storedProfileSchema = studyProfileInputSchema.extend({ updatedAt: z.string().datetime().optional() });
@@ -30,20 +31,20 @@ export async function getStudyProfile(): Promise<StudyProfile> {
   }
 }
 
-export async function saveStudyProfile(input: { studyProgram: string; onboardingCompleted: boolean }): Promise<StudyProfile> {
+export async function saveStudyProfile(input: { studyProgram: string; onboardingCompleted: boolean; displayName?: string }): Promise<StudyProfile> {
   const parsed = studyProfileInputSchema.safeParse(input);
   if (!parsed.success) throw Object.assign(new Error("Profilo di studio non valido."), { status: 400 });
   if (cloudEnabled()) {
-    const profile = { ...parsed.data, updatedAt: new Date().toISOString() };
-    await (await userRoot()).collection("settings").doc("profile").set(profile);
-    return profile;
+    const reference = (await userRoot()).collection("settings").doc("profile");
+    await reference.set({ ...parsed.data, updatedAt: new Date().toISOString() }, { merge: true });
+    return getStudyProfile();
   }
 
   const root = dataRoot();
   const destination = path.join(root, "profile.json");
   const previous = localWrites.get(destination) || Promise.resolve();
   const task = previous.catch(() => {}).then(async () => {
-    const profile = { ...parsed.data, updatedAt: new Date().toISOString() };
+    const profile = { ...await getStudyProfile(), ...parsed.data, updatedAt: new Date().toISOString() };
     await mkdir(root, { recursive: true });
     const temporary = path.join(root, `.profile-${randomUUID()}.tmp`);
     try {

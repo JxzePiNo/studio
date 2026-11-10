@@ -2,7 +2,7 @@
 
 ## Tony / Onee avatar
 
-The login mascot reuses the Onee definition already used in ArchAIve,
+The Tony mascot and site icon reuse the Onee definition already used in ArchAIve,
 from [Bible Strong Avatar Lab](https://github.com/smontlouis/bible-strong-avatar-lab).
 
 - Renderer: `@bible-strong/avatar-react` 0.1.0 and its avatar-core dependency.

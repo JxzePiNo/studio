@@ -2,6 +2,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 import { createExam } from "./exam-helpers";
 
 async function drag(page: Page, divider: Locator, x: number, y: number) {
+  await divider.hover();
   const box = (await divider.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
@@ -46,6 +47,7 @@ test("chat divider resizes, closes and reopens without losing the draft on deskt
     await expect(chat).toBeVisible();
     const saved = await divider.getAttribute("aria-valuenow");
     await page.reload();
+    await expect(page.locator(".slide-stage canvas")).toBeVisible();
     await expect(divider).toHaveAttribute("aria-valuenow", saved!);
     await expect(chat).toBeVisible();
     await page.screenshot({ path: "test-results/chat-divider-desktop.png" });

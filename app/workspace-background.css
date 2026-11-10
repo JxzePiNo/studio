@@ -1,0 +1,35 @@
+/* Dotted canvas under glazed blue tiles, inspired by references/back2.jpg. */
+.app-shell:not(.reader-active) .main-shell {
+  position:relative;
+  isolation:isolate;
+  background:#f5f6f6;
+}
+.app-shell:not(.reader-active) .main-shell::before {
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:-1;
+  pointer-events:none;
+  background-image:url("/workspace-ambient.svg"),radial-gradient(#64748b60 1px,transparent 1px);
+  background-size:min(860px,82vw) auto,20px 20px;
+  background-position:right -70px bottom -170px,left top;
+  background-repeat:no-repeat,repeat;
+  opacity:.42;
+}
+/* Course colors reuse the tile geometry while keeping the dotted canvas neutral. */
+.app-shell:not(.reader-active) .main-shell[data-course-theme="true"]::before {
+  background-image:radial-gradient(#64748b60 1px,transparent 1px);
+  background-size:20px 20px;
+  background-position:left top;
+  background-repeat:repeat;
+}
+.course-ambient {
+  position:fixed; z-index:-1; pointer-events:none;
+  width:min(860px,82vw); height:auto; right:-70px; bottom:-170px;
+  color:var(--course-color); opacity:.42;
+}
+@media(max-width:700px) {
+  .app-shell:not(.reader-active) .main-shell::before { background-size:620px auto,20px 20px; background-position:right -190px bottom -130px,left top; opacity:.3; }
+  .app-shell:not(.reader-active) .main-shell[data-course-theme="true"]::before { background-size:20px 20px; background-position:left top; }
+  .course-ambient { width:620px; right:-190px; bottom:-130px; opacity:.3; }
+}

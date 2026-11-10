@@ -1,0 +1,42 @@
+/* Keep interactive accents on the shared blue palette. */
+:root {
+  --primary: #1a56db;
+  --primary-foreground: #ffffff;
+  --accent: #e8effc;
+  --ring: #8aabf0;
+  --green: var(--primary);
+  --green-dark: #1546b5;
+  --pale: var(--accent);
+}
+
+/* Keep the course palette inside the course view; global UI and portals stay blue. */
+.main-shell[data-course-theme="true"] {
+  --primary: var(--course-color);
+  --primary-foreground: var(--course-foreground, #ffffff);
+  --accent: color-mix(in oklab, var(--course-color) 13%, #ffffff);
+  --ring: color-mix(in oklab, var(--course-color) 70%, #ffffff);
+  --green: var(--primary);
+  --green-dark: color-mix(in oklab, var(--primary) 85%, #000000);
+  --pale: var(--accent);
+}
+
+.materials-card.materials-card { background:#ffffff; }
+.materials-card .materials-empty { background:#ffffff; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline-color:var(--ring); }
+.main-shell[data-course-theme="true"] .course-header .folder-icon { color:var(--primary); background:var(--accent); }
+
+.document-item.selected { background: var(--accent); color: var(--primary); }
+.selected-dot { background: var(--primary); }
+.study-availability-reuse { border-color: var(--border); background: var(--sidebar); }
+.study-availability-reuse-icon { color: var(--primary); background: var(--accent); }
+.study-availability-reuse-preview,
+.study-availability-reuse-status { color: var(--muted-foreground); }
+.reader-splitter:hover,
+.reader-splitter:focus-visible,
+.is-resizing .reader-splitter { background: var(--accent); }
+.reader-splitter:hover .reader-splitter-line,
+.reader-splitter:focus-visible .reader-splitter-line,
+.is-resizing .reader-splitter-line { background: var(--ring); }
+.reader-splitter:focus-visible { outline-color: var(--ring); }
+.reader-splitter-toggle { border-color: var(--border); color: var(--muted-foreground); }
+.reader-splitter-toggle:hover { color: var(--primary); background: var(--accent); }

@@ -1,0 +1,64 @@
+import { test, expect } from "@playwright/test";
+import { createExam } from "./exam-helpers";
+import { readFile } from "node:fs/promises";
+
+test("quiz children open, rename and delete from the parent PDF", async ({ page, request }) => {
+  await page.goto("/");
+  const folder = await createExam(page, "Quiz figli");
+  const uploaded = await request.post("/api/documents", { multipart: { folderId: folder.id, file: { name: "Lezione.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") } } });
+  const document = await uploaded.json();
+  let title = "Ripasso della lezione";
+  let deleted = false;
+  let releaseLoading!: () => void;
+  const loading = new Promise<void>(resolve => { releaseLoading = resolve; });
+  const quiz = { id: "test-child-quiz", documentId: document.id, documentName: "Lezione.pdf", title, createdAt: new Date().toISOString(), topics: [], questions: [{ type: "open", question: "Cosa hai imparato?", topic: "Ripasso", page: 1, options: [], correctIndex: null, modelAnswer: "Concetti chiave.", explanation: "Rivedi i passaggi." }, { type: "multiple-choice", question: "Quanto fa 2 + 2?", topic: "Numeri", page: 1, options: ["4", "5", "6", "7"], correctIndex: 0, modelAnswer: "", explanation: "Due coppie formano quattro elementi." }, { type: "true-false", question: "2 + 2 fa 4.", topic: "Numeri", page: 1, options: ["Vero", "Falso"], correctIndex: 0, modelAnswer: "", explanation: "Il risultato della somma vale quattro." }] };
+  await page.route(`**/api/documents/${document.id}/quiz`, route => route.fulfill({ json: { topics: [], pages: 3, quizzes: deleted ? [] : [{ ...quiz, title, questionCount: quiz.questions.length }] } }));
+  await page.route(`**/api/documents/${document.id}/quiz/${quiz.id}`, async route => {
+    if (route.request().method() === "GET") await loading;
+    if (route.request().method() === "PATCH") title = route.request().postDataJSON().title;
+    if (route.request().method() === "DELETE") deleted = true;
+    await route.fulfill({ json: route.request().method() === "DELETE" ? { ok: true } : { ...quiz, title } });
+  });
+  try {
+    await page.reload();
+    const children = page.getByRole("list", { name: "Quiz di Lezione.pdf" });
+    await children.getByRole("button", { name: /Ripasso della lezione/ }).first().click();
+    await expect(page.getByRole("status")).toContainText("Caricamento quiz in corso.");
+    await expect(page.getByText("Tony sta preparando il tuo quiz.")).toBeVisible();
+    releaseLoading();
+    await expect(page.getByRole("dialog", { name: title, exact: true })).toContainText("Cosa hai imparato?");
+    const player = page.getByRole("region", { name: `Quiz: ${title}`, exact: true });
+    await expect(player.getByRole("button", { name: "Continua", exact: true })).toBeDisabled();
+    await player.getByRole("textbox", { name: "Risposta alla domanda 1" }).fill("Ho imparato i concetti chiave.");
+    await player.getByRole("button", { name: "Continua", exact: true }).click();
+    await player.getByRole("button", { name: "Prossima domanda", exact: true }).click();
+    await expect(player.getByRole("textbox")).toHaveCount(0);
+    await player.getByRole("radio", { name: "5", exact: true }).check();
+    await expect(player).not.toContainText("Due coppie formano quattro elementi.");
+    await player.getByRole("button", { name: "Continua", exact: true }).click();
+    await expect(player.locator('[data-quiz-mood="wrong"]')).toBeVisible();
+    await expect(player.getByRole("status")).toContainText("La risposta corretta");
+    await expect(player.getByRole("status")).toContainText("Due coppie formano quattro elementi.");
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: "test-results/quiz-player-wrong-mobile.png", fullPage: true });
+    await player.getByRole("button", { name: "Prossima domanda", exact: true }).click();
+    await player.getByRole("radio", { name: "Vero", exact: true }).check();
+    await player.getByRole("button", { name: "Continua", exact: true }).click();
+    await expect(player.locator('[data-quiz-mood="happy"]')).toBeVisible();
+    await player.getByRole("button", { name: "Vedi risultato", exact: true }).click();
+    await expect(player.getByRole("status")).toContainText("1 / 2 risposte chiuse corrette.");
+    await page.screenshot({ path: "test-results/quiz-player-complete.png", fullPage: true });
+    await page.getByRole("button", { name: "Chiudi quiz", exact: true }).click();
+    await children.getByText(title, { exact: true }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Rinomina", exact: true }).click();
+    await page.getByRole("textbox", { name: "Nome del quiz" }).fill("Ripasso finale");
+    await page.getByRole("button", { name: "Salva nome", exact: true }).click();
+    await expect(children).toContainText("Ripasso finale");
+    await children.getByRole("button", { name: "Azioni quiz Ripasso finale" }).click();
+    await page.getByRole("menuitem", { name: "Elimina quiz", exact: true }).click();
+    await page.getByRole("dialog", { name: "Elimina quiz", exact: true }).getByRole("button", { name: "Elimina quiz", exact: true }).click();
+    await expect(children).toHaveCount(0);
+    await expect(page.locator(".material-row")).toContainText("Lezione");
+  } finally { releaseLoading(); await request.delete(`/api/documents/${document.id}`); await request.delete(`/api/folders/${folder.id}`); }
+});

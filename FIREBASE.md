@@ -13,6 +13,9 @@ Il codice supporta due modalità. Con `NEXT_PUBLIC_FIREBASE_ENABLED=false` conti
 
 ## Dati
 
+- Storico studio: `users/{uid}/studySessions/{id}` contiene le sessioni concluse con durata e pagine per PDF; `users/{uid}/readingActivity/{data}` contiene le pagine registrate per giorno. In locale entrambi vengono conservati in `data/study-sessions.json`. Gli identificatori rendono idempotenti i tentativi ripetuti. Le sessioni con timer e le pagine lette senza timer sono mostrate separatamente nella sezione **Sessioni di studio** e nella griglia annuale.
+- Il menu dei materiali permette di importare un intervallo già letto e un periodo facoltativo. Un solo aggiornamento modifica il documento; lo storico viene salvato per giorno. Se quest'ultimo passaggio fallisce, l'interfaccia segnala il salvataggio parziale e permette di ripetere lo stesso import senza duplicati. Le scritture dello storico in Firestore sono raggruppate in transazioni di massimo 200 giorni.
+
 - Firestore: `users/{uid}/folders/{folderId}`, `users/{uid}/documents/{documentId}`, e sottocollezione `slides/{numero}` per appunti, spiegazioni e chat. Le slide separate evitano di concentrare un intero PDF nel limite di dimensione di un documento Firestore.
 - Storage: `users/{uid}/documents/{documentId}/original.pdf`. Il PDF viene servito dall’API autenticata senza link pubblici.
 - I salvataggi Firebase usano transazioni per conservare modifiche simultanee a slide e appunti. La cancellazione elimina PDF e sottocollezioni. Non sono previsti condivisione, collaborazione in tempo reale o migrazione automatica dei dati locali.

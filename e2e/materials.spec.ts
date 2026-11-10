@@ -1,3 +1,4 @@
+import { formatCourseName } from "../lib/course-name";
 import { test, expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { createExam } from "./exam-helpers";
@@ -18,7 +19,7 @@ test("carica più PDF, rinomina e riordina i materiali conservando file e appunt
   try {
     await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles(["A", "B", "C"].map(letter => ({ name: `Originale ${letter}.pdf`, mimeType: "application/pdf", buffer: bytes })));
     await expect(page.locator(".material-row")).toHaveCount(3);
-    await expect(page.locator(".selected-exam")).toContainText(folder.name);
+    await expect(page.locator(".selected-exam")).toContainText(formatCourseName(folder.name));
     await expect(page.locator(".study-grid")).toHaveCount(0);
     await expect(page.locator(".upload-progress")).toContainText("3 PDF caricati");
     await expect(page.getByRole("progressbar", { name: "PDF caricati", exact: true })).toHaveAttribute("value", "3");
@@ -90,7 +91,7 @@ test("un PDF non valido non annulla i file riusciti nello stesso caricamento", a
     await expect(page.locator('.error-banner[role="alert"]').filter({ hasText: "Lezione danneggiata.pdf" })).toBeVisible();
     await expect(page.locator(".upload-progress")).toContainText("1 PDF caricati");
     await expect(page.locator(".upload-progress")).toContainText("1 file non caricati");
-    await expect(page.locator(".selected-exam")).toContainText(folder.name);
+    await expect(page.locator(".selected-exam")).toContainText(formatCourseName(folder.name));
     await expect(page.locator(".upload-progress")).toHaveCount(0, { timeout: 6500 });
     await expect(page.locator('.error-banner[role="alert"]').filter({ hasText: "Lezione danneggiata.pdf" })).toBeVisible();
     await page.reload();

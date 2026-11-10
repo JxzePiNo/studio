@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import type { StudyDocument } from "../lib/types";
 import { createExam } from "./exam-helpers";
+import { formatCourseName } from "../lib/course-name";
 
 test("PDF, note persistenti, navigazione e lettura con chat responsive", async ({ page, request }) => {
   const errors: string[] = [];
@@ -20,7 +21,7 @@ test("PDF, note persistenti, navigazione e lettura con chat responsive", async (
     await expect(page.getByRole("heading", { name: "Introduzione al machine learning" })).toBeVisible();
     await expect(page.locator(".sidebar")).toHaveCount(0);
     const back = page.getByRole("button", { name: "Torna alla biblioteca" });
-    await expect(back).toHaveCSS("border-radius", "14px");
+    await expect(back).toHaveCSS("border-radius", "12px");
     expect(await back.evaluate(el => el.getBoundingClientRect().left)).toBeLessThan(60);
     await expect(page.locator("body")).toHaveCSS("font-family", /Bricolage Grotesque/);
     await expect(page.locator(".slide-stage canvas")).toBeVisible();
@@ -91,7 +92,7 @@ test("PDF, note persistenti, navigazione e lettura con chat responsive", async (
     await page.keyboard.press("Escape");
     await expect(settings).toHaveCount(0);
     await page.getByRole("button", { name: "Torna alla biblioteca" }).click();
-    await expect(page.getByRole("heading", { name: exam.name, exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: formatCourseName(exam.name), exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Apri Introduzione al machine learning", exact: true }).click();
     await page.getByRole("button", { name: "Impostazioni della lettura", exact: true }).click();
     await expect(settings.getByRole("textbox", { name: "Appunti della slide 1" })).toHaveValue("Appunto salvato tornando alla biblioteca.");

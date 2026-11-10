@@ -10,11 +10,11 @@ import { useStudyProfile } from "./study-profile-provider";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
-function ProfileAvatar({ user, large = false }: { user: User | null; large?: boolean }) {
+function ProfileAvatar({ user, displayName, large = false }: { user: User | null; displayName?: string; large?: boolean }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [user?.photoURL]);
-  const initials = user
-    ? (user.displayName || user.email || "IO").trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase()
+  const initials = user || displayName
+    ? (displayName || user?.displayName || user?.email || "IO").trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase()
     : "IO";
   return <span className={`sidebar-profile-avatar${large ? " is-large" : ""}`} aria-hidden="true">
     {user?.photoURL && !failed
@@ -28,6 +28,7 @@ export function SidebarProfile() {
   const [accountOpen, setAccountOpen] = useState(false);
   const { profile, loading, saveProfile } = useStudyProfile();
   const [studyProgram, setStudyProgram] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
   const [saveError, setSaveError] = useState(false);
@@ -38,6 +39,7 @@ export function SidebarProfile() {
   function changeAccountOpen(open: boolean) {
     if (open) {
       setStudyProgram(profile?.studyProgram || "");
+      setDisplayName(profile?.displayName ?? user?.displayName ?? "");
       setSaveStatus("");
       setSaveError(false);
     }
@@ -47,7 +49,7 @@ export function SidebarProfile() {
   async function saveStudyProgram() {
     if (saveLock.current || loading) return;
     saveLock.current = true; setSaving(true); setSaveStatus(""); setSaveError(false);
-    try { await saveProfile(studyProgram); setSaveStatus("Profilo salvato."); }
+    try { await saveProfile(studyProgram, undefined, displayName); setSaveStatus("Profilo salvato."); }
     catch (cause) { setSaveError(true); setSaveStatus(cause instanceof Error ? cause.message : "Salvataggio non riuscito. Riprova."); }
     finally { saveLock.current = false; setSaving(false); }
   }
@@ -57,7 +59,7 @@ export function SidebarProfile() {
     return onAuthStateChanged(browserAuth(), setUser);
   }, []);
 
-  const name = user?.displayName || user?.email || (firebaseEnabled ? "Il tuo account" : "Spazio locale");
+  const name = profile?.displayName || user?.displayName || user?.email || (firebaseEnabled ? "Il tuo account" : "Spazio locale");
   const detail = user?.email || (firebaseEnabled ? "Account Google" : "Su questo computer");
 
   return <Dialog.Root open={accountOpen} onOpenChange={changeAccountOpen}>
@@ -65,7 +67,7 @@ export function SidebarProfile() {
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
           <button ref={trigger} className="sidebar-profile-trigger" aria-label="Apri menu account">
-            <ProfileAvatar user={user} />
+            <ProfileAvatar user={user} displayName={profile?.displayName} />
             <span className="sidebar-profile-copy"><strong>{name}</strong><small>{detail}</small></span>
             <ChevronsUpDown size={16} aria-hidden="true" />
           </button>
@@ -77,6 +79,7 @@ export function SidebarProfile() {
             <DropdownMenu.Label className="profile-menu-label"><strong>{name}</strong><span>{detail}</span></DropdownMenu.Label>
             <DropdownMenu.Separator className="profile-menu-separator" />
             <DropdownMenu.Item className="profile-menu-item" onSelect={() => { openingAccount.current = true; changeAccountOpen(true); }}><UserRound size={16} aria-hidden="true" /> Account</DropdownMenu.Item>
+            <DropdownMenu.Item className="profile-menu-item" onSelect={() => window.dispatchEvent(new Event("studio-help"))}><img className="help-lifebuoy" src="/lifebuoy.png" width={20} height={20} alt="" /> Aiuto e guide</DropdownMenu.Item>
             {firebaseEnabled && user && <>
               <DropdownMenu.Separator className="profile-menu-separator" />
               <DropdownMenu.Item className="profile-menu-item profile-menu-signout" onSelect={() => window.dispatchEvent(new Event("margine-signout"))}><LogOut size={16} aria-hidden="true" /> Esci</DropdownMenu.Item>
@@ -93,7 +96,7 @@ export function SidebarProfile() {
         trigger.current?.focus();
       }}>
         <Dialog.Close className="account-profile-close icon-button" aria-label="Chiudi account"><X size={18} /></Dialog.Close>
-        <ProfileAvatar user={user} large />
+        <ProfileAvatar user={user} displayName={profile?.displayName} large />
         <Dialog.Title>Il tuo account</Dialog.Title>
         <Dialog.Description>{firebaseEnabled ? "Il tuo profilo Google e lo spazio personale di studio." : "Usi Margine in modalità locale su questo computer."}</Dialog.Description>
         <dl className="account-profile-details">
@@ -103,6 +106,8 @@ export function SidebarProfile() {
           <div><dt>Materiali e appunti</dt><dd>{firebaseEnabled ? "Salvati nel tuo account Firebase" : "Salvati sul computer che esegue Margine"}</dd></div>
         </dl>
         <form className="study-profile-form" onSubmit={event => { event.preventDefault(); void saveStudyProgram(); }}>
+          <label htmlFor="account-display-name">Nome</label>
+          <Input id="account-display-name" aria-label="Nome" value={displayName} onChange={event => { setDisplayName(event.target.value); setSaveStatus(""); }} maxLength={80} placeholder="Il tuo nome" disabled={loading || saving} />
           <label htmlFor="account-study-program">Cosa studi?</label>
           <Input id="account-study-program" aria-label="Corso di laurea o ambito di studio" value={studyProgram} onChange={event => { setStudyProgram(event.target.value); setSaveStatus(""); }} maxLength={300} placeholder="Es. Laurea magistrale in Ingegneria informatica" disabled={loading || saving} />
           <p className="study-profile-form-hint">Il tutor usa questa informazione per adattare spiegazioni e risposte al tuo percorso. Puoi anche lasciare il campo vuoto.</p>

@@ -1,0 +1,69 @@
+/* Original ArchAIve Tailwind palette, resolved from its installed theme. */
+.card[data-folder-color=blue], .swatch[data-folder-color=blue] { --folder-start:oklch(70.7% 0.165 254.624); --folder-end:oklch(62.3% 0.214 259.815); --folder-flap:color-mix(in oklab, oklch(80.9% 0.105 251.813) 50%, transparent); --paper-back:color-mix(in oklab, oklch(93.2% 0.032 255.585) 60%, transparent); --paper-front:oklch(97% 0.014 254.604); --paper-line:color-mix(in oklab, oklch(80.9% 0.105 251.813) 40%, transparent); --paper-border:oklch(88.2% 0.059 254.128); }
+.card[data-folder-color=orange], .swatch[data-folder-color=orange] { --folder-start:oklch(75% 0.183 55.934); --folder-end:oklch(70.5% 0.213 47.604); --folder-flap:color-mix(in oklab, oklch(83.7% 0.128 66.29) 50%, transparent); --paper-back:color-mix(in oklab, oklch(95.4% 0.038 75.164) 60%, transparent); --paper-front:oklch(98% 0.016 73.684); --paper-line:color-mix(in oklab, oklch(75% 0.183 55.934) 40%, transparent); --paper-border:oklch(90.1% 0.076 70.697); }
+.card[data-folder-color=yellow], .swatch[data-folder-color=yellow] { --folder-start:oklch(85.2% 0.199 91.936); --folder-end:oklch(79.5% 0.184 86.047); --folder-flap:color-mix(in oklab, oklch(94.5% 0.129 101.54) 50%, transparent); --paper-back:color-mix(in oklab, oklch(97.3% 0.071 103.193) 60%, transparent); --paper-front:oklch(98.7% 0.026 102.212); --paper-line:color-mix(in oklab, oklch(85.2% 0.199 91.936) 40%, transparent); --paper-border:oklch(94.5% 0.129 101.54); }
+.card[data-folder-color=red], .swatch[data-folder-color=red] { --folder-start:oklch(70.4% 0.191 22.216); --folder-end:oklch(63.7% 0.237 25.331); --folder-flap:color-mix(in oklab, oklch(80.8% 0.114 19.571) 50%, transparent); --paper-back:color-mix(in oklab, oklch(93.6% 0.032 17.717) 60%, transparent); --paper-front:oklch(97.1% 0.013 17.38); --paper-line:color-mix(in oklab, oklch(70.4% 0.191 22.216) 40%, transparent); --paper-border:oklch(88.5% 0.062 18.334); }
+.card[data-folder-color=grey], .swatch[data-folder-color=grey] { --folder-start:oklch(70.7% 0.022 261.325); --folder-end:oklch(55.1% 0.027 264.364); --folder-flap:color-mix(in oklab, oklch(87.2% 0.01 258.338) 50%, transparent); --paper-back:color-mix(in oklab, oklch(92.8% 0.006 264.531) 60%, transparent); --paper-front:oklch(96.7% 0.003 264.542); --paper-line:oklch(87.2% 0.01 258.338); --paper-border:oklch(87.2% 0.01 258.338); }
+.card[data-folder-color=black], .swatch[data-folder-color=black] { --folder-start:oklch(26.9% 0 none); --folder-end:oklch(20.5% 0 none); --folder-flap:color-mix(in oklab, oklch(43.9% 0 none) 50%, transparent); --paper-back:color-mix(in oklab, oklch(55.6% 0 none) 60%, transparent); --paper-front:oklch(97% 0 none); --paper-line:oklch(87% 0 none); --paper-border:oklch(55.6% 0 none); }
+
+/* Folder silhouette and paper arrangement adapted from the user's ArchAIve
+   frontend/src/components/ui/folder-components.tsx. No asset dependencies. */
+.card.card { position: relative; overflow: hidden; padding:12px 24px; border-color: var(--border); transition: border-color .2s, box-shadow .2s; }
+.card:hover { box-shadow: 0 6px 22px #2433270c; }
+.top.top { position: static; flex-wrap: wrap; align-content: flex-start; align-items: center; gap: 16px; padding:0 0 12px; background: #fff; }
+.top.top > div { flex: 1 1 110px; }
+.top.top > div h3 { font-size: 18px; line-height: 1.4; }
+.top.top > div p { line-height: 1.6; }
+.top.top > div .examDate { margin-top: 7px; color: var(--muted-foreground); font-size: 12px; }
+.top.top > .planButton { position: absolute; z-index: 4; top: 10px; right: 12px; margin: 0; }
+.folder { position: relative; isolation: isolate; display: block; flex: 0 0 112px; width: 112px; height: 112px; overflow: hidden; border-radius: 28px; border-top: 2px solid #ffffff80; background: linear-gradient(var(--folder-start), var(--folder-end)); box-shadow: inset 0 -2px 1px #00000008, 0 5px 10px #24332715; }
+.paper { position: absolute; z-index: 1; left: 22px; right: 22px; top: 13px; height: 83px; border-radius: 12px; transform-origin: 50% 100%; transition: transform .3s ease; }
+.paperBack { top: 18px; background: var(--paper-back); transform: rotate(5deg); }
+.paperMiddle { top: 18px; background: var(--paper-back); transform: rotate(-5deg); }
+.paperFront { padding: 14px 10px; background: var(--paper-front); border-top: 1px solid var(--paper-border); }
+.paperFront i { display: block; height: 3px; margin-bottom: 5px; border-radius: 5px; background: var(--paper-line); }
+.paperFront i:nth-child(1) { width: 78%; }
+.paperFront i:nth-child(2) { width: 52%; }
+.paperFront i:nth-child(3) { width: 67%; }
+.flap { position: absolute; z-index: 2; inset: auto 0 0; height: 53px; }
+.tab { display: block; position: relative; width: 51px; height: 13px; border-radius: 8px 15px 0 0; background: var(--folder-flap); }
+.tab::after { content: ""; position: absolute; left: 100%; bottom: 0; width: 12px; height: 12px; background: radial-gradient(circle at 100% 0%, transparent 11px, var(--folder-flap) 11.5px); }
+.flapBody { display: block; height: 40px; border-radius: 0 12px 0 0; background: var(--folder-flap); }
+.card:hover .paperBack { transform: translateY(-4px) rotate(7deg); }
+.card:hover .paperMiddle { transform: translateY(-4px) rotate(-7deg); }
+.card:hover .paperFront { transform: translateY(-3px); }
+.body.body { padding:0; }
+.tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag { display: inline-flex; align-items: center; gap: 6px; padding: 7px 9px; border-radius: 8px; background: #f4f5f1; color: #6b7565; font-size: 11px; line-height: 1.35; }
+.swatch.swatch { background: linear-gradient(var(--folder-start), var(--folder-end)); color: #fff; border-color: transparent; }
+@media (prefers-reduced-motion: reduce) { .paper { transition: none; } .card:hover .paperBack { transform: rotate(5deg); } .card:hover .paperMiddle { transform: rotate(-5deg); } .card:hover .paperFront { transform: none; } }
+
+.openButton::after { content: ""; position: absolute; inset: 0; border-radius: 12px; }
+.openButton:focus-visible { outline: none; }
+.openButton:focus-visible::after { outline: 2px solid var(--ring, #6b8061); outline-offset: -3px; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin: 0 0 22px; }
+.search { position: relative; flex: 1 1 240px; max-width: 390px; }
+.search > svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted-foreground); pointer-events: none; }
+.search > input { width: 100%; padding-left: 39px; background: #fff; }
+.sort { display: flex; align-items: center; gap: 9px; color: var(--muted-foreground); font-size: 12px; }
+.sort select { min-height: 40px; max-width: 190px; padding: 8px 28px 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--foreground); font: inherit; cursor: pointer; }
+.sort select:focus-visible { outline: 2px solid var(--ring, #6b8061); outline-offset: 2px; }
+.noResults.noResults { min-height: 260px; }
+.sectionHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 22px 0 12px; }
+.sectionHeading h2 { margin: 0; font-size: 15px; font-weight: 700; }
+.courseActions { display: flex; align-items: flex-start; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); padding-top: 18px; }
+.courseActions p { margin: 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
+.confirmActions { display: flex; gap: 10px; margin-top: 12px; }
+.deleteButton.deleteButton { color: #a12f2f; }
+.settingsDialog.settingsDialog { width: min(720px, calc(100vw - 32px)); }
+.optionalSetting { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--muted); }
+.optionalSetting label { cursor: pointer; }
+.optionalSetting p { margin: 5px 0 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
+.optionalSwitch { appearance: none; flex: 0 0 40px; width: 40px; height: 24px; margin: 0; border: 1px solid var(--border); border-radius: 20px; background: #dce0e7; cursor: pointer; transition: background .15s; }
+.optionalSwitch::before { content: ""; display: block; width: 18px; height: 18px; margin: 2px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #0002; transition: transform .15s; }
+.optionalSwitch:checked { background: var(--primary); border-color: var(--primary); }
+.optionalSwitch:checked::before { transform: translateX(16px); }
+.optionalSwitch:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+.optionalSwitch:disabled { opacity: .5; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .optionalSwitch, .optionalSwitch::before { transition: none; } }
+@media (max-width: 600px) { .search { max-width: none; } .sort { margin-left: auto; } }

@@ -1,15 +1,16 @@
 "use client";
 
-import { readApiResponse } from "@/lib/api-response";
-
 import { useEffect, useId, useRef, useState } from "react";
-import { ArrowUp, FileText, LoaderCircle, Settings2, Sparkles } from "lucide-react";
-import { authHeaders } from "@/lib/firebase-client";
+import { ClipboardList, ArrowUp, FileText, LoaderCircle, Settings2, Sparkles } from "lucide-react";
 import type { ChatMessage, Explanation } from "@/lib/types";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { MarkdownContent } from "./markdown-content";
+import { QuizCard } from "./quiz-card";
+import { QuizDialog } from "./quiz-dialog";
+import { quizRequestSummary } from "@/lib/quiz";
 import { ExplanationMessage } from "./explanation-message";
+import { chatSessionKey, type BackgroundChatController } from "./background-chat";
 
 interface AnalysisProgress {
   completed: number;
@@ -20,6 +21,8 @@ interface AnalysisProgress {
 
 export interface StudyChatProps {
   id: string;
+  controller: BackgroundChatController;
+  documentName?: string;
   page: number;
   folder?: string;
   initial: ChatMessage[];
@@ -31,7 +34,6 @@ export interface StudyChatProps {
   analysisBusy?: boolean;
   configured?: boolean;
   disabled?: boolean;
-  onSaved: (messages: ChatMessage[]) => void;
   analysisProgress?: AnalysisProgress;
   onStopAnalysis?: () => void;
   onSettings?: () => void;
@@ -47,18 +49,19 @@ function BatchProgress({ progress, running, onStop }: { progress?: AnalysisProgr
   </div>;
 }
 
-export function StudyChat({ id, page, initial, explanation, onAnalyze, onAnalyzeAll, analyzing = false, batchRunning = false, analysisBusy = false, configured = true, disabled = false, onSaved, analysisProgress, onStopAnalysis, onSettings }: StudyChatProps) {
-  const [question, setQuestion] = useState("");
+export function StudyChat({ id, controller, documentName = "PDF", page, initial, explanation, onAnalyze, onAnalyzeAll, analyzing = false, batchRunning = false, analysisBusy = false, configured = true, disabled = false, analysisProgress, onStopAnalysis, onSettings }: StudyChatProps) {
+  const session = controller.sessions[chatSessionKey(id, page)];
+  const [question, setQuestion] = useState(() => session?.status === "error" ? session.question : "");
+  const [quizDialog, setQuizDialog] = useState(false);
   const [wholeDocument, setWholeDocument] = useState(false);
-  const [messages, setMessages] = useState(initial);
-  const [pendingQuestion, setPendingQuestion] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const messages = session?.messages || initial;
+  const busy = session?.status === "pending";
+  const pendingQuestion = busy ? session.question : "";
+  const error = session?.error || "";
   const [scrollRequest, setScrollRequest] = useState(0);
   const lock = useRef(false);
   const composing = useRef(false);
   const mounted = useRef(true);
-  const request = useRef<AbortController | null>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const scrollArea = useRef<HTMLDivElement>(null);
   const scopeHintId = useId();
@@ -69,7 +72,7 @@ export function StudyChat({ id, page, initial, explanation, onAnalyze, onAnalyze
 
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; request.current?.abort(); };
+    return () => { mounted.current = false; };
   }, []);
 
   useEffect(() => {
@@ -91,39 +94,23 @@ export function StudyChat({ id, page, initial, explanation, onAnalyze, onAnalyze
     if (lock.current || busy || disabled || !configured || !(prompt || question).trim()) return;
     const submittedQuestion = (prompt || question).trim().slice(0, 4000);
     lock.current = true;
-    setBusy(true); setError(""); setPendingQuestion(submittedQuestion);
     setScrollRequest(value => value + 1);
-    const controller = new AbortController();
-    request.current = controller;
     try {
-      const response = await fetch(`/api/documents/${id}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...await authHeaders() },
-        body: JSON.stringify({ question: submittedQuestion, scope: wholeDocument ? "document" : "slide", page }),
-        signal: controller.signal,
-      });
-      const result = await readApiResponse<ChatMessage[]>(response, "Invio non riuscito.");
+      const success = await controller.send({ id, page, name: documentName, question: submittedQuestion, scope: wholeDocument ? "document" : "slide" });
       if (!mounted.current) return;
-      setMessages(result); onSaved(result); setQuestion("");
-      setPendingQuestion(""); setScrollRequest(value => value + 1);
-    } catch (cause) {
-      if (!mounted.current || controller.signal.aborted) return;
-      setPendingQuestion("");
-      setError(cause instanceof Error ? cause.message : "Invio non riuscito. Riprova.");
+      if (success) { setQuestion(""); setScrollRequest(value => value + 1); }
     } finally {
       lock.current = false;
-      if (mounted.current) {
-        setBusy(false);
-        requestAnimationFrame(() => { if (mounted.current) textarea.current?.focus({ preventScroll: true }); });
-      }
-      if (request.current === controller) request.current = null;
+      if (mounted.current) requestAnimationFrame(() => { if (mounted.current) textarea.current?.focus({ preventScroll: true }); });
     }
   }
 
   return <section className="chat-pane" aria-label={`Chat sulla slide ${page}`}>
+    {quizDialog && <QuizDialog id={id} name={documentName} onClose={() => setQuizDialog(false)} onGenerate={config => { void controller.send({ id, page, name: documentName, question: quizRequestSummary(config), scope: "document", quiz: config }); }} />}
     <header className="chat-reader-header">
       <span className="chat-slide-label">Slide {page}</span>
       <div className="chat-reader-actions">
+        <Button variant="outline" size="sm" onClick={() => setQuizDialog(true)} disabled={busy || disabled || !configured} aria-label="Crea quiz"><ClipboardList size={15} /> Quiz</Button>
         <Button variant="outline" size="sm" className="chat-mode-toggle" aria-pressed={wholeDocument} aria-describedby={scopeHintId} disabled={busy || disabled} onClick={() => setWholeDocument(value => !value)}><FileText size={15} /> Tutto PDF</Button>
         {onSettings && <Button variant="outline" size="icon" className="chat-reader-settings" aria-label="Impostazioni della lettura" onClick={onSettings}><Settings2 size={17} /></Button>}
       </div>
@@ -143,7 +130,7 @@ export function StudyChat({ id, page, initial, explanation, onAnalyze, onAnalyze
           {!configured && <p className="chat-analysis-configure">Configura OpenAI dalle impostazioni della lettura per iniziare.</p>}
         </div>}
         <div className="chat-conversation" aria-live="polite" aria-relevant="additions text">
-          {conversation.map((message, index) => <article className={`chat-message ${message.role}`} key={`conversation-${index}`}><strong>{message.role === "user" ? "Tu" : "Tutor"}</strong>{message.role === "assistant" ? <MarkdownContent>{message.content}</MarkdownContent> : <p>{message.content}</p>}{message.role === "assistant" && <Button variant="ghost" size="sm" className="deepen-button" disabled={busy || disabled || !configured} onClick={() => void send(`Approfondisci questa spiegazione con passaggi ed esempi: ${message.content.slice(0, 2800)}`)}><Sparkles size={14} /> Approfondisci</Button>}</article>)}
+          {conversation.map((message, index) => <article className={`chat-message ${message.role}`} key={`conversation-${index}`}><strong>{message.role === "user" ? "Tu" : "Tutor"}</strong>{message.role === "assistant" ? message.quiz ? <QuizCard key={message.quiz.id} quiz={message.quiz} /> : <MarkdownContent>{message.content}</MarkdownContent> : <p>{message.content}</p>}{message.role === "assistant" && !message.quiz && <Button variant="ghost" size="sm" className="deepen-button" disabled={busy || disabled || !configured} onClick={() => void send(`Approfondisci questa spiegazione con passaggi ed esempi: ${message.content.slice(0, 2800)}`)}><Sparkles size={14} /> Approfondisci</Button>}</article>)}
           {pendingQuestion && <article className="chat-message user is-pending"><strong>Tu</strong><p>{pendingQuestion}</p></article>}
           {busy && <p className="chat-thinking" role="status"><LoaderCircle className="spin" size={15} aria-hidden="true" /> Sto approfondendo il materiale…</p>}
         </div>
