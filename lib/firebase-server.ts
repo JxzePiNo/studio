@@ -3,6 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { headers } from "next/headers";
+import { firebaseAuthFailure } from "./firebase-auth-errors";
 
 export const cloudEnabled = () => process.env.NEXT_PUBLIC_FIREBASE_ENABLED === "true";
 export function services() {
@@ -21,7 +22,10 @@ export async function userId() {
   const token = (await headers()).get("authorization")?.replace(/^Bearer /, "");
   if (!token) throw Object.assign(new Error("Accedi con Google."), { status: 401 });
   try { return (await services().auth.verifyIdToken(token, true)).uid; }
-  catch { throw Object.assign(new Error("Sessione scaduta. Accedi nuovamente."), { status: 401 }); }
+  catch (error) {
+    const failure = firebaseAuthFailure(error);
+    throw Object.assign(new Error(failure.error), { status: failure.status });
+  }
 }
 export async function userRoot() {
   return services().db.collection("users").doc(await userId());
