@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     if (!(await listFolders()).some(f => f.id === folderId)) return NextResponse.json({ error: "Esame non trovato." }, { status: 400 });
     const file = form.get("file");
     if (!(file instanceof File) || !file.name.toLowerCase().endsWith(".pdf")) return NextResponse.json({ error: "Scegli un file PDF." }, { status: 400 });
-    if (!file.size || file.size > 30 * 1024 * 1024) return NextResponse.json({ error: "Il PDF deve avere una dimensione compresa tra 1 byte e 30 MB." }, { status: 400 });
+    if (!file.size || file.size > 500 * 1024 * 1024) return NextResponse.json({ error: "Il PDF deve avere una dimensione compresa tra 1 byte e 500 MB." }, { status: 400 });
     const bytes = new Uint8Array(await file.arrayBuffer());
     let pdf: PDFDocument;
     try { pdf = await PDFDocument.load(bytes); } catch { return NextResponse.json({ error: "Il PDF non è leggibile o è protetto da password." }, { status: 400 }); }

@@ -30,7 +30,7 @@ Nella creazione e nella pianificazione dell’esame, **Giorni in cui non studio*
 
 Il menu profilo in fondo alla sidebar mostra foto e nome Google e permette di aprire **Account** o **Esci**. In modalità locale mostra le informazioni sullo spazio locale. Pulsanti, campi, schede e selettori usano componenti condivisi nello stile shadcn, con primitive Radix per menu, dialoghi, tabs e select.
 
-Puoi selezionare o trascinare più PDF insieme nell’esame. Ogni file può pesare fino a 30 MB; il caricamento procede in sequenza e mostra avanzamento ed eventuali errori senza annullare i file riusciti. Un PDF singolo apre il lettore; una selezione multipla resta nell’elenco dei materiali. Il totale delle pagine e la stima del piano si aggiornano dopo il caricamento.
+Puoi selezionare o trascinare più PDF insieme nell’esame. Ogni file può pesare fino a 500 MB; il caricamento procede in sequenza e mostra avanzamento ed eventuali errori senza annullare i file riusciti. Un PDF singolo apre il lettore; una selezione multipla resta nell’elenco dei materiali. Il totale delle pagine e la stima del piano si aggiornano dopo il caricamento.
 
 Fai clic con il tasto destro su un materiale, oppure usa i tre puntini, per **Rinomina**, **Sposta su/giù**, **Sposta all’inizio/in fondo** o **Ordina per nome**. L’ordinamento per nome riconosce i numeri delle lezioni (1, 2, 10). Nomi e ordine sono salvati nell’account; la rinomina conserva PDF, spiegazioni, chat e appunti. I nuovi materiali vengono aggiunti alla fine dell’ordine esistente.
 
@@ -87,4 +87,4 @@ Se compare `ERR_REQUIRE_ESM` nei log, verifica che il deployment includa il `pac
 
 L'interfaccia distingue ora risposte JSON valide da risposte vuote, HTML o troncate e mostra stato HTTP e percorso della richiesta fallita. Nei Runtime Logs di Vercel puoi cercare la stessa richiesta senza condividere token o chiavi.
 
-Il limite locale di 30 MB per PDF resta soggetto ai limiti dell'hosting: le richieste e risposte di una Vercel Function hanno un limite di 4,5 MB. Con il caricamento attuale attraverso l'API, usa PDF inferiori a quel limite, considerando anche il corpo multipart. Il supporto a file maggiori richiede un flusso di trasferimento diretto o streaming dedicato: non viene risolto dalle variabili d'ambiente. Riferimento: [limiti Vercel Functions](https://vercel.com/docs/functions/limitations).
+Il limite locale di 500 MB per PDF resta soggetto ai limiti dell'hosting: le richieste e risposte di una Vercel Function hanno un limite di 4,5 MB. Con il caricamento attuale attraverso l'API, usa PDF inferiori a quel limite, considerando anche il corpo multipart. Il supporto a file maggiori richiede un flusso di trasferimento diretto o streaming dedicato: non viene risolto dalle variabili d'ambiente. Riferimento: [limiti Vercel Functions](https://vercel.com/docs/functions/limitations).

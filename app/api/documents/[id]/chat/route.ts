@@ -12,6 +12,7 @@ import { quizConfigSchema } from "@/lib/quiz";
 import { generateQuiz, quizTool } from "@/lib/quiz-generation";
 import { saveQuiz } from "@/lib/quiz-store";
 import { boundedChatHistory, withAnalysisMessage } from "@/lib/analysis-chat";
+import { chatLearningContext, learningContextInstructions, priorReadPages } from "@/lib/chat-learning-context";
 export const runtime = "nodejs";
 export const maxDuration = 180;
 const input = z.object({ page: z.number().int().positive(), question: z.string().trim().min(1).max(4000), scope: z.enum(["slide", "document", "exam"]), quiz: quizConfigSchema.optional() });
@@ -39,12 +40,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     };
     if (parsed.data.quiz) return await createQuiz(parsed.data.quiz);
 
+    const previousPages = priorReadPages(doc, page).slice(-20);
+    const attachedPages = [...previousPages, page];
     let attachment: Uint8Array;
     if (scope === "document") attachment = originalBytes;
     else {
       const original = await PDFDocument.load(originalBytes);
       const single = await PDFDocument.create();
-      const [copied] = await single.copyPages(original, [page - 1]); single.addPage(copied);
+      const copied = await single.copyPages(original, attachedPages.map(number => number - 1));
+      for (const copiedPage of copied) single.addPage(copiedPage);
       attachment = await single.save();
     }
     let context = "";
@@ -63,10 +67,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 150000, maxRetries: 0 });
     const parameters: OpenAI.Responses.ResponseCreateParamsNonStreaming = {
       model: process.env.OPENAI_MODEL || "gpt-4.1-mini", store: false, max_output_tokens: 7000, tools: [quizTool], parallel_tool_calls: false,
-      instructions: `${graduateTutorInstructions}\nSe l'utente chiede di creare un quiz, usa create_quiz: il quiz riguarda il PDF completo anche quando il contesto chat è una singola pagina. Rispetta quantità, domande aperte/chiuse/vero-falso e argomenti; se chiede più di 30 domande spiega il limite per singolo quiz. Se mancano preferenze, scegli 10 domande a scelta multipla. Non usare il tool per una semplice spiegazione o per risolvere domande già presenti.\nLa spiegazione salvata della slide è il primo intervento del tutor: continua da lì senza ripeterla integralmente se la domanda riguarda un dettaglio. Rispondi in modo ampio e approfondito alle domande concettuali; per chiarimenti circoscritti concentrati sul punto richiesto senza perdere rigore. Cita nome documento e numero pagina per i riferimenti al materiale. ${scope === "document" ? "È allegato l'intero PDF aperto, con tutte le pagine comprese quelle non ancora analizzate. Puoi collegare queste pagine; la pagina selezionata è indicata nella domanda. Non sono allegati gli altri PDF del corso." : "È allegata soltanto la slide selezionata. Non dichiarare di aver letto il resto del PDF."} L'eventuale contesto aggiuntivo contiene solo spiegazioni e appunti salvati e può essere parziale o troncato: non dichiarare di aver letto altri PDF. Formatta la risposta in Markdown leggibile: usa titoli, paragrafi brevi, grassetto per i termini chiave, elenchi quando aiutano e tabelle solo per confronti. Usa blocchi di codice con il linguaggio indicato. Scrivi le formule LaTeX tra $ per quelle inline e tra $$ su righe separate per quelle in evidenza. Non racchiudere tutta la risposta in un blocco di codice e non usare HTML.`,
+      instructions: `${graduateTutorInstructions}\n${learningContextInstructions}\nSe l'utente chiede di creare un quiz, usa create_quiz: il quiz riguarda il PDF completo anche quando il contesto chat è una singola pagina. Rispetta quantità, domande aperte/chiuse/vero-falso e argomenti; se chiede più di 30 domande spiega il limite per singolo quiz. Se mancano preferenze, scegli 10 domande a scelta multipla. Non usare il tool per una semplice spiegazione o per risolvere domande già presenti.\nLa spiegazione salvata della slide è il primo intervento del tutor: continua da lì senza ripeterla integralmente se la domanda riguarda un dettaglio. Rispondi in modo ampio e approfondito alle domande concettuali; per chiarimenti circoscritti concentrati sul punto richiesto senza perdere rigore. Cita nome documento e numero pagina per i riferimenti al materiale. ${scope === "document" ? "È allegato l'intero PDF aperto, con tutte le pagine comprese quelle non ancora analizzate. Puoi collegare queste pagine; la pagina selezionata è indicata nella domanda. Non sono allegati gli altri PDF del corso." : "Sono allegate la slide selezionata e fino a 20 pagine precedenti segnate come lette, nei numeri originali elencati nel contesto. Usa queste ultime come supporto e mantieni il focus sulla domanda relativa alla slide selezionata. Non dichiarare di aver letto il resto del PDF."} L'eventuale contesto aggiuntivo contiene solo spiegazioni e appunti salvati e può essere parziale o troncato: non dichiarare di aver letto altri PDF. Formatta la risposta in Markdown leggibile: usa titoli, paragrafi brevi, grassetto per i termini chiave, elenchi quando aiutano e tabelle solo per confronti. Usa blocchi di codice con il linguaggio indicato. Scrivi le formule LaTeX tra $ per quelle inline e tra $$ su righe separate per quelle in evidenza. Non racchiudere tutta la risposta in un blocco di codice e non usare HTML.`,
       input: [{ role: "user", content: [
         { type: "input_file", filename: scope === "document" ? "documento-completo.pdf" : `slide-${page}.pdf`, file_data: `data:application/pdf;base64,${Buffer.from(attachment).toString("base64")}` },
-        { type: "input_text", text: `${studyContext}\nDocumento: ${doc.name}, slide ${page}. Ambito: ${scope}.\nMateriale disponibile:\n${context.slice(0,60000)}\nCronologia (include la spiegazione iniziale, se disponibile):\n${JSON.stringify(history)}\nDomanda: ${question}` },
+        { type: "input_text", text: `${studyContext}\nDocumento: ${doc.name}, slide ${page}. Ambito: ${scope}.\nPagine originali allegate, in ordine: ${scope === "document" ? "tutte le pagine del PDF" : attachedPages.join(", ")}.\n${chatLearningContext(doc, page)}\nMateriale disponibile:\n${context.slice(0,60000)}\nCronologia (include la spiegazione iniziale, se disponibile):\n${JSON.stringify(history)}\nDomanda: ${question}` },
       ] }],
     };
     const finish = async (response: OpenAI.Responses.Response, signal = request.signal) => {

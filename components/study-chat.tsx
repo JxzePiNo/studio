@@ -128,7 +128,7 @@ export function StudyChat({ id, controller, documentName = "PDF", page, initial,
       </div>
     </header>
     <div className="chat-scroll-area" ref={scrollArea}>
-      <p className="chat-scope-hint" id={scopeHintId} aria-live="polite">{wholeDocument ? "Le domande riguardano tutto il PDF corrente." : "Le domande riguardano questa slide."}</p>
+      <p className="chat-scope-hint" id={scopeHintId} aria-live="polite">{wholeDocument ? "Le domande riguardano tutto il PDF corrente, tenendo conto delle pagine lette e delle domande precedenti." : "Le domande riguardano questa slide, tenendo conto delle pagine lette e delle domande precedenti nel PDF."}</p>
       <div className="chat-messages">
         {explanation ? <ExplanationMessage explanation={explanation} page={page} disabled={busy || disabled || !configured} onDeepen={topic => void send(`Spiega in modo piu approfondito questo argomento della slide: ${topic}. Aggiungi i passaggi intermedi e un esempio concreto.`)} /> : <div className="chat-analysis-empty">
           <span className="chat-analysis-icon"><Sparkles size={25} strokeWidth={1.6} /></span>
