@@ -8,7 +8,7 @@ test("study summary counts saved reads and keeps the timer while navigating and 
   await page.goto("/");
   const exam = await createExam(page, "Sessione di studio");
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: "Studio.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles({ name: "Studio.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
   const document = await (await uploaded).json();
   await page.getByRole("button", { name: `Apri ${document.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   const baseline = ((await (await request.get(`/api/study-sessions?day=${studyDay()}`)).json()).activity[studyDay()] || 0) as number;

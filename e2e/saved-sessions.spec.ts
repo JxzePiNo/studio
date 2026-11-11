@@ -9,7 +9,7 @@ test("timer sessions persist with PDF statistics and open from the annual activi
   const exam = await createExam(page, "Statistiche salvate");
   const filename = `Sessione ${exam.id}.pdf`;
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: filename, mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles({ name: filename, mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
   const document = await (await uploaded).json();
   await page.getByRole("button", { name: `Apri ${document.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {

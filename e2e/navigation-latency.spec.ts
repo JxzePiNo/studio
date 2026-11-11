@@ -6,7 +6,7 @@ test("leaving the reader does not wait for pending saves or library refresh", as
   await page.goto("/");
   const exam = await createExam(page, "Uscita immediata");
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: "Lettura.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles({ name: "Lettura.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
   const document = await (await uploaded).json();
   await page.getByRole("button", { name: `Apri ${document.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   let release!: () => void;

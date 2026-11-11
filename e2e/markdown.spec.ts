@@ -39,7 +39,7 @@ test("tutor Markdown renders lists, tables, highlighted code and formulas safely
   await page.goto("/");
   await createExam(page, "Markdown");
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles("public/esempio.pdf");
   const doc = await (await uploaded).json();
   await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {

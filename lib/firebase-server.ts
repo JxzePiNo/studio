@@ -1,11 +1,11 @@
 import { applicationDefault, cert, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
-import { getStorage } from "firebase-admin/storage";
+import { createGoogleServices } from "./google-services";
 import { headers } from "next/headers";
 import { firebaseAuthFailure } from "./firebase-auth-errors";
 
 export const cloudEnabled = () => process.env.NEXT_PUBLIC_FIREBASE_ENABLED === "true";
+let googleServices: ReturnType<typeof createGoogleServices> | undefined;
 export function services() {
   const app = getApps().find(a => a.name === "margine-server") || initializeApp({
     credential: process.env.FIREBASE_PRIVATE_KEY ? cert({
@@ -16,7 +16,10 @@ export function services() {
     projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   }, "margine-server");
-  return { auth: getAuth(app), db: getFirestore(app), bucket: getStorage(app).bucket() };
+  googleServices ||= createGoogleServices({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || app.options.projectId, email: process.env.FIREBASE_CLIENT_EMAIL, privateKey: process.env.FIREBASE_PRIVATE_KEY });
+  const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || app.options.storageBucket;
+  if (!bucketName) throw new Error("Configura NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET.");
+  return { auth: getAuth(app), db: googleServices.db, bucket: googleServices.storage.bucket(bucketName) };
 }
 export async function userId() {
   const token = (await headers()).get("authorization")?.replace(/^Bearer /, "");

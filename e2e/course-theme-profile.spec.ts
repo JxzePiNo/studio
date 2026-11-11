@@ -24,7 +24,7 @@ test("il colore del corso, lo sfondo e il ritorno alla home seguono la navigazio
     return { expected, actual: getComputedStyle(document.querySelector(".course-ambient")!).color };
   });
   expect(colors.actual).toBe(colors.expected);
-  await expect(page.getByRole("button", { name: "Scegli i PDF", exact: true })).toHaveCSS("background-color", colors.expected);
+  await expect(page.getByRole("button", { name: "Scegli i file", exact: true })).toHaveCSS("background-color", colors.expected);
   await expect(page.locator(".studio-brand > span")).toHaveCSS("color", "rgb(26, 86, 219)");
   await page.getByRole("button", { name: "Apri menu account" }).click();
   await page.getByRole("menuitem", { name: "Account", exact: true }).click();

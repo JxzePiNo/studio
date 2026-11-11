@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { PDFDocument } from "pdf-lib";
 import { z } from "zod";
 import { readDocument, readPdf, updateSlide } from "@/lib/store";
-import { explainSlide, openaiError } from "@/lib/openai";
+import { explainSlide, openaiError, retryableAnalysisError } from "@/lib/openai";
 import { apiError, requestGuard } from "@/lib/http";
 import { getStudyProfile } from "@/lib/study-profile";
 import { getFolder } from "@/lib/folders";
@@ -20,7 +20,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const doc = await readDocument(id);
     if (page > doc.pages) return NextResponse.json({ error: "Pagina non valida." }, { status: 400 });
     if (doc.slides[page]?.explanation && !regenerate) return NextResponse.json(doc.slides[page]);
-    if (!process.env.OPENAI_API_KEY?.trim()) return NextResponse.json({ error: "Aggiungi OPENAI_API_KEY in .env.local e riavvia il server per generare le spiegazioni." }, { status: 503 });
+    if (!process.env.OPENAI_API_KEY?.trim()) return NextResponse.json({ error: "Aggiungi OPENAI_API_KEY in .env.local e riavvia il server per generare le spiegazioni.", retryable: false }, { status: 503 });
     const lockId = `${id}:${page}`;
     if (inFlight.has(lockId)) return NextResponse.json({ error: "Questa slide è già in analisi. Attendi qualche secondo." }, { status: 409 });
     lock = lockId; inFlight.add(lock);
@@ -34,8 +34,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     catch (e) {
       const known = openaiError(e);
-      if (known) return NextResponse.json({ error: known.error }, { status: known.status });
-      return NextResponse.json({ error: e instanceof Error && e.message.startsWith("L’AI") ? e.message : "La risposta AI non è valida. Riprova." }, { status: 502 });
+      const retryable = retryableAnalysisError(e);
+      if (known) return NextResponse.json({ error: known.error, retryable }, { status: known.status });
+      return NextResponse.json({ error: e instanceof Error && e.message.startsWith("L’AI") ? e.message : "La risposta AI non è valida. Riprova.", retryable }, { status: 502 });
     }
     const updated = await updateSlide(id, page, slide => ({ ...slide, explanation, generatedAt: new Date().toISOString() }));
     return NextResponse.json(updated);

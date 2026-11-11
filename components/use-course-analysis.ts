@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { retryAnalysis } from "@/lib/analysis-retry";
 import { readApiResponse } from "@/lib/api-response";
 import { authHeaders } from "@/lib/firebase-client";
 import type { DocumentSummary, SlideData, StudyDocument } from "@/lib/types";
@@ -124,7 +125,7 @@ export function useCourseAnalysis({ folderId, documents, configured, disabled, c
             active.set(document.id, { id: document.id, name: document.name, page });
             update({ status: runtime.stop ? "stopping" : "running", active: [...active.values()] });
             const pageStartedAt = Date.now();
-            const result = await request<SlideData>(`/api/documents/${document.id}/analyze`, page);
+            const result = await retryAnalysis(() => request<SlideData>(`/api/documents/${document.id}/analyze`, page), { signal: requestController.signal });
             if (!result.explanation) throw new Error("La pagina non ha restituito una spiegazione valida. Riprova.");
             document.slides[page] = result;
             onSlideSaved?.(document.id, page, result);

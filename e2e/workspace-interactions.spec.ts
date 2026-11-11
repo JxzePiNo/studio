@@ -24,7 +24,7 @@ test("creation/upload stay in place; course/file menus and night mode persist", 
     await page.locator(".exam-overview-card").filter({ hasText: formatCourseName(renamed) }).click({ button: "right" });
     await page.getByRole("menuitem", { name: "Apri corso", exact: true }).click();
     const bytes = await readFile("public/esempio.pdf");
-    await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles(["Primo", "Secondo"].map(item => ({ name: `${item}.pdf`, mimeType: "application/pdf", buffer: bytes })));
+    await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles(["Primo", "Secondo"].map(item => ({ name: `${item}.pdf`, mimeType: "application/pdf", buffer: bytes })));
     await expect(page.locator(".material-row")).toHaveCount(2);
     await expect(page).toHaveURL(`/esami/${folder.id}`);
     await expect(page.locator(".slide-stage canvas")).toHaveCount(0);

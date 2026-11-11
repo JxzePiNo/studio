@@ -7,7 +7,7 @@ test("quiz returns to course with a pending child and no chat card", async ({ pa
   await page.goto("/");
   const folder = await createExam(page, "Quiz in background");
   const upload = page.waitForResponse(response => response.url().endsWith("/api/documents") && response.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles("public/esempio.pdf");
   const document = await (await upload).json();
   const quiz: StudyQuiz = { id: "pending-quiz-test", documentId: document.id, documentName: document.name, createdAt: new Date().toISOString(), title: "Ripasso delle reti", topics: ["Reti"], questions: [{ type: "true-false", question: "Un protocollo stabilisce regole di comunicazione.", topic: "Reti", page: 1, options: ["Vero", "Falso"], correctIndex: 0, modelAnswer: "", explanation: "Definisce le regole dei messaggi." }] };
   let created = false;

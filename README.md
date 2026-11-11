@@ -153,7 +153,7 @@ Le richieste al tutor includono il contesto necessario alla funzione selezionata
 
 Limiti attuali:
 
-- PDF fino a **500 MB** e **1.000 pagine**; i documenti protetti da password devono essere sbloccati.
+- PDF e immagini **PNG/JPEG** fino a **500 MB** per file. Le immagini vengono convertite in PDF a una pagina. PDF fino a **1.000 pagine**; i documenti protetti da password devono essere sbloccati.
 - L'analisi è orchestrata dal browser: occorre mantenere aperta la scheda. La ripresa riutilizza le pagine salvate; non è presente una coda di job durevole lato server.
 - La concorrenza dei file è automatica, senza un tetto applicativo di sei: una richiesta di analisi per pagina può essere attiva per ogni file del lavoro. Browser, hosting e provider AI possono comunque accodare o limitare le richieste; non è presente un coordinamento globale distribuito tra schede, utenti o repliche del server.
 - La cache server resta locale al processo: TTL di 5 minuti, fino a 16 PDF per 64 MiB e 128 documenti per 16 MiB. Il browser conserva fino a 100 MB in IndexedDB, separati per utente; revisioni ETag e aggiornamenti mirati riducono download e letture Firestore. Durate, invalidazione e limiti sono descritti in [Cache e prestazioni](docs/PERFORMANCE.md).
@@ -165,3 +165,5 @@ Limiti attuali:
 - Spostare l'orchestrazione delle analisi in job persistenti per consentire la ripresa indipendente dalla sessione del browser.
 - Aggiungere CI, test dei servizi cloud in un ambiente dedicato e misure di latenza e utilizzo delle risorse.
 - Valutare una cache condivisa quando un deployment con più istanze ne dimostri la necessità.
+
+L’analisi riprova automaticamente gli errori temporanei fino a 3 tentativi per pagina, con attese di 2 e 5 secondi. Le spiegazioni completate restano salvate. Errori di configurazione, quota esaurita e rifiuti espliciti non vengono ritentati.

@@ -33,9 +33,9 @@ export async function readMetadata(id: string) {
 export async function markQuizIndex(id: string) {
   await (await ref(id)).update({ quizIndexVersion: 1 });
 }
-export async function create(name: string, bytes: Uint8Array, pages: number, folderId?: string) {
+export async function create(name: string, bytes: Uint8Array, pages: number, folderId?: string, id: string = randomUUID()) {
   const root = await userRoot();
-  const doc: StudyDocument = { id: randomUUID(), name, pages, size: bytes.length, createdAt: new Date().toISOString(), currentPage: 1, slides: {}, ...(folderId ? { folderId } : {}) };
+  const doc: StudyDocument = { id, name, pages, size: bytes.length, createdAt: new Date().toISOString(), currentPage: 1, slides: {}, ...(folderId ? { folderId } : {}) };
   const file = services().bucket.file(`${root.path}/documents/${doc.id}/original.pdf`);
   await file.save(Buffer.from(bytes), { resumable: false, contentType: "application/pdf" });
   try { const { slides: _slides, ...meta } = doc; await root.collection("documents").doc(doc.id).set({ ...meta, analyzedPages: 0, readPages: 0, quizIndexVersion: 1, contentRevision: randomUUID() }); }

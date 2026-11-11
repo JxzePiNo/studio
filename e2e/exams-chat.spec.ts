@@ -25,7 +25,7 @@ test("a pending tutor reply survives leaving the reader and notifies the exact p
   await page.goto("/");
   await createExam(page, "Tutor in background");
   const uploaded = page.waitForResponse(response => response.url().endsWith("/api/documents") && response.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles("public/esempio.pdf");
   const document = await (await uploaded).json() as StudyDocument;
   await page.getByRole("button", { name: `Apri ${document.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
@@ -58,7 +58,7 @@ test("creates an exam, assigns an upload and opens a separate chat for each slid
   await page.goto("/");
   const { name } = await createExam(page, "Analisi");
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles("public/esempio.pdf");
   const doc = await (await uploaded).json();
   await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
@@ -125,7 +125,7 @@ test("la spiegazione salvata apre la chat come primo messaggio e si aggiorna sen
   await page.goto("/");
   const folder = await createExam(page, "Chat e spiegazioni");
   const uploaded = page.waitForResponse(response => response.url().endsWith("/api/documents") && response.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles("public/esempio.pdf");
   const document = await (await uploaded).json() as StudyDocument;
   await page.getByRole("button", { name: `Apri ${document.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {

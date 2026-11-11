@@ -32,7 +32,7 @@ test("course CFU, title, dates, width and archive/delete settings stay consisten
     await expect(card).toContainText("9 CFU");
     await card.getByRole("button", { name: `Apri esame ${rawName}`, exact: true }).click();
     const uploaded = page.waitForResponse(response => response.url().endsWith("/api/documents") && response.request().method() === "POST");
-    await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: "Da conservare.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
+    await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles({ name: "Da conservare.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
     const document = await (await uploaded).json();
     await page.getByRole("button", { name: `Apri ${document.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
     await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();

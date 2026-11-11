@@ -10,8 +10,8 @@ test("la sidebar contiene solo esami e il caricamento richiede un esame aperto",
   await expect(sidebar.getByRole("button", { name: "Crea esame", exact: true })).toBeVisible();
   await expect(sidebar.getByRole("button", { name: /Carica un PDF|Tutti i materiali|Impostazioni e API/ })).toHaveCount(0);
   await expect(sidebar.locator(".document-list, .local-status, .settings-link")).toHaveCount(0);
-  await expect(page.getByLabel("Carica un PDF", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Scegli i PDF" })).toHaveCount(0);
+  await expect(page.getByLabel("Carica PDF o immagini", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Scegli i file" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Apri le slide di esempio/ })).toHaveCount(0);
 
   const rejected = await request.post("/api/documents", { multipart: { file: { name: "esempio.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") } } });
@@ -19,7 +19,7 @@ test("la sidebar contiene solo esami e il caricamento richiede un esame aperto",
   expect((await rejected.json()).error).toContain("Apri un esame");
 
   const first = await createExam(page, "Analisi");
-  await expect(page.getByRole("button", { name: "Scegli i PDF" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scegli i file" })).toBeVisible();
   await expect(page.locator(".try-demo, .welcome-footer")).toHaveCount(0);
   const second = await createExam(page, "Fisica");
   expect(second.color).not.toBe(first.color);
@@ -31,11 +31,11 @@ test("la sidebar contiene solo esami e il caricamento richiede un esame aperto",
   await page.reload();
   await expect(firstButton).toHaveAttribute("data-exam-color", first.color);
   await expect(secondButton).toHaveAttribute("data-exam-color", second.color);
-  await expect(page.getByRole("button", { name: "Scegli i PDF" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scegli i file" })).toBeVisible();
   await firstButton.click();
   await expect(firstButton).toHaveAttribute("aria-current", "page");
   await expect(page.locator(".selected-exam")).toContainText(formatCourseName(first.name));
-  await expect(page.getByLabel("Carica un PDF", { exact: true })).toHaveCount(1);
+  await expect(page.getByLabel("Carica PDF o immagini", { exact: true })).toHaveCount(1);
   await page.screenshot({ path: "test-results/exam-sidebar.png", fullPage: true });
 });
 
@@ -62,7 +62,7 @@ test("il piano dell’esame calcola il carico giornaliero e resta salvato", asyn
   await page.goto("/");
   const folder = await createExam(page, "Piano di studio");
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles("public/esempio.pdf");
   const doc = await (await uploaded).json();
   await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
@@ -145,7 +145,7 @@ test("il piano esclude le domeniche e le singole pause e gestisce zero giorni di
   await page.goto("/");
   const folder = await createExam(page, "Piano con pause");
   const uploaded = page.waitForResponse(response => response.url().endsWith("/api/documents") && response.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles("public/esempio.pdf");
   const document = await (await uploaded).json();
   await page.getByRole("button", { name: `Apri ${document.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {

@@ -45,7 +45,7 @@ async function setupCourse(page: Page, cachedFirst = false, options: { letters?:
     active++; maximumConcurrent = Math.max(maximumConcurrent, active);
     if (calls.length === 1 || options.holdAll) await firstResponse;
     if (document.name === options.failName && pageNumber === 1) {
-      await route.fulfill({ status: 502, json: { error: "Limite API raggiunto." } }); active--; return;
+      await route.fulfill({ status: 502, json: { error: "Limite API raggiunto.", retryable: false } }); active--; return;
     }
     const slide = explained(pageNumber);
     document.slides[pageNumber] = slide;
@@ -56,7 +56,7 @@ async function setupCourse(page: Page, cachedFirst = false, options: { letters?:
   const buffer = await readFile("public/esempio.pdf");
   async function addCourse(prefix: string, letters: string[], filePrefix = "Corso") {
     const folder = await createExam(page, prefix);
-    await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles(letters.map(letter => ({ name: `${filePrefix} ${letter}.pdf`, mimeType: "application/pdf", buffer })));
+    await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles(letters.map(letter => ({ name: `${filePrefix} ${letter}.pdf`, mimeType: "application/pdf", buffer })));
     await expect(page.locator(".material-row")).toHaveCount(letters.length);
     await expect(page.getByRole("button", { name: "Analizza tutto", exact: true })).toBeEnabled();
     return folder;

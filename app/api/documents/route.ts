@@ -1,8 +1,9 @@
 import { listFolders } from "@/lib/folders";
 import { NextResponse } from "next/server";
-import { PDFDocument } from "pdf-lib";
 import { createDocument, listDocuments } from "@/lib/store";
 import { apiError, requestGuard } from "@/lib/http";
+import { MAX_UPLOAD_BYTES, uploadFormat } from "@/lib/upload-formats";
+import { prepareUpload } from "@/lib/prepare-upload";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
@@ -14,17 +15,15 @@ export async function POST(request: Request) {
   try {
     const form = await request.formData();
     const folderId = form.get("folderId");
-    if (typeof folderId !== "string" || !folderId) return NextResponse.json({ error: "Apri un esame prima di caricare un PDF." }, { status: 400 });
+    if (typeof folderId !== "string" || !folderId) return NextResponse.json({ error: "Apri un esame prima di caricare un file." }, { status: 400 });
     if (!(await listFolders()).some(f => f.id === folderId)) return NextResponse.json({ error: "Esame non trovato." }, { status: 400 });
     const file = form.get("file");
-    if (!(file instanceof File) || !file.name.toLowerCase().endsWith(".pdf")) return NextResponse.json({ error: "Scegli un file PDF." }, { status: 400 });
-    if (!file.size || file.size > 500 * 1024 * 1024) return NextResponse.json({ error: "Il PDF deve avere una dimensione compresa tra 1 byte e 500 MB." }, { status: 400 });
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    let pdf: PDFDocument;
-    try { pdf = await PDFDocument.load(bytes); } catch { return NextResponse.json({ error: "Il PDF non è leggibile o è protetto da password." }, { status: 400 }); }
-    const pages = pdf.getPageCount();
-    if (pages < 1 || pages > 1000) return NextResponse.json({ error: "Sono supportati PDF da 1 a 1.000 pagine." }, { status: 400 });
-    const result = await createDocument(file.name.replace(/[\x00-\x1f]/g, "").slice(0, 200), bytes, pages, folderId);
+    if (!(file instanceof File)) return NextResponse.json({ error: "Scegli un PDF o un'immagine PNG o JPEG." }, { status: 400 });
+    const format = uploadFormat(file.name);
+    if (!format) return NextResponse.json({ error: "Scegli un PDF o un'immagine PNG o JPEG." }, { status: 400 });
+    if (!file.size || file.size > MAX_UPLOAD_BYTES) return NextResponse.json({ error: "Il file deve avere una dimensione compresa tra 1 byte e 500 MB." }, { status: 400 });
+    const prepared = await prepareUpload(file.name, new Uint8Array(await file.arrayBuffer()));
+    const result = await createDocument(prepared.name, prepared.bytes, prepared.pages, folderId);
     return NextResponse.json(result, { status: 201 });
   } catch (e) { return apiError(e); }
 }

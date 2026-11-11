@@ -16,7 +16,7 @@ test("chat divider resizes, closes and reopens without losing the draft on deskt
   await page.goto("/");
   await createExam(page, "Divisore chat");
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles("public/esempio.pdf");
   const doc = await (await uploaded).json();
   await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {

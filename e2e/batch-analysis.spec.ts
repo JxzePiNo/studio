@@ -25,7 +25,7 @@ async function setup(page: Page, cached: number[] = []) {
   await page.goto("/");
   await createExam(page);
   const upload = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles("public/esempio.pdf");
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles("public/esempio.pdf");
   const doc = await (await upload).json() as StudyDocument;
   await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   await expect(page.getByRole("heading", { name: "esempio" })).toBeVisible();
@@ -89,7 +89,7 @@ test("si ferma al primo errore e conserva i progressi per il nuovo tentativo", a
   await page.route("**/api/documents/*/analyze", async route => {
     const p = route.request().postDataJSON().page;
     state.calls.push(p);
-    if (p === 2 && fail) return route.fulfill({ status: 502, json: { error: "Quota API esaurita." } });
+    if (p === 2 && fail) return route.fulfill({ status: 502, json: { error: "Quota API esaurita.", retryable: false } });
     await route.fulfill({ json: state.save(p) });
   });
   try {

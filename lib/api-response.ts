@@ -1,5 +1,5 @@
 export class ApiResponseError extends Error {
-  constructor(message: string, public readonly status: number, public readonly endpoint: string) {
+  constructor(message: string, public readonly status: number, public readonly endpoint: string, public readonly retryable?: boolean) {
     super(`${message} [HTTP ${status}${endpoint ? ` - ${endpoint}` : ""}]`);
     this.name = "ApiResponseError";
   }
@@ -21,7 +21,8 @@ export async function readApiResponse<T>(response: Response, fallback = "Operazi
     else if (response.status === 504 || response.status === 408) message = "La richiesta ha superato il tempo massimo consentito dal server. Riprova.";
     else if (data && typeof data === "object" && "error" in data && typeof data.error === "string") message = data.error;
     else if (response.status >= 500) message = "Il server non ha completato la richiesta. Controlla i log del deployment.";
-    throw new ApiResponseError(message, response.status, endpoint);
+    const retryable = data && typeof data === "object" && "retryable" in data && typeof data.retryable === "boolean" ? data.retryable : undefined;
+    throw new ApiResponseError(message, response.status, endpoint, retryable);
   }
   if (!parsed) throw new ApiResponseError(text.trim() ? "Il server ha restituito una risposta non valida o incompleta. Riprova." : "Il server ha restituito una risposta vuota. Riprova.", response.status, endpoint);
   return data as T;

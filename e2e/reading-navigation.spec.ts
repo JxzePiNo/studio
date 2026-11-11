@@ -25,7 +25,7 @@ test("routes, browser history, read progress and reading preferences", async ({ 
   await card.getByRole("button", { name: `Apri esame ${exam.name}`, exact: true }).click();
   await expect(page).toHaveURL(`/esami/${exam.id}`);
   const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: "Lettura.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles({ name: "Lettura.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
   const doc = await (await uploaded).json();
   await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {

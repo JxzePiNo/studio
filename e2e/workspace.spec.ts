@@ -13,7 +13,7 @@ test("PDF, note persistenti, navigazione e lettura con chat responsive", async (
   await page.screenshot({ path: "test-results/welcome.png", fullPage: true });
   const exam = await createExam(page);
   const upload = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: "Introduzione al machine learning.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles({ name: "Introduzione al machine learning.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
   const response = await upload;
   expect(response.status()).toBe(201);
   const doc = await response.json() as StudyDocument;
@@ -126,7 +126,7 @@ test("mostra spiegazione e glossario della slide selezionata con AI simulata", a
   await page.goto("/");
   await createExam(page);
   const upload = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
-  await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles({ name: "Introduzione al machine learning.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles({ name: "Introduzione al machine learning.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
   const doc = await (await upload).json() as StudyDocument;
   await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {

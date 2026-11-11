@@ -1,5 +1,8 @@
 "use client";
 
+import { MAX_UPLOAD_BYTES, UPLOAD_ACCEPT, uploadFormat } from "@/lib/upload-formats";
+import { directUpload } from "@/lib/direct-upload";
+import { retryAnalysis } from "@/lib/analysis-retry";
 import { cachedApi, cachedPdf, invalidateApiCache } from "@/lib/browser-data-cache";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -306,7 +309,7 @@ export default function Workspace() {
   async function uploadFiles(selection: FileList | File[] | null) {
     const files = Array.from(selection || []);
     if (!files.length || uploadLock.current || busy) return;
-    if (!folderId || !folders.some(f => f.id === folderId)) { setError("Apri un esame prima di caricare i PDF."); return; }
+    if (!folderId || !folders.some(f => f.id === folderId)) { setError("Apri un esame prima di caricare i file."); return; }
     const targetFolder = folderId;
     uploadLock.current = true; setBusy(true); setError("");
     let succeeded = 0;
@@ -319,9 +322,12 @@ export default function Workspace() {
         const file = files[index];
         setUploadProgress({ completed: index, total: files.length, name: file.name, succeeded, failures: [...failures] });
         try {
-          if (!file.name.toLowerCase().endsWith(".pdf") || !file.size || file.size > 500 * 1024 * 1024) throw new Error("Scegli un PDF non vuoto di massimo 500 MB.");
-          const form = new FormData(); form.append("file", file); form.append("folderId", targetFolder);
-          const result = await api<StudyDocument>("/api/documents", { method: "POST", body: form });
+          if (!uploadFormat(file.name) || !file.size || file.size > MAX_UPLOAD_BYTES) throw new Error("Scegli un PDF o un'immagine PNG o JPEG non vuoti di massimo 500 MB.");
+          if (firebaseEnabled) await directUpload(file, targetFolder, api);
+          else {
+            const form = new FormData(); form.append("file", file); form.append("folderId", targetFolder);
+            await api<StudyDocument>("/api/documents", { method: "POST", body: form });
+          }
           succeeded++;
         } catch(e) { failures.push(file.name + ": " + (e as Error).message); }
         setUploadProgress({ completed: index + 1, total: files.length, name: file.name, succeeded, failures: [...failures] });
@@ -416,7 +422,7 @@ export default function Workspace() {
     setAnalyzing(`${id}:${target}`); setError(""); setBatch(null);
     setPageJob({ id: `page:${id}:${target}:${Date.now()}`, label: doc.name, status: "running", completed: 0, total: 1, detail: `Analisi della pagina ${target}` });
     try {
-      mergeSlide(id, target, await api<SlideData>(`/api/documents/${id}/analyze`, json("POST", { page: target, regenerate })), true);
+      mergeSlide(id, target, await retryAnalysis(() => api<SlideData>(`/api/documents/${id}/analyze`, json("POST", { page: target, regenerate }))), true);
       await refresh();
       setPageJob(previous => previous && { ...previous, status: "completed", completed: 1, detail: `Pagina ${target} pronta` });
     } catch (e) { setError((e as Error).message); setPageJob(previous => previous && { ...previous, status: "error", error: (e as Error).message }); }
@@ -442,7 +448,7 @@ export default function Workspace() {
         if (saved.slides[target]?.explanation) continue;
         setBatch(previous => previous && { ...previous, current: target });
         setAnalyzing(`${id}:${target}`);
-        const result = await api<SlideData>(`/api/documents/${id}/analyze`, json("POST", { page: target }));
+        const result = await retryAnalysis(() => api<SlideData>(`/api/documents/${id}/analyze`, json("POST", { page: target })));
         mergeSlide(id, target, result, true);
         completed++;
         setBatch(previous => previous && { ...previous, completed });
@@ -483,8 +489,8 @@ export default function Workspace() {
     void saves.catch(e => setError((e as Error).message));
   }
 
-  return <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell ${doc || opening ? "reader-active" : ""}`} onDragOver={e => { e.preventDefault(); if (folderId && !busy && e.dataTransfer.types.includes("Files")) setDragging(true); }} onDrop={e => { e.preventDefault(); if (!folderId && e.dataTransfer.files.length) setError("Apri un esame prima di caricare un PDF."); }}>
-    {folderId && <Input ref={input} type="file" accept="application/pdf,.pdf" multiple className="sr-only" onChange={e => void uploadFiles(e.target.files)} aria-label="Carica un PDF" />}
+  return <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell ${doc || opening ? "reader-active" : ""}`} onDragOver={e => { e.preventDefault(); if (folderId && !busy && e.dataTransfer.types.includes("Files")) setDragging(true); }} onDrop={e => { e.preventDefault(); if (!folderId && e.dataTransfer.files.length) setError("Apri un esame prima di caricare un file."); }}>
+    {folderId && <Input ref={input} type="file" accept={UPLOAD_ACCEPT} multiple className="sr-only" onChange={e => void uploadFiles(e.target.files)} aria-label="Carica PDF o immagini" />}
     {!doc && !opening && <Sidebar>
       <SidebarHeader><a className="studio-brand" href="/" onClick={event => { event.preventDefault(); openFolder(""); }} aria-label="Studio, pagina iniziale">studio<span>.</span></a></SidebarHeader>
       <SidebarContent>
@@ -519,14 +525,14 @@ export default function Workspace() {
       }} />
       {error && <div className="error-banner" role="alert"><span>{error}</span><Button variant="ghost" aria-label="Chiudi messaggio" onClick={() => setError("")}><X size={16} /></Button></div>}
 
-      {uploadProgress && <section className="upload-progress" role="status" aria-live="polite"><div><strong>{uploadProgress.completed < uploadProgress.total ? `Caricamento ${uploadProgress.completed + 1} di ${uploadProgress.total}` : `${uploadProgress.succeeded} PDF caricati`}</strong><span>{uploadProgress.completed < uploadProgress.total ? uploadProgress.name : uploadProgress.failures.length ? `${uploadProgress.failures.length} file non caricati` : "Materiali salvati nell’esame"}</span>{uploadProgress.completed === uploadProgress.total && <Button variant="ghost" size="icon" aria-label="Chiudi avanzamento caricamenti" onClick={() => setUploadProgress(null)}><X size={16} /></Button>}</div><progress value={uploadProgress.completed} max={uploadProgress.total} aria-label="PDF caricati" /></section>}
+      {uploadProgress && <section className="upload-progress" role="status" aria-live="polite"><div><strong>{uploadProgress.completed < uploadProgress.total ? `Caricamento ${uploadProgress.completed + 1} di ${uploadProgress.total}` : `${uploadProgress.succeeded} file caricati`}</strong><span>{uploadProgress.completed < uploadProgress.total ? uploadProgress.name : uploadProgress.failures.length ? `${uploadProgress.failures.length} file non caricati` : "Materiali salvati nell’esame"}</span>{uploadProgress.completed === uploadProgress.total && <Button variant="ghost" size="icon" aria-label="Chiudi avanzamento caricamenti" onClick={() => setUploadProgress(null)}><X size={16} /></Button>}</div><progress value={uploadProgress.completed} max={uploadProgress.total} aria-label="file caricati" /></section>}
       {section === "study" && !doc && !opening && !folderId && <ExamOverview requestedCourseAction={requestedCourseAction} onCourseActionHandled={() => setRequestedCourseAction(undefined)} onDeleted={id => { setFolders(items => items.filter(item => item.id !== id)); setLibrary(items => items.filter(item => item.folderId !== id)); void refresh(); }} isCourseBusy={id => pendingWrites.current > 0 || courseAnalysis.jobs.some(job => job.folderId === id && ["checking", "running", "stopping"].includes(job.status)) || (!!readerJobDocument.current && analysisLock.current && library.some(item => item.id === readerJobDocument.current && item.folderId === id)) || Object.entries(chatController.sessions).some(([key, value]) => value.status === "pending" && library.some(item => item.folderId === id && key.startsWith(`${item.id}:`)))} onActivityDaySelect={openSessions} activity={studySession.activity} today={studySession.todayDate} folders={folders} documents={library} onOpen={openFolder} onCreate={() => { setSidebar(false); setCreatingFolder(true); }} onUpdated={folder => setFolders(current => current.map(f => f.id === folder.id ? folder : f))} />}
       {section === "sessions" && !doc && !opening && <StudySessionsView sessions={studySession.sessions} activity={studySession.activity} today={studySession.todayDate} loading={studySession.loadingHistory} error={studySession.errorHistory} onRetry={() => void studySession.reloadHistory()} selectedDay={selectedStudyDay || null} onSelectDay={day => openSessions(day || "")} />}
       {section === "study" && folderId && <div className={`welcome ${homeStyles.courseWorkspace}`} hidden={!!doc || !!opening}>
         <CourseHeader folder={folders.find(f => f.id === folderId) || { id: folderId, name: "Esame", createdAt: "" }} />
         <div className={`exam-action-grid${showCourseAnalysis ? "" : " exam-action-grid-complete"}`}>
         {showCourseAnalysis && <CourseAnalysis key={folderId} folderId={folderId} documents={selectedCourseDocuments} configured={configured} disabled={busy || selectedCourseReaderBusy} controller={courseAnalysis} />}
-        <section className="upload-zone upload-banner" aria-label="Aggiungi file" onDrop={e => { e.preventDefault(); setDragging(false); void uploadFiles(e.dataTransfer.files); }}><span className="upload-symbol"><Upload size={22} strokeWidth={1.5} /></span><div className="upload-banner-copy"><h2>Aggiungi file</h2><p>Trascina qui i tuoi PDF · Fino a 500 MB per file</p></div><Button variant="default" className="primary-button" disabled={busy} onClick={() => input.current?.click()}>{busy ? <LoaderCircle className="spin" size={17} /> : <Plus size={17} />}{busy ? "Caricamento in corso…" : "Scegli i PDF"}</Button></section>
+        <section className="upload-zone upload-banner" aria-label="Aggiungi file" onDrop={e => { e.preventDefault(); setDragging(false); void uploadFiles(e.dataTransfer.files); }}><span className="upload-symbol"><Upload size={22} strokeWidth={1.5} /></span><div className="upload-banner-copy"><h2>Aggiungi file</h2><p>Trascina qui PDF o immagini PNG e JPEG · Fino a 500 MB per file</p></div><Button variant="default" className="primary-button" disabled={busy} onClick={() => input.current?.click()}>{busy ? <LoaderCircle className="spin" size={17} /> : <Plus size={17} />}{busy ? "Caricamento in corso…" : "Scegli i file"}</Button></section>
         </div>
         <div className={`dashboard-columns ${folderId ? "" : "without-upload"}`}><section className="materials-card"><div className="card-heading"><div><h2>{folderId ? "Materiali dell’esame" : "I tuoi materiali"}</h2><p>Slide, spiegazioni e conversazioni. Tutto nello stesso posto.</p></div><div className="materials-search-field"><label className="sr-only" htmlFor={`materials-search-${folderId}`}>Cerca un materiale</label><div className="materials-search"><Search size={16} aria-hidden="true" /><Input id={`materials-search-${folderId}`} aria-label="Cerca un materiale" placeholder="Cerca nei materiali" value={query} onChange={e => setQuery(e.target.value)} /></div></div></div>
         {library.some(d => !folderId || d.folderId === folderId) ? <MaterialList key={folderId} documents={library.filter(d => d.folderId === folderId)} folder={folders.find(f => f.id === folderId) || { id: folderId, name: "", createdAt: "" }} query={query} busy={busy} openQuiz={quizToOpen} onQuizOpened={() => setQuizToOpen(null)} pendingQuizzes={id => Object.entries(chatController.sessions).filter(([, task]) => task.kind === "quiz" && task.documentId === id && task.status !== "completed").map(([key, task]) => ({ key, status: task.status === "pending" ? "pending" : "error", error: task.error, onRetry: () => chatController.retry(key) }))} isDocumentBusy={id => Object.values(chatController.sessions).some(task => task.documentId === id && task.status === "pending")} onDeleted={id => { setLibrary(items => items.filter(item => item.id !== id)); void refresh(); }} onReadUpdated={async () => { await refresh(); await studySession.reloadHistory(); }} analysisRunning={courseAnalysis.running} onOpen={id => void openDocument(id)} onRenamed={updated => setLibrary(current => current.map(item => item.id === updated.id ? { ...item, name: updated.name, originalName: updated.originalName } : item))} onOrdered={updated => setFolders(current => current.map(f => f.id === updated.id ? updated : f))} /> : <div className="materials-empty"><span className="empty-document-icon"><FileText size={28} strokeWidth={1.5} /></span><h3>Il tuo prossimo passo inizia qui.</h3><p>{folderId ? "Carica le slide di questo esame per iniziare a studiare." : "Crea o apri un esame, poi aggiungi le tue slide."}</p>{!folderId && <Button variant="outline" className="secondary-button" onClick={() => { setSidebar(false); setCreatingFolder(true); }}><Plus size={16} /> Crea il primo esame</Button>}</div>}

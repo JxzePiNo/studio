@@ -17,12 +17,12 @@ test("carica più PDF, rinomina e riordina i materiali conservando file e appunt
   const bytes = await readFile("public/esempio.pdf");
   const cleanup: string[] = [];
   try {
-    await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles(["A", "B", "C"].map(letter => ({ name: `Originale ${letter}.pdf`, mimeType: "application/pdf", buffer: bytes })));
+    await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles(["A", "B", "C"].map(letter => ({ name: `Originale ${letter}.pdf`, mimeType: "application/pdf", buffer: bytes })));
     await expect(page.locator(".material-row")).toHaveCount(3);
     await expect(page.locator(".selected-exam")).toContainText(formatCourseName(folder.name));
     await expect(page.locator(".study-grid")).toHaveCount(0);
-    await expect(page.locator(".upload-progress")).toContainText("3 PDF caricati");
-    await expect(page.getByRole("progressbar", { name: "PDF caricati", exact: true })).toHaveAttribute("value", "3");
+    await expect(page.locator(".upload-progress")).toContainText("3 file caricati");
+    await expect(page.getByRole("progressbar", { name: "file caricati", exact: true })).toHaveAttribute("value", "3");
     await expectOrder(page, ["Originale A", "Originale B", "Originale C"]);
     const documents = (await (await request.get("/api/documents")).json()).filter((doc: { folderId: string }) => doc.folderId === folder.id);
     cleanup.push(...documents.map((doc: { id: string }) => doc.id));
@@ -82,14 +82,14 @@ test("un PDF non valido non annulla i file riusciti nello stesso caricamento", a
   const folder = await createExam(page, "Caricamento parziale");
   const bytes = await readFile("public/esempio.pdf");
   try {
-    await page.getByLabel("Carica un PDF", { exact: true }).setInputFiles([
+    await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles([
       { name: "Lezione valida.pdf", mimeType: "application/pdf", buffer: bytes },
       { name: "Lezione danneggiata.pdf", mimeType: "application/pdf", buffer: Buffer.from("invalid PDF") },
     ]);
     await expect(page.locator(".material-row")).toHaveCount(1);
     await expect(material(page, "Lezione valida")).toBeVisible();
     await expect(page.locator('.error-banner[role="alert"]').filter({ hasText: "Lezione danneggiata.pdf" })).toBeVisible();
-    await expect(page.locator(".upload-progress")).toContainText("1 PDF caricati");
+    await expect(page.locator(".upload-progress")).toContainText("1 file caricati");
     await expect(page.locator(".upload-progress")).toContainText("1 file non caricati");
     await expect(page.locator(".selected-exam")).toContainText(formatCourseName(folder.name));
     await expect(page.locator(".upload-progress")).toHaveCount(0, { timeout: 6500 });

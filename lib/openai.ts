@@ -18,11 +18,20 @@ export async function explainSlide(bytes: Uint8Array, page: number, context: Tut
   });
   if (response.status !== "completed" || !response.output_parsed) {
     const refused = response.output.some(item => item.type === "message" && item.content.some(part => part.type === "refusal"));
-    throw new Error(refused ? "L’AI non può analizzare questa pagina. Prova un’altra slide." : "L’AI ha restituito una risposta incompleta. Riprova.");
+    throw Object.assign(new Error(refused ? "L’AI non può analizzare questa pagina. Prova un’altra slide." : "L’AI ha restituito una risposta incompleta. Riprova."), { retryable: !refused });
   }
   const explanation = explanationSchema.parse(response.output_parsed);
   if (explanation.language !== "en") explanation.glossary = [];
   return explanation;
+}
+
+export function retryableAnalysisError(error: unknown): boolean {
+  if (error instanceof OpenAI.APIConnectionError) return true;
+  if (error instanceof OpenAI.APIError) {
+    if (error.code === "insufficient_quota") return false;
+    return error.status !== undefined && [408, 409, 429, 500, 502, 503, 504].includes(error.status);
+  }
+  return !(error && typeof error === "object" && "retryable" in error && error.retryable === false);
 }
 
 export function openaiError(error: unknown): { error: string; status: number } | undefined {

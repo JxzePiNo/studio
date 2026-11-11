@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { initializeApp, deleteApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { services } from "../lib/firebase-server";
 import { GET, PATCH } from "../app/api/nicknames/route";
 import { userNickname } from "../lib/user-nickname";
 
@@ -11,7 +11,7 @@ test("nickname edits require the verified administrator and merge a shared catal
   process.env.NEXT_PUBLIC_FIREBASE_ENABLED = "true";
   const app = initializeApp({ projectId: "nickname-test", storageBucket: "nickname-test.appspot.com" }, "margine-server");
   const auth = getAuth(app);
-  const db = getFirestore(app);
+  const db = services().db;
   const verify = auth.verifyIdToken;
   const collection = db.collection;
   let email = "other@example.com";

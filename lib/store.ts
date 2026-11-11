@@ -85,9 +85,9 @@ export async function readVersionedDocument(id: string, etag?: string | null) {
   const version = `"${metadata.mtimeNs}-${metadata.ctimeNs}-${metadata.size}"`;
   return { etag: version, document: etag === version ? null : document };
 }
-export async function createDocument(name: string, bytes: Uint8Array, pages: number, folderId?: string) {
-  if (cloudEnabled()) return cloud.create(name, bytes, pages, folderId);
-  const doc: StudyDocument = { id: randomUUID(), name, pages, size: bytes.length, createdAt: new Date().toISOString(), currentPage: 1, slides: {}, ...(folderId ? { folderId } : {}) };
+export async function createDocument(name: string, bytes: Uint8Array, pages: number, folderId?: string, id: string = randomUUID()) {
+  if (cloudEnabled()) return cloud.create(name, bytes, pages, folderId, id);
+  const doc: StudyDocument = { id, name, pages, size: bytes.length, createdAt: new Date().toISOString(), currentPage: 1, slides: {}, ...(folderId ? { folderId } : {}) };
   await mkdir(documentDir(doc.id), { recursive: true });
   try {
     await writeFile(path.join(documentDir(doc.id), "original.pdf"), bytes);
