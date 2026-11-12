@@ -30,6 +30,7 @@ export interface StudyChatProps {
   id: string;
   controller: BackgroundChatController;
   documentName?: string;
+  courseName?: string;
   page: number;
   folder?: string;
   initial: ChatMessage[];
@@ -58,7 +59,7 @@ function BatchProgress({ progress, running, onStop }: { progress?: AnalysisProgr
   </div>;
 }
 
-export function StudyChat({ id, controller, documentName = "PDF", page, initial, explanation, onAnalyze, onAnalyzeAll, analyzing = false, batchRunning = false, analysisBusy = false, configured = true, disabled = false, analysisProgress, onStopAnalysis, onSettings, onNavigatePage, onReturnToMap }: StudyChatProps) {
+export function StudyChat({ id, controller, documentName = "PDF", courseName, page, initial, explanation, onAnalyze, onAnalyzeAll, analyzing = false, batchRunning = false, analysisBusy = false, configured = true, disabled = false, analysisProgress, onStopAnalysis, onSettings, onNavigatePage, onReturnToMap }: StudyChatProps) {
   const { profile } = useStudyProfile();
   const [user, setUser] = useState<User | null>(null);
   useEffect(() => {
@@ -132,7 +133,7 @@ export function StudyChat({ id, controller, documentName = "PDF", page, initial,
   }
 
   return <section className="chat-pane" aria-label={`Chat sulla slide ${page}`}>
-    {quizDialog && <QuizDialog page={page} id={id} name={documentName} onClose={() => setQuizDialog(false)} onGenerate={config => { void controller.send({ id, page, name: documentName, question: quizRequestSummary(config), scope: "document", quiz: config }); }} />}
+    {quizDialog && <QuizDialog courseName={courseName} page={page} id={id} name={documentName} onClose={() => setQuizDialog(false)} onGenerate={config => { void controller.send({ id, page, name: documentName, question: quizRequestSummary(config), scope: "document", quiz: config }); }} />}
     {modelDialog && <CreationDialog documentName={documentName} configured={configured} wholeDocument={wholeDocument} onClose={() => setModelDialog(false)} onGenerate={(prompt, kind, scope) => { setModelDialog(false); void controller.send({ id, page, name: documentName, question: prompt, scope, visualization: true, artifactKind: kind }); }} />}
     <header className="chat-reader-header">
       <span className="chat-slide-label">Slide {page}</span>

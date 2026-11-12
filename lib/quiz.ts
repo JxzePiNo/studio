@@ -1,11 +1,15 @@
 import { z } from "zod";
 
+export const quizTimingSchema = z.object({ mode: z.enum(["question", "total"]), seconds: z.number().int().min(1).max(86400) }).strict();
+export type QuizTiming = z.infer<typeof quizTimingSchema>;
+
 export const quizConfigSchema = z.object({
   count: z.number().int().min(1).max(30),
   openCount: z.number().int().min(0).max(30),
   trueFalseCount: z.number().int().min(0).max(30),
   topics: z.array(z.string().trim().min(1).max(200)).max(30),
-  difficulty: z.enum(["base", "intermedia", "avanzata"]).default("intermedia"),
+  difficulty: z.enum(["base", "intermedia", "avanzata"]).default("avanzata"),
+  timing: quizTimingSchema.nullable().optional(),
   throughPage: z.number().int().positive().optional(),
 }).strict().refine(value => value.openCount + value.trueFalseCount <= value.count, "Le tipologie superano il totale delle domande.");
 export type QuizConfig = z.infer<typeof quizConfigSchema>;
@@ -23,7 +27,7 @@ export const generatedQuizSchema = z.object({
     explanation: z.string().min(1).max(2500),
   })).min(1).max(30),
 });
-export type StudyQuiz = z.infer<typeof generatedQuizSchema> & { id: string; documentId: string; documentName: string; createdAt: string; topics: string[] };
+export type StudyQuiz = z.infer<typeof generatedQuizSchema> & { id: string; documentId: string; documentName: string; createdAt: string; topics: string[]; timing?: QuizTiming; difficulty?: QuizConfig["difficulty"] };
 export type QuizSummary = Pick<StudyQuiz, "id" | "title" | "documentId" | "createdAt"> & { questionCount: number };
 
 export function quizGenerationSchema(config: QuizConfig, pages: number) {
@@ -49,9 +53,9 @@ export function validateGeneratedQuiz(value: unknown, config: QuizConfig, pages:
 }
 
 export function quizRequestSummary(config: QuizConfig) {
-  return `Genera un quiz ${config.throughPage ? `dalla pagina 1 alla pagina ${config.throughPage} del PDF` : "sul PDF"}: ${config.count} domande (${config.count - config.openCount - config.trueFalseCount} a scelta multipla, ${config.openCount} aperte, ${config.trueFalseCount} vero/falso). Argomenti: ${config.topics.join(", ") || (config.throughPage ? "quanto studiato fino alla pagina attuale" : "tutto il PDF")}.`;
+  return `Genera un quiz ${config.throughPage ? `dalla pagina 1 alla pagina ${config.throughPage} del PDF` : "sul PDF"}: ${config.count} domande (${config.count - config.openCount - config.trueFalseCount} a scelta multipla, ${config.openCount} aperte, ${config.trueFalseCount} vero/falso). Argomenti: ${config.topics.join(", ") || (config.throughPage ? "quanto studiato fino alla pagina attuale" : "tutto il PDF")}. Difficoltà: ${config.difficulty}. ${config.timing ? `Timer: ${config.timing.seconds} secondi ${config.timing.mode === "question" ? "per domanda" : "totali"}.` : "Senza timer."}`;
 }
 
-export function quickQuizConfig(page: number): QuizConfig {
-  return quizConfigSchema.parse({ count: 10, openCount: 0, trueFalseCount: 0, difficulty: "intermedia", topics: [], throughPage: page });
+export function quickQuizConfig(page: number, timing?: QuizTiming | null): QuizConfig {
+  return quizConfigSchema.parse({ count: 10, openCount: 0, trueFalseCount: 0, difficulty: "avanzata", topics: [], throughPage: page, ...(timing ? { timing } : {}) });
 }

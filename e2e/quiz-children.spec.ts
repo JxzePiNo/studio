@@ -1,10 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { createExam } from "./exam-helpers";
 import { readFile } from "node:fs/promises";
 
 test("quiz children open, rename and delete from the parent PDF", async ({ page, request }) => {
-  await page.goto("/");
-  const folder = await createExam(page, "Quiz figli");
+  const folder = await (await request.post("/api/folders", { data: { name: `Quiz figli ${Date.now()}` } })).json();
   const uploaded = await request.post("/api/documents", { multipart: { folderId: folder.id, file: { name: "Lezione.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") } } });
   const document = await uploaded.json();
   let title = "Ripasso della lezione";
@@ -20,7 +18,7 @@ test("quiz children open, rename and delete from the parent PDF", async ({ page,
     await route.fulfill({ json: route.request().method() === "DELETE" ? { ok: true } : { ...quiz, title } });
   });
   try {
-    await page.reload();
+    await page.goto(`/esami/${folder.id}`);
     const children = page.getByRole("list", { name: "Quiz di Lezione.pdf" });
     await children.getByRole("button", { name: /Ripasso della lezione/ }).first().click();
     await expect(page.getByRole("status")).toContainText("Caricamento quiz in corso.");

@@ -47,12 +47,19 @@ test("quick quiz physically excludes later pages and rejects questions beyond th
     assert.equal(attached.getPageCount(), 2);
     assert.equal(attached.getPage(0).getWidth(), 300); assert.equal(attached.getPage(1).getWidth(), 400);
     assert.ok(body.input[0].content[1].text.includes("da 1 a 2"));
+    assert.match(body.instructions, /almeno due passaggi concettuali/);
+    if (calls === 1) {
+      assert.match(body.input[0].content[1].text, /Ingegneria informatica/);
+      assert.ok(body.input[0].content[1].text.includes('"difficulty":"avanzata"'));
+    }
     if (recover && calls === 6) { assert.match(body.instructions, /generazione precedente/); badPage = false; }
     const quiz = { title: "Ripasso fino a pagina 2", questions: Array.from({ length: 10 }, (_, index) => ({ ...generated.questions[0], question: `Domanda ${index + 1}`, page: badPage ? 3 : index % 2 + 1 })) };
     return Response.json({ id: "quick-quiz", object: "response", status: "completed", output: [{ id: "message-quiz", type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: JSON.stringify(quiz), annotations: [] }] }] });
   };
-  const result = await generateQuiz(document, bytes, quickQuizConfig(2), "Corso di esempio");
+  const result = await generateQuiz(document, bytes, { ...quickQuizConfig(2), difficulty: "base", timing: { mode: "total", seconds: 120 } }, "Laurea in Ingegneria informatica");
   assert.equal(result.questions.length, 10); assert.ok(result.questions.every(question => question.page <= 2));
+  assert.equal(result.difficulty, "avanzata");
+  assert.deepEqual(result.timing, { mode: "total", seconds: 120 });
   badPage = true;
   await assert.rejects(generateQuiz(document, bytes, quickQuizConfig(2), ""), /non.*completo|fuori dall'ambito/);
   assert.equal(calls, 4, "invalid content is attempted at most three times");
@@ -111,11 +118,14 @@ test("modal and natural chat requests generate the same persisted quiz using the
     return Response.json({ id: "quiz_response", object: "response", status: "completed", output: [{ type: "message", role: "assistant", id: "quiz_message", status: "completed", content: [{ type: "output_text", text: JSON.stringify(result), annotations: [] }] }] });
   };
   async function ask(explicit: boolean) {
-    if (explicit) return CREATE(new Request(`http://127.0.0.1/api/documents/${document.id}/quiz`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) }), params);
+    if (explicit) return CREATE(new Request(`http://127.0.0.1/api/documents/${document.id}/quiz`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...config, timing: { mode: "question", seconds: 60 } }) }), params);
     return POST(new Request(`http://127.0.0.1/api/documents/${document.id}/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ page: 1, scope: "slide", question: "Fammi un quiz di tre domande miste sull'entropia", ...(explicit ? { quiz: config } : {}) }) }), params);
   }
   const first = await ask(true); assert.equal(first.status, 201);
-  assert.equal((await first.json()).questions.length, 3);
+  const firstQuiz = await first.json();
+  assert.equal(firstQuiz.questions.length, 3);
+  assert.deepEqual(firstQuiz.timing, { mode: "question", seconds: 60 });
+  assert.ok((await listSavedQuizzes(await readDocument(document.id))).some(quiz => quiz.id === firstQuiz.id && quiz.timing?.seconds === 60));
   assert.equal((await readDocument(document.id)).slides[1].chat, undefined);
   assert.equal(calls, 1);
   const second = await ask(false); assert.equal(second.status, 200);
