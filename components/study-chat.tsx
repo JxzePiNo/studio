@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { browserAuth, firebaseEnabled } from "@/lib/firebase-client";
 import { useStudyProfile } from "./study-profile-provider";
@@ -82,11 +82,12 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
   const mounted = useRef(true);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const scrollArea = useRef<HTMLDivElement>(null);
+  const readingPosition = useRef(0);
+  const wasPending = useRef(busy);
   const questionInputId = useId();
   const scopeHintId = useId();
   const errorId = useId();
   const conversation = messages.filter(message => message.source !== "analysis");
-  const lastModel = conversation.at(-1)?.artifact || conversation.at(-1)?.visualization;
   const canSend = !busy && !disabled && configured && !!question.trim();
   const showProgress = batchRunning || !!analysisProgress;
 
@@ -110,11 +111,14 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
     if (area) area.scrollTo({ top: area.scrollHeight, behavior: "smooth" });
   }, [scrollRequest]);
 
-  useEffect(() => {
-    if (session?.kind !== "visualization" || session.status !== "completed" || !lastModel) return;
-    const frame = requestAnimationFrame(() => scrollArea.current?.querySelector(`[data-artifact-id="${lastModel.id}"], [data-model-id="${lastModel.id}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" }));
-    return () => cancelAnimationFrame(frame);
-  }, [session?.kind, session?.status, session?.revision, lastModel?.id]);
+  useLayoutEffect(() => {
+    // Saving replaces the streaming article. Keep the reader's position through
+    // that replacement instead of jumping to the end of the saved answer.
+    if (wasPending.current && !busy && scrollArea.current) {
+      scrollArea.current.scrollTop = readingPosition.current;
+    }
+    wasPending.current = busy;
+  }, [busy]);
 
   async function send(prompt?: string) {
     if (lock.current || busy || disabled || !configured || !(prompt || question).trim()) return;
@@ -125,16 +129,15 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
       const quizIntent = /^\s*(?:puoi\s+|mi\s+|per favore\s+)*(?:genera\w*|crea\w*|fammi|prepara\w*|vorrei|voglio)\b[\s\S]{0,100}\bquiz\b/i.test(submittedQuestion) || /^\s*(?:un\s+)?quiz\b/i.test(submittedQuestion);
       const success = await controller.send({ id, page, name: documentName, question: submittedQuestion, scope: wholeDocument ? "document" : "slide", quizIntent });
       if (!mounted.current) return;
-      if (success) { setQuestion(""); setScrollRequest(value => value + 1); }
+      if (success) setQuestion("");
     } finally {
       lock.current = false;
-      if (mounted.current) requestAnimationFrame(() => { if (mounted.current) textarea.current?.focus({ preventScroll: true }); });
     }
   }
 
   return <section className="chat-pane" aria-label={`Chat sulla slide ${page}`}>
     {quizDialog && <QuizDialog courseName={courseName} page={page} id={id} name={documentName} onClose={() => setQuizDialog(false)} onGenerate={config => { void controller.send({ id, page, name: documentName, question: quizRequestSummary(config), scope: "document", quiz: config }); }} />}
-    {modelDialog && <CreationDialog documentName={documentName} configured={configured} wholeDocument={wholeDocument} onClose={() => setModelDialog(false)} onGenerate={(prompt, kind, scope) => { setModelDialog(false); void controller.send({ id, page, name: documentName, question: prompt, scope, visualization: true, artifactKind: kind }); }} />}
+    {modelDialog && <CreationDialog documentName={documentName} configured={configured} page={page} onClose={() => setModelDialog(false)} onGenerate={(prompt, kind, scope) => { setModelDialog(false); void controller.send({ id, page, name: documentName, question: prompt, scope, visualization: true, artifactKind: kind }); }} />}
     <header className="chat-reader-header">
       <span className="chat-slide-label">Slide {page}</span>
       <div className="chat-reader-actions">
@@ -145,7 +148,7 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
       </div>
     </header>
     {onReturnToMap && <Button variant="outline" size="sm" className="chat-map-return" onClick={onReturnToMap}>Torna alla mappa</Button>}
-    <div className="chat-scroll-area" ref={scrollArea}>
+    <div className="chat-scroll-area" ref={scrollArea} onScroll={event => { readingPosition.current = event.currentTarget.scrollTop; }}>
       <p className="chat-scope-hint" id={scopeHintId} aria-live="polite">{wholeDocument ? "Le domande riguardano tutto il PDF corrente, tenendo conto delle pagine lette e delle domande precedenti." : "Le domande riguardano questa slide, tenendo conto delle pagine lette e delle domande precedenti nel PDF."}</p>
       <div className="chat-messages">
         {explanation ? <ExplanationMessage explanation={explanation} page={page} disabled={busy || disabled || !configured} onDeepen={topic => void send(`Spiega in modo piu approfondito questo argomento della slide: ${topic}. Aggiungi i passaggi intermedi e un esempio concreto.`)} /> : <div className="chat-analysis-empty">

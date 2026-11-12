@@ -27,8 +27,9 @@ export const generatedQuizSchema = z.object({
     explanation: z.string().min(1).max(2500),
   })).min(1).max(30),
 });
-export type StudyQuiz = z.infer<typeof generatedQuizSchema> & { id: string; documentId: string; documentName: string; createdAt: string; topics: string[]; timing?: QuizTiming; difficulty?: QuizConfig["difficulty"] };
-export type QuizSummary = Pick<StudyQuiz, "id" | "title" | "documentId" | "createdAt"> & { questionCount: number };
+export type SavedQuizResult = { correct: number; total: number; percentage: number | null; grade: number | null; passed: boolean; completedAt: string };
+export type StudyQuiz = z.infer<typeof generatedQuizSchema> & { id: string; documentId: string; documentName: string; createdAt: string; topics: string[]; timing?: QuizTiming; difficulty?: QuizConfig["difficulty"]; latestResult?: SavedQuizResult };
+export type QuizSummary = Pick<StudyQuiz, "id" | "title" | "documentId" | "createdAt" | "timing" | "latestResult"> & { questionCount: number };
 
 export function quizGenerationSchema(config: QuizConfig, pages: number) {
   const base = generatedQuizSchema.shape.questions.element.extend({ page: z.number().int().min(1).max(pages).describe("Indice fisico nel PDF allegato, contando da 1. Ignora la numerazione stampata nel testo.") });

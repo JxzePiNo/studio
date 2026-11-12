@@ -32,7 +32,8 @@ test("quiz returns to course with a pending child and no chat card", async ({ pa
     await expect(all).toHaveAttribute("aria-pressed", "false");
     await all.click();
     await dialog.getByRole("spinbutton", { name: "Numero di domande", exact: true }).fill("1");
-    await dialog.getByRole("combobox", { name: "Tipo di domande", exact: true }).selectOption("true-false");
+    await dialog.getByRole("combobox", { name: "Tipo di domande", exact: true }).click();
+    await page.getByRole("option", { name: "Vero / falso", exact: true }).click();
     await dialog.getByRole("button", { name: "Genera quiz", exact: true }).click();
     await expect(page).toHaveURL(`/esami/${folder.id}`);
     await expect(page.getByRole("list", { name: `Quiz di ${document.name}` })).toContainText("Quiz in creazione");

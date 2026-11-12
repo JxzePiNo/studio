@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { freshSession, recordStudyPage, restoreSession } from "../lib/study-session";
-import { readingCalendar, readingLevel } from "../lib/reading-activity";
+import { readingCalendar, readingLevel, readingMonthCalendar } from "../lib/reading-activity";
 
 test("activity migrates yesterday and keeps previous days when today's reads change", () => {
   const yesterday = new Date(2026, 10, 10, 12).getTime();
@@ -38,4 +38,21 @@ test("calendar covers 365 local dates with leap day and Monday-to-Sunday alignme
 test("invalid historical values cannot create fake study totals", () => {
   const session = restoreSession(JSON.stringify({ day: "bad", pages: [], activity: { "2026-02-30": 9, "2026-11-10": -2, "2026-11-09": "8", "2026-11-08": 3 } }), new Date(2026, 10, 11).getTime());
   assert.deepEqual(session.activity, { "2026-11-08": 3 });
+});
+
+test("separate month grids preserve 365 dates without mixing month boundaries or losing leap days", () => {
+  for (const today of ["2024-03-01", "2026-01-12", "2026-11-30"]) {
+    const months = readingMonthCalendar({ "2024-02-29": 12 }, today);
+    const days = months.flatMap(month => month.weeks.flat().filter(day => day !== null));
+    assert.equal(days.length, 365); assert.equal(new Set(days.map(day => day.date)).size, 365);
+    assert.equal(months.at(-1)?.month, today.slice(0, 7));
+    for (const month of months) for (const week of month.weeks) week.forEach((day, row) => {
+      if (!day) return;
+      assert.equal(day.date.slice(0, 7), month.month);
+      assert.equal((new Date(`${day.date}T12:00:00`).getDay() + 6) % 7, row);
+      assert.ok(day.date <= today);
+    });
+    if (today === "2024-03-01") assert.equal(days.find(day => day.date === "2024-02-29")?.count, 12);
+  }
+  assert.deepEqual(readingMonthCalendar({}, "invalid"), []);
 });

@@ -24,7 +24,8 @@ test("daily counter updates before a queued save and the annual map follows read
   try {
     await expect(page.locator(".slide-stage canvas")).toBeVisible();
     await page.getByRole("button", { name: "Mostra pannello inferiore" }).click();
-    await page.getByRole("button", { name: "Da leggere", exact: true }).click();
+    await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
+    await page.keyboard.press("Space");
     await expect.poll(() => saveStarted).toBe(true);
     await expect(bar.getByText("pag oggi", { exact: true }).locator("..").locator("strong")).toHaveText(String(expectedCount));
     await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();

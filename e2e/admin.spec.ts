@@ -46,7 +46,7 @@ test("admin dashboard handles user detail, platform settings and nickname manage
   await page.getByRole("menuitemcheckbox", { name: /Modalità notte/ }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expect(page.getByRole("button", { name: "Apri menu account", exact: true })).toBeInViewport();
-  await expect(page.locator('main > div').first()).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(page.locator('main > div').first()).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await page.screenshot({ path: "test-results/admin-users.png" });
   await expect(page.getByRole("columnheader", { name: "Ultima visita", exact: true })).toBeVisible();
   const expectedVisit = await page.evaluate(value => new Date(value).toLocaleString("it-IT"), user.lastVisitAt);

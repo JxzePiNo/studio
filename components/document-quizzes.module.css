@@ -27,3 +27,5 @@
 @keyframes phrase-in { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 @media(prefers-reduced-motion:reduce) { .loadingPhrase { animation:none; } }
 @media(max-width:600px) { .list { margin-left:20px; padding-left:10px; margin-right:8px; } }
+
+.result{display:grid;justify-items:center;gap:3px;flex-shrink:0;padding:7px 9px;border:1px solid #efc7c7;border-radius:10px;background:#fff1f1;color:#92313c}.result strong{font-size:13px}.result small{font-size:10px}.result[data-passed=true]{border-color:#b4dcc2;background:#edf9f1;color:#276b40}.open>svg{flex-shrink:0}.open small{line-height:1.6}

@@ -3,7 +3,9 @@ import { invalidateApiCache } from "@/lib/browser-data-cache";
 
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronUp, MessageCircle, X } from "lucide-react";
-import { authHeaders } from "@/lib/firebase-client";
+import { authHeaders, browserAuth, firebaseEnabled } from "@/lib/firebase-client";
+import { studyArtifactSchema, type StudyArtifact } from "@/lib/study-artifact";
+import type { StudyDocument } from "@/lib/types";
 import { readChatStream } from "@/lib/chat-stream";
 import { readApiResponse } from "@/lib/api-response";
 import type { ChatMessage } from "@/lib/types";
@@ -11,14 +13,36 @@ import styles from "./background-chat.module.css";
 
 import type { QuizConfig, StudyQuiz } from "@/lib/quiz";
 
-type ChatRequest = { id: string; page: number; name: string; question: string; scope: "document" | "slide"; quiz?: QuizConfig; quizIntent?: boolean; visualization?: boolean; artifactKind?: import("@/lib/study-artifact").ArtifactKind };
+type ChatRequest = { id: string; page: number; name: string; question: string; scope: "document" | "slide" | "studied"; quiz?: QuizConfig; quizIntent?: boolean; visualization?: boolean; artifactKind?: import("@/lib/study-artifact").ArtifactKind };
 export type BackgroundChatSession = { status: "pending" | "completed" | "error"; question: string; messages?: ChatMessage[]; streamingText?: string; error?: string; revision: number; kind?: "chat" | "quiz" | "visualization"; documentId?: string; request?: ChatRequest };
 type ChatNotification = { key: string; id: string; page: number; name: string; error?: string; quizId?: string; kind?: "chat" | "quiz" | "visualization" };
 export const chatSessionKey = (id: string, page: number) => `${id}:${page}`;
+export type GeneratedMaterial = { documentId: string; page: number; name: string; artifact: StudyArtifact };
 
 export function useBackgroundChat({ onSaved, onQuizStarted }: { onSaved: (id: string, page: number, messages: ChatMessage[]) => void; onQuizStarted?: (id: string) => void }) {
   const [sessions, setSessions] = useState<Record<string, BackgroundChatSession>>({});
   const [notifications, setNotifications] = useState<ChatNotification[]>([]);
+  const [generations, setGenerations] = useState<GeneratedMaterial[]>([]);
+  const [generationsReady, setGenerationsReady] = useState(false);
+  const generationStorage = useRef("");
+  useEffect(() => {
+    const owner = firebaseEnabled ? browserAuth().currentUser?.uid : "local";
+    if (!owner) return;
+    generationStorage.current = `studio-generations:${owner}`;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(generationStorage.current) || "[]");
+      if (Array.isArray(saved)) setGenerations(saved.flatMap(item => {
+        const artifact = studyArtifactSchema.safeParse(item?.artifact);
+        return artifact.success && typeof item.documentId === "string" && typeof item.name === "string" && Number.isInteger(item.page) && item.page > 0 ? [{ ...item, artifact: artifact.data }] : [];
+      }));
+    } catch { /* A bad cache never blocks studying. */ }
+    setGenerationsReady(true);
+  }, []);
+  useEffect(() => { if (generationsReady && generationStorage.current) try { sessionStorage.setItem(generationStorage.current, JSON.stringify(generations)); } catch {} }, [generations, generationsReady]);
+  function rememberMaterials(documentId: string, page: number, name: string, messages: ChatMessage[]) {
+    const artifacts = messages.flatMap(message => message.artifact ? [message.artifact] : []);
+    setGenerations(previous => [...artifacts.reverse().map(artifact => ({ documentId, page, name: name || previous.find(item => item.artifact.id === artifact.id)?.name || "PDF", artifact })), ...previous.filter(item => item.documentId !== documentId || item.page !== page)]);
+  }
   const requests = useRef(new Map<string, AbortController>());
   const mounted = useRef(true);
   const sequence = useRef(0);
@@ -84,6 +108,7 @@ export function useBackgroundChat({ onSaved, onQuizStarted }: { onSaved: (id: st
       setSessions(current => ({ ...current, [key]: { status: "completed", question: input.question, messages, revision, kind: quizId ? "quiz" : kind, documentId: input.id, request: input } }));
       await invalidateApiCache(`/api/documents/${input.id}`, `/api/documents/${input.id}/quiz`);
       if (messages) savedCallback.current(input.id, input.page, messages);
+      if (messages) rememberMaterials(input.id, input.page, input.name, messages);
       if (quizId) {
         window.dispatchEvent(new CustomEvent("studio-quizzes-changed", { detail: { documentId: input.id } }));
         if (kind !== "quiz") quizStartedCallback.current?.(input.id);
@@ -101,7 +126,7 @@ export function useBackgroundChat({ onSaved, onQuizStarted }: { onSaved: (id: st
     }
   }
   function dismissNotification(key: string) { setNotifications(current => current.filter(item => item.key !== key)); }
-  return { sessions, notifications, send, receiveMessages: (id: string, page: number, messages: ChatMessage[]) => { const key = chatSessionKey(id, page); setSessions(current => current[key] ? { ...current, [key]: { ...current[key], messages } } : current); savedCallback.current(id, page, messages); }, dismissNotification, pending: Object.values(sessions).some(session => session.status === "pending"), retry: (key: string) => { const request = sessions[key]?.request; if (request) void send(request); } };
+  return { sessions, notifications, generations, registerDocumentMaterials: (document: StudyDocument) => { for (const [page, slide] of Object.entries(document.slides)) rememberMaterials(document.id, Number(page), document.name, slide.chat || []); }, send, receiveMessages: (id: string, page: number, messages: ChatMessage[]) => { const key = chatSessionKey(id, page); setSessions(current => current[key] ? { ...current, [key]: { ...current[key], messages } } : current); rememberMaterials(id, page, "", messages); savedCallback.current(id, page, messages); }, dismissNotification, pending: Object.values(sessions).some(session => session.status === "pending"), retry: (key: string) => { const request = sessions[key]?.request; if (request) void send(request); } };
 }
 
 export type BackgroundChatController = ReturnType<typeof useBackgroundChat>;

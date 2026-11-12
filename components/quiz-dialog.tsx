@@ -8,11 +8,13 @@ import { authHeaders } from "@/lib/firebase-client";
 import { readApiResponse } from "@/lib/api-response";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
 import styles from "./quiz.module.css";
 import { QuizTimingControls, configuredQuizTiming, defaultQuizTiming } from "./quiz-timing-controls";
 import { useStudyProfile } from "./study-profile-provider";
 import { isStemQuizContext } from "@/lib/quiz-difficulty";
+import { TonyMascot } from "./mascot/tony-mascot";
 
 export function QuizDialog({ id, name, courseName, page, onClose, onGenerate }: { page: number; id: string; name: string; courseName?: string; onClose: () => void; onGenerate: (config: QuizConfig) => void }) {
   const formId = useId();
@@ -53,22 +55,22 @@ export function QuizDialog({ id, name, courseName, page, onClose, onGenerate }: 
   }
   return <Dialog.Root open onOpenChange={value => { if (!value) onClose(); }}><Dialog.Portal><Dialog.Overlay className="plan-overlay" /><Dialog.Content className={`plan-dialog ${styles.dialog}`}>
     <Dialog.Close className={styles.close} aria-label="Chiudi creazione quiz"><X size={18} /></Dialog.Close>
-    <span className={styles.kicker}><ClipboardList size={15} /> RIPASSO CON TONY</span>
-    <Dialog.Title>Crea un quiz</Dialog.Title><Dialog.Description>Scegli come metterti alla prova su {name}.</Dialog.Description>
+    <div className={styles.creationHeader}><div><span className={styles.kicker}><ClipboardList size={15} /> RIPASSO CON TONY</span>
+    <Dialog.Title>Crea un quiz</Dialog.Title><Dialog.Description>Scegli come metterti alla prova su {name}.</Dialog.Description></div><span aria-hidden="true"><TonyMascot size={64} showName={false} /></span></div>
     {step === "choice" ? <div className={styles.quickChoices}>
       <button className={styles.quickChoice} onClick={() => setStep("quick")}><BookOpen size={29} /><strong>Fino a dove sei arrivato</strong><span>Da pagina 1 a pagina {page}, inclusa quella aperta.</span><small>10 domande · Difficoltà alta</small></button>
       <button className={styles.quickChoice} onClick={() => setStep("custom")}><SlidersHorizontal size={29} /><strong>Personalizza</strong><span>Scegli domande, difficoltà e argomenti.</span><small>Tutte le impostazioni</small></button>
-    </div> : step === "quick" ? <><Button variant="ghost" size="sm" className={styles.back} onClick={() => setStep("choice")}>Indietro</Button><form onSubmit={event => { event.preventDefault(); submit(true); }}>
+    </div> : step === "quick" ? <><form onSubmit={event => { event.preventDefault(); submit(true); }}>
       <p className={styles.hint}>10 domande a scelta multipla, dalla pagina 1 alla {page}. Difficoltà alta, calibrata sul tuo percorso di studi.</p>
       <QuizTimingControls value={timing} onChange={setTiming} count={10} />
       {error && <p className={styles.error} role="alert">{error}</p>}
       <div className="plan-form-actions"><Button variant="outline" onClick={onClose}>Annulla</Button><Button type="submit">Genera quiz rapido</Button></div>
-    </form></> : <><Button variant="ghost" size="sm" className={styles.back} onClick={() => setStep("choice")}>Indietro</Button><form onSubmit={event => { event.preventDefault(); submit(); }}>
+    </form></> : <><form onSubmit={event => { event.preventDefault(); submit(); }}>
       <div className={styles.fields}>
         <label className="form-field" htmlFor={`${formId}-count`}><span className="form-field-label">Numero di domande</span><Input id={`${formId}-count`} type="number" min={1} max={30} value={count} onChange={event => setCount(event.target.value)} required /></label>
-        <label className="form-field" htmlFor={`${formId}-mode`}><span className="form-field-label">Tipo di domande</span><select id={`${formId}-mode`} value={mode} onChange={event => setMode(event.target.value)}><option value="multiple-choice">Scelta multipla</option><option value="open">Aperte</option><option value="true-false">Vero / falso</option><option value="mixed">Miste</option></select></label>
+        <label className="form-field" htmlFor={`${formId}-mode`}><span className="form-field-label">Tipo di domande</span><Select value={mode} onValueChange={setMode}><SelectTrigger id={`${formId}-mode`}><SelectValue /></SelectTrigger><SelectContent className={styles.selectContent}><SelectItem value="multiple-choice">Scelta multipla</SelectItem><SelectItem value="open">Aperte</SelectItem><SelectItem value="true-false">Vero / falso</SelectItem><SelectItem value="mixed">Miste</SelectItem></SelectContent></Select></label>
         {mode === "mixed" && <><label className="form-field" htmlFor={`${formId}-open`}><span className="form-field-label">Domande aperte</span><Input id={`${formId}-open`} type="number" min={0} max={Number(count)} value={open} onChange={event => setOpen(event.target.value)} required /></label><label className="form-field" htmlFor={`${formId}-tf`}><span className="form-field-label">Domande vero / falso</span><Input id={`${formId}-tf`} type="number" min={0} max={Number(count)} value={trueFalse} onChange={event => setTrueFalse(event.target.value)} required /></label></>}
-        <label className={`form-field ${styles.wide}`} htmlFor={`${formId}-difficulty`}><span className="form-field-label">Difficoltà</span><select id={`${formId}-difficulty`} value={stem ? "avanzata" : difficulty} disabled={stem} onChange={event => setDifficulty(event.target.value as QuizConfig["difficulty"])}><option value="base">Base · definizioni e fondamenti</option><option value="intermedia">Intermedia · comprensione e applicazione</option><option value="avanzata">Alta · problemi e ragionamento da esame</option></select></label>
+        <label className={`form-field ${styles.wide}`} htmlFor={`${formId}-difficulty`}><span className="form-field-label">Difficoltà</span><Select value={stem ? "avanzata" : difficulty} disabled={stem} onValueChange={value => setDifficulty(value as QuizConfig["difficulty"])}><SelectTrigger id={`${formId}-difficulty`}><SelectValue /></SelectTrigger><SelectContent className={styles.selectContent}><SelectItem value="base">Base · definizioni e fondamenti</SelectItem><SelectItem value="intermedia">Intermedia · comprensione e applicazione</SelectItem><SelectItem value="avanzata">Alta · problemi e ragionamento da esame</SelectItem></SelectContent></Select></label>
       </div>
       {stem && <p className={styles.hint}>Per le materie STEM manteniamo sempre una difficoltà alta.</p>}
       <QuizTimingControls value={timing} onChange={setTiming} count={Math.max(1, Number(count) || 10)} />

@@ -1,7 +1,12 @@
 .mobile-bottom-navigation,.mobile-reader-tony { display:none; }
+.app-shell.admin-shell:not(.reader-active) .main-shell { padding-top:0; }
 
 @media(max-width:700px) {
-  .app-shell:not(.reader-active) .main-shell { padding-bottom:calc(90px + env(safe-area-inset-bottom)); }
+  .app-shell:not(.reader-active) .main-shell { padding-top:48px; padding-bottom:calc(90px + env(safe-area-inset-bottom)); }
+  .app-shell:not(.reader-active) .main-shell > .overview-page { padding-top:12px; }
+  .app-shell:not(.reader-active) .main-shell > .welcome.welcome.welcome { padding-top:12px; }
+  .app-shell:not(.reader-active) .main-shell > section[aria-label="Inviti e saluti"] { padding-top:12px; }
+  .app-shell.admin-shell:not(.reader-active) .main-shell { padding-top:52px; }
   .app-shell:not(.reader-active) .standalone-menu { display:none; }
   .mobile-bottom-navigation { position:fixed; inset:auto 0 0; z-index:55; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); padding:7px 8px calc(7px + env(safe-area-inset-bottom)); border-top:1px solid var(--border); background:var(--card); box-shadow:0 -4px 20px #0f172a08; }
   .mobile-bottom-navigation > button,.mobile-bottom-navigation .mobile-account-trigger { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; min-height:48px; width:100%; padding:5px 0; border-radius:12px; font-size:11px; color:var(--muted-foreground); }

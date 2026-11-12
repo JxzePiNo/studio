@@ -23,12 +23,19 @@ for (const [width, timerMode] of [[1280, "question"], [390, "question"], [1280, 
     await dialog.getByRole("button", { name: /Personalizza/ }).click();
     await expect(dialog.getByRole("spinbutton", { name: "Numero di domande", exact: true })).toHaveValue("10");
     expect(requests).toBe(0);
-    await dialog.getByRole("button", { name: "Indietro", exact: true }).click();
+    await expect(dialog.getByRole("button", { name: "Indietro", exact: true })).toHaveCount(0);
+    await dialog.getByRole("combobox", { name: "Tipo di domande", exact: true }).click();
+    await page.getByRole("option", { name: "Miste", exact: true }).click();
+    await expect(dialog.getByRole("spinbutton", { name: "Domande aperte", exact: true })).toBeVisible();
+    await dialog.getByRole("button", { name: "Chiudi creazione quiz", exact: true }).click();
+    await page.getByRole("button", { name: "Crea quiz", exact: true }).click();
     await page.screenshot({ path: `test-results/quiz-choice-${width}.png` });
     await dialog.getByRole("button", { name: /Fino a dove sei arrivato/ }).click();
     expect(requests).toBe(0);
     await expect(dialog.getByRole("spinbutton", { name: "Secondi per domanda", exact: true })).toHaveValue("60");
-    await dialog.getByRole("combobox", { name: "Modalità timer", exact: true }).selectOption(timerMode);
+    await expect(dialog.getByRole("button", { name: "Indietro", exact: true })).toHaveCount(0);
+    await dialog.getByRole("combobox", { name: "Modalità timer", exact: true }).click();
+    await page.getByRole("option", { name: timerMode === "question" ? "A tempo per domanda" : timerMode === "total" ? "Tempo totale del quiz" : "Senza timer", exact: true }).click();
     if (timerMode === "question") await dialog.getByRole("spinbutton", { name: "Secondi per domanda", exact: true }).fill("45");
     if (timerMode === "total") {
       await expect(dialog.getByRole("spinbutton", { name: "Minuti totali", exact: true })).toHaveValue("10");

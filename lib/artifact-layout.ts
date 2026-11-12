@@ -1,5 +1,6 @@
 import dagre from "@dagrejs/dagre";
 import type { GraphArtifact } from "./study-artifact";
+import { artifactColors } from "./artifact-colors";
 
 export function graphPositions(graph: GraphArtifact): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
@@ -36,6 +37,6 @@ export function graphSvg(graph: GraphArtifact): string {
   const minX = Math.min(...points.map(point => point.x)) - 40, minY = Math.min(...points.map(point => point.y)) - 80;
   const width = Math.max(...points.map(point => point.x)) - minX + 240, height = Math.max(...points.map(point => point.y)) - minY + 110;
   const edges = graph.edges.map(edge => { const a = positions.get(edge.source)!, b = positions.get(edge.target)!; return `<path d="M${a.x + 100},${a.y + 35} C${(a.x + b.x) / 2 + 100},${a.y + 35} ${(a.x + b.x) / 2 + 100},${b.y + 35} ${b.x + 100},${b.y + 35}" fill="none" stroke="#94a3b8" stroke-width="2"/>`; }).join("");
-  const nodes = graph.nodes.map(node => { const point = positions.get(node.id)!; const words = node.label.match(/.{1,24}(?:\s|$)|.{1,24}/g) || [node.label]; return `<g><title>${escape(node.description)}</title><rect x="${point.x}" y="${point.y}" width="200" height="70" rx="16" fill="${node.color}" stroke="#64748b"/><text x="${point.x + 100}" y="${point.y + 27}" text-anchor="middle" fill="#172033" font-family="sans-serif" font-size="13">${words.slice(0, 3).map((line, index) => `<tspan x="${point.x + 100}" dy="${index ? 16 : 0}">${escape(line)}</tspan>`).join("")}</text></g>`; }).join("");
+  const nodes = graph.nodes.map(node => { const colors = artifactColors(node.color); const point = positions.get(node.id)!; const words = node.label.match(/.{1,24}(?:\s|$)|.{1,24}/g) || [node.label]; return `<g><title>${escape(node.description)}</title><rect x="${point.x}" y="${point.y}" width="200" height="70" rx="16" fill="${colors.background}" stroke="${colors.border}"/><text x="${point.x + 100}" y="${point.y + 27}" text-anchor="middle" fill="${colors.foreground}" font-family="sans-serif" font-size="13">${words.slice(0, 3).map((line, index) => `<tspan x="${point.x + 100}" dy="${index ? 16 : 0}">${escape(line)}</tspan>`).join("")}</text></g>`; }).join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${width} ${height}"><rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="white"/><text x="${minX + 24}" y="${minY + 30}" font-family="sans-serif" font-size="20">${escape(graph.title)}</text>${edges}${nodes}</svg>`;
 }

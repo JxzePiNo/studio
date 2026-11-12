@@ -1,15 +1,18 @@
 "use client";
 import { useMemo, useState } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { Background, Controls, Handle, MarkerType, Position, ReactFlow, type Node, type NodeProps } from "@xyflow/react";
 import type { GraphArtifact } from "@/lib/study-artifact";
 import { graphPositions } from "@/lib/artifact-layout";
+import { artifactColors } from "@/lib/artifact-colors";
 import { Button } from "./ui/button";
 import { MarkdownContent } from "./markdown-content";
 import styles from "./study-artifact.module.css";
 
 type ConceptNode = Node<{ label: string; color: string; sourcePage?: number | null; collapsed: boolean; hasChildren: boolean; toggle: () => void }, "concept">;
 function Concept({ data }: NodeProps<ConceptNode>) {
-  return <div className={styles.node} style={{ background: data.color }}>
+  const colors = artifactColors(data.color);
+  return <div className={styles.node} style={{ background: colors.background, color: colors.foreground, borderColor: colors.border }}>
     <Handle type="target" position={Position.Left} id="in-left" /><Handle type="source" position={Position.Left} id="out-left" />
     <strong>{data.label}{data.sourcePage && <small className={styles.nodePage}>p. {data.sourcePage}</small>}</strong>{data.hasChildren && <button className="nodrag nopan" aria-label={`${data.collapsed ? "Espandi" : "Riduci"} ${data.label}`} onClick={event => { event.stopPropagation(); data.toggle(); }}>{data.collapsed ? "+" : "−"}</button>}
     <Handle type="target" position={Position.Right} id="in-right" /><Handle type="source" position={Position.Right} id="out-right" />
@@ -19,6 +22,7 @@ const nodeTypes = { concept: Concept };
 
 export function ArtifactGraph({ graph, onChange, editing = false, onNavigatePage }: { graph: GraphArtifact; onChange: (graph: GraphArtifact) => void; editing?: boolean; onNavigatePage?: (page: number) => void }) {
   const [selected, setSelected] = useState(graph.rootId);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null);
   const positions = useMemo(() => graphPositions(graph), [graph]);
@@ -36,7 +40,8 @@ export function ArtifactGraph({ graph, onChange, editing = false, onNavigatePage
     return { ...edge, type: "default", sourceHandle: right ? "out-right" : "out-left", targetHandle: right ? "in-left" : "in-right", label: edge.label, style: { stroke: "#94a3b8", strokeWidth: 2 }, markerEnd: graph.kind === "diagram" ? { type: MarkerType.ArrowClosed } : undefined };
   });
   const active = graph.nodes.find(node => node.id === selected) || graph.nodes[0];
-  function selectConcept(id: string) { setSelected(id); const node = graph.nodes.find(item => item.id === id); if (!editing && node?.sourcePage) onNavigatePage?.(node.sourcePage); }
+  function selectConcept(id: string) { setSelected(id); if (!editing) setDetailOpen(true); }
+  const connections = graph.edges.filter(edge => edge.source === active.id || edge.target === active.id);
   function updateNode(fields: Partial<typeof active>) { onChange({ ...graph, nodes: graph.nodes.map(node => node.id === active.id ? { ...node, ...fields } : node) }); }
   function addChild() {
     const id = crypto.randomUUID();
@@ -56,12 +61,28 @@ export function ArtifactGraph({ graph, onChange, editing = false, onNavigatePage
         <Background gap={22} color="#cbd5e1" /><Controls showInteractive={false} />
       </ReactFlow>
     </div>
-    <div className={styles.parts} aria-label="Concetti della mappa">{visible.map(node => <button key={node.id} aria-pressed={active.id === node.id} onClick={() => selectConcept(node.id)} title={node.sourcePage ? `Apri pagina ${node.sourcePage} nel PDF` : undefined}>{node.label}</button>)}</div>
-    <section className={styles.detail} aria-label="Spiegazione del concetto" aria-live="polite">
+    <div className={styles.parts} aria-label="Concetti della mappa">{visible.map(node => <button key={node.id} aria-pressed={active.id === node.id} onClick={() => selectConcept(node.id)} title={`Spiegazione di ${node.label}`}>{node.label}</button>)}</div>
+    {editing && <section className={styles.detail} aria-label="Spiegazione del concetto" aria-live="polite">
       {editing ? <><label>Nome<input value={active.label} maxLength={100} onChange={event => updateNode({ label: event.target.value })} /></label><label>Spiegazione<textarea value={active.description} rows={3} maxLength={1200} onChange={event => updateNode({ description: event.target.value })} /></label><div className={styles.actions}><Button variant="outline" size="sm" disabled={graph.nodes.length >= 60} onClick={addChild}>Aggiungi concetto</Button>{graph.kind === "map" && active.id !== graph.rootId && <Button variant="ghost" size="sm" disabled={graph.nodes.length - countBranch(graph, active.id) < 2} onClick={removeBranch}>Elimina ramo</Button>}</div></> : <><strong>{active.label}</strong><MarkdownContent>{active.description || "Nessuna spiegazione aggiunta."}</MarkdownContent></>}
       {active.sourcePage && onNavigatePage && <Button variant="outline" size="sm" onClick={() => onNavigatePage(active.sourcePage!)}>Apri pagina {active.sourcePage} nel PDF</Button>}
       {active.sourcePage === null && <p className={styles.note}>Concetto di sintesi, senza una pagina specifica.</p>}
-    </section>
+    </section>}
+    <Dialog.Root open={detailOpen && !editing} onOpenChange={setDetailOpen}><Dialog.Portal>
+      <Dialog.Overlay className={styles.conceptOverlay} />
+      <Dialog.Content className={styles.conceptDialog}>
+        <header className={styles.conceptHeading}><Dialog.Title>{active.label}</Dialog.Title><Dialog.Description>Spiegazione e collegamenti del concetto.</Dialog.Description></header>
+        <div className={styles.conceptBody}>
+          <section aria-label="Spiegazione del concetto"><MarkdownContent>{active.description || "Nessuna spiegazione aggiunta."}</MarkdownContent></section>
+          {connections.length > 0 && <section className={styles.conceptConnections} aria-label="Collegamenti del concetto"><h3>Collegamenti</h3><ul>{connections.map(edge => {
+            const source = graph.nodes.find(node => node.id === edge.source)!;
+            const target = graph.nodes.find(node => node.id === edge.target)!;
+            return <li key={edge.id}><strong>{source.label} → {target.label}</strong><p>{edge.label || (graph.kind === "map" ? `«${target.label}» è un sottoargomento del ramo «${source.label}».` : "Questi concetti sono collegati nello schema.")}</p></li>;
+          })}</ul></section>}
+          {!active.sourcePage && <p className={styles.note}>Questo concetto non ha una pagina di riferimento nel PDF.</p>}
+        </div>
+        <footer className={styles.conceptFooter}><Dialog.Close asChild><Button variant="outline">Chiudi</Button></Dialog.Close><Button disabled={!active.sourcePage || !onNavigatePage} onClick={() => { if (active.sourcePage && onNavigatePage) { setDetailOpen(false); onNavigatePage(active.sourcePage); } }}>Vai alla pagina{active.sourcePage ? ` ${active.sourcePage}` : ""}</Button></footer>
+      </Dialog.Content>
+    </Dialog.Portal></Dialog.Root>
   </div>;
 }
 function countBranch(graph: GraphArtifact, id: string): number { return 1 + graph.edges.filter(edge => edge.source === id).reduce((sum, edge) => sum + countBranch(graph, edge.target), 0); }

@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PDFDocument } from "pdf-lib";
-import { POST, PATCH } from "../app/api/documents/[id]/visualizations/route";
+import { POST, PATCH, DELETE } from "../app/api/documents/[id]/visualizations/route";
 import { createDocument, readDocument } from "../lib/store";
 import { createFolder } from "../lib/folders";
 import { saveStudyProfile } from "../lib/study-profile";
@@ -24,9 +24,10 @@ test("material generation uses PDF scope and course, persists and edits a map, r
   await saveStudyProfile({ studyProgram: "Medicina", onboardingCompleted: true });
   const pdf = await PDFDocument.create(); pdf.addPage(); pdf.addPage();
   const doc = await createDocument("Cuore.pdf", await pdf.save(), 2, folder.id);
-  let expectedPages = 1; let invalid = false; let invalidPage = false;
+  let expectedPages = 1; let invalid = false; let invalidPage = false; let truncated = 0; let calls = 0;
   globalThis.fetch = async (_url, options) => {
     const body = JSON.parse(String(options?.body));
+    calls++;
     assert.equal(body.store, false); assert.equal(body.text.format.strict, true);
     const content = body.input[0].content;
     const text = content.find((part: { type: string }) => part.type === "input_text").text;
@@ -37,7 +38,8 @@ test("material generation uses PDF scope and course, persists and edits a map, r
     const { id: _id, kind: _kind, layout: _layout, ...model } = heartMap;
     model.nodes = model.nodes.map((node, index) => ({ ...node, sourcePage: index === 0 ? null : invalidPage ? 99 : expectedPages }));
     if (invalid) model.nodes = [model.nodes[0], model.nodes[0]];
-    return Response.json({ id: "response_model", object: "response", status: "completed", output: [{ id: "msg_model", type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: JSON.stringify(model), annotations: [] }] }] });
+    const incomplete = truncated-- > 0;
+    return Response.json({ id: "response_model", object: "response", status: incomplete ? "incomplete" : "completed", ...(incomplete ? { incomplete_details: { reason: "max_output_tokens" } } : {}), output: [{ id: "msg_model", type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: incomplete ? '{"nodes":[' : JSON.stringify(model), annotations: [] }] }] });
   };
   const ask = (scope = "slide", page = 1) => POST(new Request(`http://127.0.0.1/api/documents/${doc.id}/visualizations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ page, question: "Mostra le valvole", scope, kind: "map" }) }), { params: Promise.resolve({ id: doc.id }) });
   const response = await ask(); assert.equal(response.status, 200);
@@ -53,9 +55,15 @@ test("material generation uses PDF scope and course, persists and edits a map, r
   assert.equal((await edit({ ...artifact, nodes: artifact.nodes.map((node: object) => ({ ...node, sourcePage: 3 })) })).status, 400);
   expectedPages = 2;
   assert.equal((await ask("document")).status, 200);
+  truncated = 2; calls = 0;
+  assert.equal((await ask("document")).status, 200);
+  assert.equal(calls, 3, "two truncated responses recover automatically without changing the PDF scope");
+  assert.equal((await readDocument(doc.id)).slides[1].chat?.length, 6, "only the successful attempt adds messages");
   invalid = true;
+  calls = 0;
   assert.equal((await ask("document")).status, 502);
-  assert.equal((await readDocument(doc.id)).slides[1].chat?.length, 4);
+  assert.equal(calls, 3);
+  assert.equal((await readDocument(doc.id)).slides[1].chat?.length, 6);
   assert.equal((await ask("slide", 3)).status, 400);
   invalid = false; expectedPages = 1;
   assert.equal((await ask("slide", 2)).status, 200);
@@ -66,6 +74,22 @@ test("material generation uses PDF scope and course, persists and edits a map, r
   invalidPage = true;
   assert.equal((await ask("slide", 2)).status, 502);
   assert.equal((await readDocument(doc.id)).slides[2].chat?.length, 2);
+  invalidPage = false; expectedPages = 1;
+  assert.equal((await ask("studied", 1)).status, 200, "studied scope sends only the prefix through the current page");
+  expectedPages = 2;
+  assert.equal((await ask("studied", 2)).status, 200);
+  const studiedMap = (await readDocument(doc.id)).slides[2].chat?.at(-1)?.artifact;
+  assert.ok(studiedMap && studiedMap.kind !== "image");
+  assert.equal(studiedMap.nodes[1].sourcePage, 2, "prefix page numbers retain their physical PDF references");
+  const remove = (page: number, artifactId: string) => DELETE(new Request("http://127.0.0.1/visualizations", { method: "DELETE", body: JSON.stringify({ page, artifactId }) }), { params: Promise.resolve({ id: doc.id }) });
+  assert.equal((await remove(1, studiedMap.id)).status, 404, "deleting a different page's artifact is rejected");
+  const beforeDelete = (await readDocument(doc.id)).slides[2].chat!;
+  const deleted = await remove(2, studiedMap.id);
+  assert.equal(deleted.status, 200);
+  const afterDelete = await deleted.json();
+  assert.deepEqual(afterDelete, beforeDelete.filter(message => message.artifact?.id !== studiedMap.id));
+  assert.deepEqual((await readDocument(doc.id)).slides[2].chat, afterDelete);
+  assert.equal((await remove(2, studiedMap.id)).status, 404);
 });
 
 test("images use the generated pixels for hotspots, store PNGs outside chat and protect image identity", async t => {
@@ -106,4 +130,7 @@ test("images use the generated pixels for hotspots, store PNGs outside chat and 
   process.env.NEXT_PUBLIC_FIREBASE_ENABLED = "true";
   assert.equal((await imageGET(new Request("http://127.0.0.1/image"), { params })).status, 401);
   process.env.NEXT_PUBLIC_FIREBASE_ENABLED = "false";
+  const removed = await DELETE(new Request("http://127.0.0.1/visualizations", { method: "DELETE", body: JSON.stringify({ page: 1, artifactId: artifact.id }) }), { params: Promise.resolve({ id: doc.id }) });
+  assert.equal(removed.status, 200);
+  assert.equal((await imageGET(new Request("http://127.0.0.1/image"), { params })).status, 404);
 });

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
 import { browserAuth, firebaseEnabled } from "@/lib/firebase-client";
+import { BaristaLoading } from "./barista-loading";
 import { LoginScreen } from "./login-screen";
 import { StudyProfileProvider } from "./study-profile-provider";
 import Workspace from "./workspace";
@@ -48,7 +49,7 @@ export default function AccountGate() {
     setUser(null); setError("");
   }
   if (!firebaseEnabled) return <StudyProfileProvider><Workspace /></StudyProfileProvider>;
-  if (!ready) return <main className="account-gate"><p>Caricamento del tuo spazio…</p></main>;
+  if (!ready) return <main className="account-gate"><BaristaLoading name="Il tuo spazio" statusText="Caricamento del tuo spazio." hint="Tony sta preparando il tuo tavolo." /></main>;
   if (!user) return <LoginScreen busy={busy} error={error} onLogin={() => void login()} />;
   return <StudyProfileProvider key={user.uid} onSignOut={logout}><Workspace /><LogoutHandler /></StudyProfileProvider>;
 }

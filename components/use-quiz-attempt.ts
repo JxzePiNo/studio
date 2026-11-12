@@ -19,7 +19,7 @@ export function useQuizAttempt(quiz: StudyQuiz) {
     if (ready) { try { localStorage.setItem(`studio-quiz:${quiz.id}`, serializeQuizAttempt(quiz, state)); } catch {} }
   }, [ready, state, quiz]);
   useEffect(() => {
-    if (!ready || !quiz.timing || state.finished || (state.checked && quiz.timing.mode === "question")) return;
+    if (!ready || !quiz.timing || state.finished || state.checked) return;
     const tick = () => {
       const now = Date.now(); setClock(now);
       setAttempt(previous => {

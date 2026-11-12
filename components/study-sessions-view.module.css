@@ -28,7 +28,7 @@
 .documents li > span { flex:1; min-width:0; overflow-wrap:anywhere; }
 .documents small { color:var(--muted-foreground); font-size:10px; white-space:nowrap; }
 .noPages,.note { color:var(--muted-foreground); font-size:11px; }
-.empty { text-align:center; border:1px dashed var(--border); border-radius:16px; padding:35px 25px; color:var(--muted-foreground); }
+.empty { text-align:center; border:1px dashed var(--border); border-radius:16px; padding:35px 25px; color:var(--muted-foreground); background:var(--card); }
 .empty h3 { color:var(--primary); font-size:16px; font-weight:500; }
 .empty p { max-width:400px; margin:0 auto; font-size:12px; }
 .error { padding:12px; border-radius:10px; background:#fff2ea; color:#956347; font-size:12px; }

@@ -23,6 +23,7 @@ import { Input } from "./ui/input";
 import { CourseHeader } from "./course-header";
 import { CourseAnalysis } from "./course-analysis";
 import { useCourseAnalysis } from "./use-course-analysis";
+import { GeneratedMaterials } from "./generated-materials";
 import { NotificationCenter } from "./notification-center";
 import { AnalysisIsland, type AnalysisIslandJob } from "./analysis-island";
 import { useBackgroundChat, ChatNotifications } from "./background-chat";
@@ -293,6 +294,7 @@ export default function Workspace() {
       const result = await api<StudyDocument>(`/api/documents/${id}`, { signal: controller.signal });
       if (sequence !== openSequence.current) return;
       setOpening({ id, name: result.name });
+      chatController.registerDocumentMaterials(result);
       const bytes = await cachedPdf(`/api/documents/${id}/pdf`, await authHeaders(), controller.signal);
       const loaded = await loadPdf(bytes, undefined, controller.signal);
       if (sequence !== openSequence.current) { await loaded.destroy(); return; }
@@ -494,6 +496,7 @@ export default function Workspace() {
         if (docRef.current?.id === id) navigate(Math.min(Math.max(1, target), docRef.current.pages));
       })(); }} />
       </>}</NotificationCenter>
+      <GeneratedMaterials items={chatController.generations.filter(item => item.documentId === doc?.id || library.some(file => file.id === item.documentId))} onSaved={chatController.receiveMessages} onNavigatePage={async (item, target) => { if (docRef.current?.id !== item.documentId) await openDocument(item.documentId); if (docRef.current?.id === item.documentId) { setMapReturn({ documentId: item.documentId, page: item.page }); navigate(target); } }} />
     </div>
     <UploadIsland controller={uploads} summaryHidden={studySession.hidden} />
     {doc && !opening && portrait && <div className="portrait-complete"><Button disabled={busy} aria-pressed={!!activeSlide?.read} onClick={() => { if (!docRef.current?.slides[page]?.read) toggleRead(); navigate(page + 1); }}>Completata</Button>{readerDisplay.display.hints && <small>oppure premi Spazio</small>}</div>}

@@ -1,8 +1,9 @@
 import type { ArtifactKind } from "./study-artifact";
 export type CreationGoal = "understand" | "revise" | "connect";
 export type CreationDepth = "overview" | "detailed" | "definitions";
-export function creationPrompt({ kind, documentName, scope, goal = "understand", depth = "overview" }: { kind: ArtifactKind; documentName?: string; scope: "slide" | "document"; goal?: CreationGoal; depth?: CreationDepth }) {
-  const material = scope === "document" ? "l'intero PDF" : "la pagina aperta del PDF";
+export type CreationScope = "studied" | "slide" | "document";
+export function creationPrompt({ kind, documentName, scope, page, goal = "understand", depth = "overview" }: { kind: ArtifactKind; documentName?: string; scope: CreationScope; page?: number; goal?: CreationGoal; depth?: CreationDepth }) {
+  const material = scope === "document" ? "l'intero PDF" : scope === "studied" ? `il materiale studiato del PDF, dalla prima pagina fino alla pagina ${page || 1} inclusa, senza anticipare le pagine successive` : "la pagina aperta del PDF";
   const title = documentName ? ` «${documentName.slice(0, 180)}»` : "";
   const goalText = { understand: "Aiutami a capire i concetti e il loro significato, spiegando i prerequisiti essenziali.", revise: "Aiutami a ripassare per l'esame: evidenzia ciò che devo saper definire, spiegare e collegare.", connect: "Aiutami a capire i collegamenti, le cause, le conseguenze e le differenze fra i concetti." }[goal];
   const depthText = { overview: "Preferisco una panoramica chiara e leggibile dei temi principali, con spiegazioni brevi.", detailed: "Preferisco una struttura approfondita, con sottoconcetti, passaggi intermedi e spiegazioni precise.", definitions: "Dai priorità alle definizioni fondamentali, distinguendo termini simili e condizioni di validità." }[depth];

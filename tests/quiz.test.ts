@@ -11,6 +11,7 @@ import { listSavedQuizzes } from "../lib/quiz-store";
 import { createDocument, readDocument, updateDocument } from "../lib/store";
 import { createFolder } from "../lib/folders";
 import { generateQuiz } from "../lib/quiz-generation";
+import { POST as saveResult } from "../app/api/documents/[id]/quiz/[quizId]/result/route";
 
 const config = quizConfigSchema.parse({ count: 3, openCount: 1, trueFalseCount: 1, topics: ["Entropia"] });
 const generated = { title: "Ripasso di entropia", questions: [
@@ -148,4 +149,15 @@ test("modal and natural chat requests generate the same persisted quiz using the
   assert.equal(calls - beforeFailure, 3);
   assert.equal((await readDocument(document.id)).slides[1].chat?.length, 2);
   assert.equal((await listSavedQuizzes(await readDocument(document.id))).length, 3);
+  const resultContext = { params: Promise.resolve({ id: document.id, quizId: firstQuiz.id }) };
+  const resultRequest = (body: unknown) => new Request("http://127.0.0.1/result", { method: "POST", body: JSON.stringify(body) });
+  const submitted = await saveResult(resultRequest({ answers: { 0: "1", 1: "Spiegazione aperta", 2: "0" } }), resultContext);
+  assert.equal(submitted.status, 200);
+  const result = await submitted.json();
+  assert.equal(result.correct, 1); assert.equal(result.total, 2); assert.equal(result.grade, 15);
+  const summaries = await (await GET(new Request("http://127.0.0.1/quiz", { headers: { "X-Studio-Quiz-Summaries": "1" } }), params)).json();
+  assert.deepEqual(summaries.quizzes.find((quiz: { id: string }) => quiz.id === firstQuiz.id).latestResult, result);
+  assert.deepEqual((await listSavedQuizzes(await readDocument(document.id))).find(quiz => quiz.id === firstQuiz.id)?.questions, firstQuiz.questions);
+  assert.equal((await saveResult(resultRequest({ answers: { 0: "8" } }), resultContext)).status, 400);
+  assert.equal((await saveResult(resultRequest({ answers: { 0: "0" }, grade: 30 }), resultContext)).status, 400, "scores are calculated on the server");
 });

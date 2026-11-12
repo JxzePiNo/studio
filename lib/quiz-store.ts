@@ -6,7 +6,7 @@ import { cloudEnabled, userRoot } from "./firebase-server";
 import { documentDir, readDocument, readDocumentMetadata } from "./store";
 import { markQuizIndex } from "./cloud-store";
 import type { StudyDocument } from "./types";
-import type { StudyQuiz } from "./quiz";
+import type { StudyQuiz, SavedQuizResult } from "./quiz";
 
 type StoredQuiz = StudyQuiz | { id: string; deleted: true };
 
@@ -48,7 +48,12 @@ export async function listSavedQuizzes(document: StudyDocument): Promise<StudyQu
   const quizzes = new Map<string, StoredQuiz>();
   for (const slide of Object.values(document.slides)) for (const message of slide.chat || []) if (message.quiz) quizzes.set(message.quiz.id, message.quiz);
   for (const quiz of await records(document.id)) quizzes.set(quiz.id, quiz);
-  return [...quizzes.values()].filter((quiz): quiz is StudyQuiz => !("deleted" in quiz)).map(quiz => ({ ...quiz, documentId: document.id, documentName: document.name })).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const saved = [...quizzes.values()].filter((quiz): quiz is StudyQuiz => !("deleted" in quiz)).map(quiz => ({ ...quiz, documentId: document.id, documentName: document.name })).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  if (cloudEnabled()) return saved;
+  return Promise.all(saved.map(async quiz => {
+    try { const result = JSON.parse(await readFile(path.join(documentDir(document.id), "quiz-results", `${quiz.id}.json`), "utf8")) as SavedQuizResult; return { ...quiz, latestResult: result }; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return quiz; throw error; }
+  }));
 }
 async function write(documentId: string, quiz: StoredQuiz) {
   checkId(quiz.id);
@@ -80,6 +85,19 @@ export async function findSavedQuiz(document: StudyDocument, quizId: string) {
 export async function deleteSavedQuiz(documentId: string, quizId: string) {
   // A tombstone also hides legacy chat copies, so deletion survives reloads.
   await write(documentId, { id: quizId, deleted: true });
+}
+
+export async function saveQuizResult(documentId: string, quizId: string, result: SavedQuizResult) {
+  checkId(quizId);
+  if (cloudEnabled()) {
+    await (await userRoot()).collection("documents").doc(documentId).collection("quizzes").doc(quizId).set({ latestResult: result }, { merge: true });
+    return;
+  }
+  const directory = path.join(documentDir(documentId), "quiz-results");
+  await mkdir(directory, { recursive: true });
+  const temporary = path.join(directory, `${randomUUID()}.tmp`);
+  try { await writeFile(temporary, JSON.stringify(result), "utf8"); await rename(temporary, path.join(directory, `${quizId}.json`)); }
+  finally { await rm(temporary, { force: true }).catch(() => {}); }
 }
 
 // Separate artifacts keep explanations independent of quiz titles and legacy chat copies.

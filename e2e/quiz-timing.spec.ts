@@ -30,14 +30,18 @@ for (const mode of ["question", "total"] as const) test(`${mode} timer expires c
       await expect(player).toContainText("1 / 2 risposte chiuse corrette.");
     } else {
       await expect(player.getByRole("timer")).toHaveText("02:00");
+      await page.clock.fastForward(15_000);
       await player.getByRole("radio", { name: "Corretta", exact: true }).check();
       await player.getByRole("button", { name: "Continua", exact: true }).click();
-      await page.clock.fastForward(30_000);
-      await player.getByRole("button", { name: "Prossima domanda", exact: true }).click();
+      await page.clock.fastForward(300_000);
+      await expect(player.getByRole("timer")).toHaveText("In pausa");
+      await expect(player.getByRole("tab", { name: "Risposta", exact: true })).toHaveAttribute("aria-selected", "true");
       await page.reload();
       await open();
-      await expect(player.getByRole("timer")).not.toHaveText("02:00");
-      await page.clock.fastForward(95_000);
+      await expect(player.getByRole("timer")).toHaveText("In pausa");
+      await player.getByRole("button", { name: "Prossima domanda", exact: true }).click();
+      await expect(player.getByRole("timer")).toHaveText("01:45");
+      await page.clock.fastForward(106_000);
       await expect(player).toContainText("Tempo totale scaduto.");
       await expect(player).toContainText("1 / 2 risposte chiuse corrette.");
       await expect(player.getByRole("radio")).toHaveCount(0);

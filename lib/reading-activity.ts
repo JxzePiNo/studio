@@ -29,3 +29,20 @@ export function readingCalendar(activity: ReadingActivity, today: string): (Read
   }
   return weeks;
 }
+
+/** Separate month grids keep a week crossing a month boundary from mixing dates. */
+export function readingMonthCalendar(activity: ReadingActivity, today: string) {
+  const days = readingCalendar(activity, today).flat().filter((day): day is ReadingDay => day !== null);
+  const byDate = new Map(days.map(day => [day.date, day]));
+  return [...new Set(days.map(day => day.date.slice(0, 7)))].map(month => {
+    const first = new Date(`${month}-01T12:00:00`);
+    const end = new Date(first.getFullYear(), first.getMonth() + 1, 0, 12);
+    const offset = (first.getDay() + 6) % 7;
+    const weeks: (ReadingDay | null)[][] = Array.from({ length: Math.ceil((offset + end.getDate()) / 7) }, () => Array(7).fill(null));
+    for (let date = 1; date <= end.getDate(); date++) {
+      const position = offset + date - 1;
+      weeks[Math.floor(position / 7)][position % 7] = byDate.get(`${month}-${String(date).padStart(2, "0")}`) ?? null;
+    }
+    return { month, weeks };
+  });
+}

@@ -1,4 +1,5 @@
 "use client";
+import { BaristaLoading } from "./barista-loading";
 
 import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
@@ -42,7 +43,7 @@ export function AdminCosts() {
   return <section aria-label="Costi dei fornitori">
     <div className={styles.toolbar}><h1>Costi</h1><div className={styles.controls}><label>Periodo<select value={days} onChange={event => setDays(Number(event.target.value))}><option value={7}>Ultimi 7 giorni</option><option value={30}>Ultimi 30 giorni</option><option value={90}>Ultimi 90 giorni</option></select></label><Button variant="outline" size="sm" disabled={loading} onClick={() => setRevision(value => value + 1)}><RefreshCw size={14} /> Aggiorna costi</Button></div></div>
     <p className={styles.hint}>Spesa riportata da OpenAI e Google Cloud Billing. I dati possono arrivare in ritardo e vengono aggiornati al massimo ogni 5 minuti. Le valute sono mantenute separate.</p>
-    {loading && <p role="status">Carico i costi dai fornitori…</p>}
+    {loading && <div className={styles.loadingPanel}><BaristaLoading name="Costi della piattaforma" statusText="Carico i costi dai fornitori." hint="Sto preparando il conto. Quello vero." /></div>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
     {report && <><p className={styles.hint}>Dal {new Date(report.start).toLocaleDateString("it-IT", { timeZone: "UTC" })} al {new Date(report.end).toLocaleDateString("it-IT", { timeZone: "UTC" })} · giorni in UTC, incluso oggi.</p><div className={styles.costProviders}><Provider title="OpenAI" value={report.openai} /><Provider title="Firebase" value={report.firebase} /></div></>}
   </section>;

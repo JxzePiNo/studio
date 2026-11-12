@@ -11,6 +11,7 @@ import { Button } from "./ui/button";
 import { StudyProgramPicker } from "./study-program-picker";
 import pickerStyles from "./study-program-picker.module.css";
 import { NicknamesProvider } from "./nicknames-provider";
+import { BaristaLoading } from "./barista-loading";
 import { TonyMascot } from "./mascot/tony-mascot";
 
 type StudyProfileContextValue = {
@@ -85,7 +86,7 @@ export function StudyProfileProvider({ children, onSignOut, requireProfile = tru
 
   return <StudyProfileContext.Provider value={{ profile, loading, error, saveProfile, reload }}>
     {!profile && requireProfile ? <main className="study-profile-loading" aria-busy={loading}>
-      {loading ? <p role="status"><LoaderCircle size={18} className="spin" aria-hidden="true" /> Caricamento del profilo di studio…</p> : <>
+      {loading ? <BaristaLoading name="Il tuo profilo di studio" statusText="Caricamento del profilo di studio." hint="Un momento e possiamo iniziare." /> : <>
         <p role="alert">{error || "Il profilo di studio non è disponibile."}</p>
         <div className="profile-recovery-actions">
           <Button disabled={signingOut} onClick={() => void reload()}>Riprova</Button>

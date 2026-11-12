@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
-import { Download, RefreshCw, Users, Settings2, Tags, ScrollText, Wallet } from "lucide-react";
+import { Download, House, RefreshCw, Users, Settings2, Tags, ScrollText, Wallet } from "lucide-react";
 import { authHeaders, browserAuth, firebaseEnabled } from "@/lib/firebase-client";
 import { readApiResponse } from "@/lib/api-response";
 import { featureLabels, type Feature, type PlatformConfig } from "@/lib/platform-config";
@@ -15,6 +15,8 @@ import { SidebarProfile } from "./sidebar-profile";
 import { StudyProfileProvider } from "./study-profile-provider";
 import { AdminCosts } from "./admin-costs";
 import styles from "./admin-dashboard.module.css";
+import { BaristaLoading } from "./barista-loading";
+import { MobileNavigation } from "./mobile-navigation";
 import { usePlatformVisit } from "./use-platform-visit";
 
 const number = (value: number) => new Intl.NumberFormat("it-IT").format(value);
@@ -70,15 +72,15 @@ export default function AdminDashboard() {
   }
   const visibleUsers = data?.users.filter(user => search.includes("@") || `${user.name} ${user.email} ${user.uid}`.toLowerCase().includes(search.toLowerCase())) || [];
   const sections = [{ key: "users", label: "Utenti", icon: Users }, { key: "costs", label: "Costi", icon: Wallet }, { key: "platform", label: "Piattaforma", icon: Settings2 }, { key: "nicknames", label: "Soprannomi", icon: Tags }, { key: "audit", label: "Registro admin", icon: ScrollText }];
-  return <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell ${styles.shell}`}>
+  const content = <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell admin-shell ${styles.shell}`}>
     <Sidebar>
       <SidebarHeader><a className="studio-brand" href="/" aria-label="Studio, pagina iniziale">studio<span>.</span></a></SidebarHeader>
-      <SidebarContent><nav className="sidebar-study-nav" aria-label="Sezioni amministrazione"><SidebarMenu>{sections.map(({ key, label, icon: Icon }) => <SidebarMenuItem key={key}><SidebarMenuButton className="sidebar-session-link" isActive={tab === key} aria-current={tab === key ? "page" : undefined} onClick={() => { setTab(key); setSidebar(false); }}><Icon size={18} /><span>{label}</span></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu></nav></SidebarContent>
-      <SidebarFooter>{ready && signedIn && <StudyProfileProvider key={sessionId} requireProfile={false}><SidebarProfile admin onSignOut={() => void run(async () => { await signOut(browserAuth()); })} /></StudyProfileProvider>}</SidebarFooter>
+      <SidebarContent><nav className="sidebar-study-nav" aria-label="Sezioni amministrazione"><SidebarMenu><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" asChild><a href="/"><House size={18} /><span>Home</span></a></SidebarMenuButton></SidebarMenuItem>{sections.map(({ key, label, icon: Icon }) => <SidebarMenuItem key={key}><SidebarMenuButton className="sidebar-session-link" isActive={tab === key} aria-current={tab === key ? "page" : undefined} onClick={() => { setTab(key); setSidebar(false); }}><Icon size={18} /><span>{label}</span></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu></nav></SidebarContent>
+      <SidebarFooter>{ready && signedIn && <SidebarProfile admin onSignOut={() => void run(async () => { await signOut(browserAuth()); })} />}</SidebarFooter>
     </Sidebar>
     <main className="main-shell"><div className={`${styles.dashboard}${tab === "users" ? ` ${styles.users}` : ""}`}>
     <SidebarTrigger className={styles.menu} />
-    {!ready ? <p role="status">Verifico l'accesso…</p> : !signedIn ? <Button onClick={() => void run(async () => { await signInWithPopup(browserAuth(), new GoogleAuthProvider()); window.location.replace("/"); })}>Accedi con Google</Button> : !data && !error ? <p role="status">Carico la dashboard…</p> : null}
+    {!ready ? <div className={styles.loadingPanel}><BaristaLoading name="Il tuo spazio admin" statusText="Verifico l'accesso alla dashboard." hint="Tony sta preparando il pannello." /></div> : !signedIn ? <Button onClick={() => void run(async () => { await signInWithPopup(browserAuth(), new GoogleAuthProvider()); window.location.replace("/"); })}>Accedi con Google</Button> : !data && !error ? <div className={styles.loadingPanel}><BaristaLoading name="Dashboard amministratore" statusText="Carico la dashboard." hint="Utenti, attività e impostazioni arrivano tra poco." /></div> : null}
     {error && <div className={styles.error}><p role="alert">{error}</p>{signedIn && <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => loadUsers())}>Riprova</Button>}</div>}{status && <p className={styles.status} role="status">{status}</p>}
     {tab === "costs" && ready && signedIn && <AdminCosts key={sessionId} />}
     {tab !== "costs" && data && config && <>
@@ -107,7 +109,8 @@ export default function AdminDashboard() {
       {tab === "nicknames" && <section className={styles.detail}><NicknamesProvider><NicknameSettings /></NicknamesProvider></section>}
       {tab === "audit" && <section className={styles.detail}><h2>Registro operazioni admin</h2><p className={styles.hint}>Ultime 50 operazioni. Le richieste e i completamenti vengono registrati separatamente.</p><div className={styles.tableScroll}><table><thead><tr><th>Data</th><th>Operazione</th><th>Destinatario</th><th>Amministratore</th></tr></thead><tbody>{data.audit.map(event => <tr key={event.id}><td>{date(event.at)}</td><td>{event.action}</td><td>{event.target}</td><td>{event.actor}</td></tr>)}</tbody></table></div></section>}
     </>}
-  </div></main></div></SidebarProvider>;
+  </div></main>{ready && signedIn && <MobileNavigation admin home={() => window.location.assign("/")} sessions={() => window.location.assign("/sessioni")} referrals={() => window.location.assign("/inviti")} onSignOut={() => void run(async () => { await signOut(browserAuth()); })} />}</div></SidebarProvider>;
+  return ready && signedIn ? <StudyProfileProvider key={sessionId} requireProfile={false}>{content}</StudyProfileProvider> : content;
 }
 function UsagePanel({ usage, config }: { usage: UsageSummary | null; config: PlatformConfig }) {
   if (!usage) return <p className={styles.hint}>Consumi non disponibili: nessuna chiamata registrata per questo utente.</p>;
