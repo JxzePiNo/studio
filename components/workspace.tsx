@@ -45,6 +45,7 @@ import { useReaderPageScroll } from "./use-reader-page-scroll";
 import { useReaderDisplay } from "./use-reader-display";
 import { ReaderSettingsDialog } from "./reader-settings-dialog";
 import { ReaderNavigation } from "./reader-navigation";
+import { ReaderZoom } from "./reader-zoom";
 import { BottomPanel } from "./bottom-panel";
 import { BaristaLoading } from "./barista-loading";
 import baristaStyles from "./barista-loading.module.css";
@@ -81,6 +82,19 @@ export default function Workspace() {
   const [page, setPage] = useState(1);
   const [mapReturn, setMapReturn] = useState<{ documentId: string; page: number } | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [fitWidth, setFitWidth] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("studio-reader-zoom") || "null");
+      if (saved && typeof saved.zoom === "number" && saved.zoom >= 0.5 && saved.zoom <= 2 && typeof saved.fitWidth === "boolean") {
+        setZoom(saved.zoom); setFitWidth(saved.fitWidth);
+      }
+    } catch {}
+  }, []);
+  function changeZoom(value: number, width = fitWidth) {
+    setZoom(value); setFitWidth(width);
+    try { localStorage.setItem("studio-reader-zoom", JSON.stringify({ zoom: value, fitWidth: width })); } catch {}
+  }
   const [portrait, setPortrait] = useState(false);
   const [textSize, setTextSize] = useState(14);
   useEffect(() => {
@@ -300,7 +314,7 @@ export default function Workspace() {
       if (sequence !== openSequence.current) { await loaded.destroy(); return; }
       pdfRef.current = loaded;
       if (updateHistory) changeLocation(result.folderId || targetFolder, id);
-      docRef.current = result; setDoc(result); setOpening(null); setFolderId(result.folderId || ""); setPdf(loaded); setPage(result.currentPage); setZoom(1);
+      docRef.current = result; setDoc(result); setOpening(null); setFolderId(result.folderId || ""); setPdf(loaded); setPage(result.currentPage);
       setNoteStatus(firebaseEnabled ? "Salvato su Firebase" : "Salvato in locale");
     } catch (e) {
       if (sequence === openSequence.current && !controller.signal.aborted) setOpening(current => current && { ...current, error: (e as Error).message });
@@ -325,7 +339,7 @@ export default function Workspace() {
   const navigate = useCallback((target: number) => {
     const current = docRef.current;
     if (busy || !current || target < 1 || target > current.pages) return;
-    setPage(target); setZoom(1);
+    setPage(target);
     current.currentPage = target;
     flushNotes();
     queueWrite(async () => {
@@ -534,7 +548,7 @@ export default function Workspace() {
         <ReaderSplit><section className={`slide-panel${portrait ? " portrait-pdf" : ""}`}><div className="slide-stage"><BaristaLoading key={opening.id} name={opening.name} error={opening.error} onRetry={() => void openDocument(opening.id)} /></div></section><aside className="explanation-panel reader-chat-panel" aria-label="Tutor della slide"><div className={baristaStyles.chat}><strong>Tony sta preparando il tuo spazio.</strong><p>Il PDF e le tue conversazioni arrivano tra un momento.</p></div></aside></ReaderSplit>
       </>}
       {doc && <>
-        <ReaderSplit><section className={`slide-panel${portrait ? " portrait-pdf" : ""}`}><div className={`slide-stage ${activeSlide?.read ? "is-read" : ""}`} ref={viewer}>{pdf && <PdfCanvas pdf={pdf} page={page} zoom={zoom} fitHeight onOrientationChange={setPortrait} />}{busy && <div className="viewer-busy"><LoaderCircle className="spin" /> Apertura documento…</div>}</div><ReaderNavigation portrait={portrait} display={readerDisplay.display} onVisibilityChange={readerDisplay.setVisible} page={page} total={doc.pages} disabled={busy} onNavigate={navigate} /><BottomPanel key={doc.id}>
+        <ReaderSplit><section className={`slide-panel${portrait ? " portrait-pdf" : ""}`} style={{ position: "relative" }}><ReaderZoom zoom={zoom} fitWidth={fitWidth} onZoomChange={changeZoom} onFitWidth={() => changeZoom(1, true)} /><div className={`slide-stage ${activeSlide?.read ? "is-read" : ""}`} ref={viewer}>{pdf && <PdfCanvas pdf={pdf} page={page} zoom={zoom} fitHeight={!fitWidth} onOrientationChange={setPortrait} />}{busy && <div className="viewer-busy"><LoaderCircle className="spin" /> Apertura documento…</div>}</div><ReaderNavigation portrait={portrait} display={readerDisplay.display} onVisibilityChange={readerDisplay.setVisible} page={page} total={doc.pages} disabled={busy} onNavigate={navigate} /><BottomPanel key={doc.id}>
           <div className="glossary"><div className="glossary-heading"><span><Languages size={17} /> Le parole della slide</span><span className="language-tag">EN <ArrowRight size={10} /> IT</span></div>{explanation?.glossary.length ? <div className="glossary-words">{explanation.glossary.map(g => <div key={g.word} className="glossary-word" title={g.context}><strong>{g.word}</strong><span>{g.translation}</span><small>{g.context}</small></div>)}</div> : <p>{explanation ? explanation.language === "en" ? "Nessun termine da tradurre individuato in questa slide." : "Questa slide non è in inglese. Puoi concentrarti sui concetti." : "Quando spieghi una slide in inglese, trovi qui i termini importanti con la traduzione italiana."}</p>}</div>
           </BottomPanel>
         </section>
@@ -545,6 +559,6 @@ export default function Workspace() {
     {dragging && <div className="drop-overlay" onDragLeave={e => { if (e.currentTarget === e.target) setDragging(false); }} onDrop={e => { e.preventDefault(); setDragging(false); void uploadFiles(e.dataTransfer.files); }}><Upload size={46} /><h2>Fai spazio a una nuova idea.</h2><p>Rilascia il PDF per iniziare.</p></div>}
     {!doc && !opening && <MobileNavigation section={section} home={() => openFolder("")} sessions={() => openSessions()} referrals={openReferrals} disabled={busy} />}
     <NewExamDialog folders={folders} open={creatingFolder} onOpenChange={setCreatingFolder} onCreated={async folder => { setFolders(current => [...current.filter(f => f.id !== folder.id), folder]); await refresh(); }} />
-    {settings && doc && <ReaderSettingsDialog display={readerDisplay.display} onVisibilityChange={readerDisplay.setVisible} zoom={zoom} onZoomChange={setZoom} textSize={textSize} onTextSizeChange={changeTextSize} configured={configured} name={doc.name} page={page} notes={activeSlide?.notes || ""} noteStatus={noteStatus} onNotesChange={saveNotes} hasExplanation={!!explanation} disabled={busy || selectedDocumentAnalyzing || !!analyzing || !!batchRunning} onRegenerate={() => { setSettings(false); void analyze(true); }} onResetZoom={() => setZoom(1)} onClose={() => { flushNotes(); setSettings(false); }} />}
+    {settings && doc && <ReaderSettingsDialog display={readerDisplay.display} onVisibilityChange={readerDisplay.setVisible} zoom={zoom} onZoomChange={changeZoom} textSize={textSize} onTextSizeChange={changeTextSize} configured={configured} name={doc.name} page={page} notes={activeSlide?.notes || ""} noteStatus={noteStatus} onNotesChange={saveNotes} hasExplanation={!!explanation} disabled={busy || selectedDocumentAnalyzing || !!analyzing || !!batchRunning} onRegenerate={() => { setSettings(false); void analyze(true); }} onResetZoom={() => changeZoom(1, false)} onClose={() => { flushNotes(); setSettings(false); }} />}
   </div></SidebarProvider>;
 }

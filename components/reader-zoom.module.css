@@ -1,0 +1,5 @@
+.toolbar { position:absolute; top:128px; right:8px; z-index:12; display:flex; align-items:center; gap:2px; padding:4px; border:1px solid var(--border); border-radius:12px; background:var(--card); color:var(--foreground); box-shadow:0 3px 14px #17203312; }
+.toolbar button { min-height:32px; height:32px; }
+.toolbar button[aria-pressed="true"] { background:var(--muted); }
+.value { min-width:56px; font-variant-numeric:tabular-nums; }
+@media(max-width:700px) { .toolbar { top:8px; } .label { display:none; } }

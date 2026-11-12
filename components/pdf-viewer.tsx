@@ -18,6 +18,7 @@ export async function loadPdf(url: string | Uint8Array, httpHeaders?: Record<str
 export function PdfCanvas({ pdf, page, zoom = 1, thumbnail = false, fitHeight = false, onOrientationChange }: { pdf: PDFDocumentProxy; page: number; zoom?: number; thumbnail?: boolean; fitHeight?: boolean; onOrientationChange?: (portrait: boolean) => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const container = useRef<HTMLDivElement>(null);
+  const renderedPage = useRef<{ pdf: PDFDocumentProxy; page: number } | null>(null);
   const [width, setWidth] = useState(0);
   const [height, setHeight] = useState(0);
   const [visible, setVisible] = useState(!thumbnail);
@@ -63,6 +64,15 @@ export function PdfCanvas({ pdf, page, zoom = 1, thumbnail = false, fitHeight = 
         canvas.current.style.width = `${viewport.width / ratio}px`;
         canvas.current.style.height = `${viewport.height / ratio}px`;
         canvas.current.getContext("2d")!.drawImage(offscreen, 0, 0);
+        // Position only after the new canvas has its final dimensions. Zooming
+        // or resizing the current page must preserve the reader's position.
+        const previous = renderedPage.current;
+        const stage = container.current?.parentElement;
+        if (!thumbnail && stage && (!previous || previous.pdf !== pdf || previous.page !== page)) {
+          const backwards = previous?.pdf === pdf && page < previous.page;
+          stage.scrollTo({ top: backwards ? stage.scrollHeight : 0, behavior: "instant" });
+        }
+        renderedPage.current = { pdf, page };
         setLoading(false);
       } catch (e) { if (!canceled) { setError(e instanceof Error ? "Impossibile visualizzare questa pagina." : "Errore PDF."); setLoading(false); } }
     };
