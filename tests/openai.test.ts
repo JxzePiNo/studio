@@ -3,6 +3,7 @@ import test from "node:test";
 import { explainSlide, openaiError } from "../lib/openai";
 
 const explanation = {
+  pageKind: "content",
   title: "Imparare dai dati",
   language: "en",
   overview: "Un modello riconosce schemi negli esempi di addestramento.",
@@ -65,6 +66,22 @@ test("OpenAI integration with a mocked network", async t => {
     const result = await explainSlide(new Uint8Array([1]), 1);
     assert.equal(result.language, "it");
     assert.deepEqual(result.glossary, []);
+  });
+
+  await t.test("classifies introductory pages in the same request without generating a lesson", async () => {
+    let calls = 0;
+    globalThis.fetch = async (_url, options) => {
+      calls++;
+      const body = JSON.parse(String(options?.body));
+      assert.match(body.instructions, /NON sviluppare gli argomenti/);
+      assert.ok(body.text.format.schema.properties.pageKind);
+      return modelResponse(outputText({ ...explanation, pageKind: "cover", overview: "Copertina", concepts: [], glossary: [], example: "", takeaway: "" }));
+    };
+    const result = await explainSlide(new Uint8Array([1]), 1);
+    assert.equal(result.pageKind, "cover");
+    assert.deepEqual(result.concepts, []);
+    assert.equal(result.example, "");
+    assert.equal(calls, 1);
   });
 
   await t.test("uses the saved course of study as context while requesting graduate-level depth", async () => {

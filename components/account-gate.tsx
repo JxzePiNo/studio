@@ -26,9 +26,8 @@ export default function AccountGate() {
     try {
       // Start directly from the user's tap, without an async preflight or a
       // redirect fallback: both can break sign-in on mobile browsers.
-      const result = await signInWithPopup(browserAuth(), new GoogleAuthProvider());
-      setUser(result.user);
-      setReady(true);
+      await signInWithPopup(browserAuth(), new GoogleAuthProvider());
+      window.location.replace("/");
     }
     catch (error) {
       const code = (error as { code?: string }).code;

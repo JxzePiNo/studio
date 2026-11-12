@@ -9,3 +9,7 @@ export const explanationSchema = z.object({
   takeaway: z.string().max(3000),
   glossary: z.array(z.object({ word: z.string().max(200), translation: z.string().max(400), context: z.string().max(1000) })).max(30),
 });
+
+export const analysisExplanationSchema = explanationSchema.extend({
+  pageKind: z.enum(["content", "cover", "index", "title"]),
+});

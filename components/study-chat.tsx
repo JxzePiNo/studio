@@ -22,6 +22,7 @@ interface AnalysisProgress {
   completed: number;
   total: number;
   current?: number | null;
+  active?: number[];
   status: string;
 }
 
@@ -49,7 +50,7 @@ export interface StudyChatProps {
 
 function BatchProgress({ progress, running, onStop }: { progress?: AnalysisProgress; running: boolean; onStop?: () => void }) {
   const stopping = progress?.status === "stopping";
-  const message = stopping ? "Completo la pagina in corso, poi mi fermo." : progress?.status === "completed" ? "Analisi completata" : progress?.status === "stopped" ? "Analisi interrotta. Puoi riprendere quando vuoi." : progress?.status === "error" ? "Analisi sospesa per un errore" : progress?.current ? `Analisi della pagina ${progress.current} di ${progress.total}` : "Analisi del PDF in corso…";
+  const message = stopping ? "Completo le pagine in corso, poi mi fermo." : progress?.status === "completed" ? "Analisi completata" : progress?.status === "stopped" ? "Analisi interrotta. Puoi riprendere quando vuoi." : progress?.status === "error" ? "Analisi sospesa per un errore" : progress?.active?.length ? `Analisi delle pagine ${progress.active.join(", ")} di ${progress.total}` : progress?.current ? `Analisi della pagina ${progress.current} di ${progress.total}` : "Analisi del PDF in corso…";
   return <div className="chat-analysis-progress" aria-live="polite">
     <div><span>{message}</span>{progress && <strong>{progress.completed} / {progress.total} pagine pronte</strong>}</div>
     {progress && <progress max={progress.total || 1} value={progress.completed} aria-label="Pagine analizzate" />}
@@ -151,8 +152,8 @@ export function StudyChat({ id, controller, documentName = "PDF", page, initial,
           <h2>Partiamo da questa pagina.</h2>
           <p>Una spiegazione completa per capire i concetti. Poi puoi approfondirli con il tutor.</p>
           <div className="chat-analysis-actions">
-            <Button disabled={busy || disabled || analyzing || batchRunning || analysisBusy || !configured || !onAnalyze} onClick={onAnalyze}>{analyzing && !batchRunning ? <LoaderCircle size={16} className="spin" /> : <Sparkles size={16} />} Analizza questa pagina</Button>
-            <Button variant="outline" disabled={busy || disabled || analyzing || batchRunning || analysisBusy || !configured || !onAnalyzeAll} onClick={onAnalyzeAll}>Analizza tutto</Button>
+            <Button variant="outline" disabled={busy || disabled || analyzing || batchRunning || analysisBusy || !configured || !onAnalyze} onClick={onAnalyze}>{analyzing && !batchRunning ? <LoaderCircle size={16} className="spin" /> : <Sparkles size={16} />} Analizza questa pagina</Button>
+            <Button className="chat-analyze-all" disabled={busy || disabled || analyzing || batchRunning || analysisBusy || !configured || !onAnalyzeAll} onClick={onAnalyzeAll}>Analizza tutto</Button>
           </div>
           {analyzing && !batchRunning && <p role="status">Analisi di questa pagina in corso…</p>}
           {!configured && <p className="chat-analysis-configure">Configura OpenAI dalle impostazioni della lettura per iniziare.</p>}

@@ -59,6 +59,9 @@
 .sectionHeading h2 { margin: 0; font-size: 15px; font-weight: 700; }
 .courseActions { display: flex; align-items: flex-start; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); padding-top: 18px; }
 .courseActions p { margin: 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
+.courseActionRow { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 10px; width: 100%; }
+.courseActionRow > button { white-space: nowrap; }
+@media (max-width: 540px) { .courseActionRow { grid-template-columns: repeat(2, minmax(0, 1fr)); } .courseActionRow .saveButton { grid-column: 1 / -1; grid-row: 1; width: 100%; } .courseActionRow > button { padding-inline: 10px; } }
 .confirmActions { display: flex; gap: 10px; margin-top: 12px; }
 .deleteButton.deleteButton { color: #a12f2f; }
 .settingsDialog.settingsDialog { width: min(720px, calc(100vw - 32px)); }

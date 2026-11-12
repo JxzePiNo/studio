@@ -152,9 +152,10 @@ export function ExamOverview({ dialogOnly = false, folders, documents, onOpen, o
 
   useEffect(() => {
     if (!requestedCourseAction || consumedRequest.current === requestedCourseAction.requestId || busy || mutation.current) return;
-    consumedRequest.current = requestedCourseAction.requestId;
     const folder = folders.find(item => item.id === requestedCourseAction.folderId);
-    if (folder) courseAction(folder, requestedCourseAction.action);
+    if (!folder) return;
+    consumedRequest.current = requestedCourseAction.requestId;
+    courseAction(folder, requestedCourseAction.action);
     onCourseActionHandled?.();
   }, [requestedCourseAction, folders, courseAction, onCourseActionHandled, busy]);
 
@@ -230,11 +231,15 @@ export function ExamOverview({ dialogOnly = false, folders, documents, onOpen, o
           <StudyAvailability key={editing?.id || "planning"} folders={folders} currentFolderId={editing?.id} nonStudyWeekdays={nonStudyWeekdays} nonStudyDates={nonStudyDates} onWeekdaysChange={setNonStudyWeekdays} onDatesChange={setNonStudyDates} disabled={busy} />
           <div className="plan-preview" aria-live="polite"><strong>{draftPages} pagine caricate</strong><p>{draftPlan.state === "overdue" ? "La data è trascorsa: scegli un nuovo giorno." : !draftPages ? "La stima si aggiornerà quando caricherai i materiali." : draftPlan.daysAvailable === 0 ? `Nessun giorno di studio disponibile. Modifica le pause o la data dell’esame per distribuire ${duration(draftPlan.totalHours)} di studio.` : draftPlan.hoursPerDay !== null ? `Circa ${duration(draftPlan.hoursPerDay)} al giorno · ${duration(draftPlan.totalHours)} totali · ${draftPlan.daysAvailable} giorni disponibili` : `Circa ${duration(draftPlan.totalHours)} totali. Aggiungi una data per distribuirli sui giorni disponibili.`}</p></div>
           {error && <p className="plan-error" role="alert">{error}</p>}
-          <div className="plan-form-actions"><Button type="submit" disabled={busy}>{busy && <LoaderCircle size={16} className="spin" />}{busy ? "Salvataggio…" : "Salva impostazioni"}</Button></div>
           <div className={folderStyles.courseActions}>
+            <div className={folderStyles.courseActionRow}>
             <Button type="button" variant="outline" disabled={busy} onClick={() => { if (editing) void archive(editing); }}>{editing?.archived ? "Ripristina esame" : "Archivia esame"}</Button>
+            <Button type="button" variant="ghost" className={folderStyles.deleteButton} disabled={busy || !!(editing && isCourseBusy?.(editing.id))} onClick={() => setConfirmDelete(true)}>Elimina esame</Button>
+            <Button type="submit" className={folderStyles.saveButton} disabled={busy}>{busy && <LoaderCircle size={16} className="spin" />}{busy ? "Salvataggio…" : "Salva impostazioni"}</Button>
+            </div>
             <p>{editing?.archived ? "Ripristina l’esame tra i prossimi esami." : "Conserva tutti i PDF e i progressi nell’archivio."}</p>
-            {!confirmDelete ? <Button type="button" variant="ghost" className={folderStyles.deleteButton} disabled={busy || !!(editing && isCourseBusy?.(editing.id))} onClick={() => setConfirmDelete(true)}>Elimina esame</Button> : <div role="group" aria-label="Conferma eliminazione esame"><p>Eliminare definitivamente {editing ? formatCourseName(editing.name) : ""} e tutti i suoi PDF, appunti e progressi? Questa operazione è irreversibile.</p><div className={folderStyles.confirmActions}><Button type="button" variant="outline" disabled={busy} onClick={() => setConfirmDelete(false)}>Annulla</Button><Button type="button" className={folderStyles.deleteButton} disabled={busy || !!(editing && isCourseBusy?.(editing.id))} onClick={() => void remove()}>Conferma eliminazione</Button></div></div>}
+            {confirmDelete && <div role="group" aria-label="Conferma eliminazione esame"><p>Eliminare definitivamente {editing ? formatCourseName(editing.name) : ""} e tutti i suoi PDF, appunti e progressi? Questa operazione è irreversibile.</p><div className={folderStyles.confirmActions}><Button type="button" variant="outline" disabled={busy} onClick={() => setConfirmDelete(false)}>Annulla</Button><Button type="button" className={folderStyles.deleteButton} disabled={busy || !!(editing && isCourseBusy?.(editing.id))} onClick={() => void remove()}>Conferma eliminazione</Button></div></div>}
+
             {editing && isCourseBusy?.(editing.id) && <p>Attendi il termine dell’analisi prima di eliminare l’esame.</p>}
           </div>
         </form>

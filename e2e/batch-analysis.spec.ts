@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { PDFDocument } from "pdf-lib";
 import type { SlideData, StudyDocument } from "../lib/types";
 import { createExam } from "./exam-helpers";
 
@@ -25,12 +26,13 @@ async function setup(page: Page, cached: number[] = []) {
   await page.goto("/");
   await createExam(page);
   const upload = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
-  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles("public/esempio.pdf");
+  const pdf = await PDFDocument.create(); for (let index = 0; index < 8; index++) pdf.addPage();
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles({ name: "esempio.pdf", mimeType: "application/pdf", buffer: Buffer.from(await pdf.save()) });
   const doc = await (await upload).json() as StudyDocument;
   await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   await expect(page.getByRole("heading", { name: "esempio" })).toBeVisible();
   await page.getByRole("button", { name: "Mostra pannello inferiore" }).click();
-  return { id: doc.id, calls, save: (p: number) => { const slide = explained(p); saved!.slides[p] = slide; return slide; } };
+  return { id: doc.id, calls, savedCount: () => Object.values(saved!.slides).filter(slide => slide.explanation).length, save: (p: number) => { const slide = explained(p); saved!.slides[p] = slide; return slide; } };
 }
 
 test("analizza tutte le pagine mancanti, riutilizza la cache e mostra il risultato", async ({ page, request }) => {
@@ -42,13 +44,15 @@ test("analizza tutte le pagine mancanti, riutilizza la cache e mostra il risulta
   });
   try {
     await page.getByRole("spinbutton", { name: "Numero della slide" }).fill("2");
+    await page.getByRole("spinbutton", { name: "Numero della slide" }).press("Enter");
     await page.getByRole("button", { name: "Analizza tutto", exact: true }).click();
     await expect(page.getByText("Analisi completata", { exact: true })).toBeVisible();
-    await expect(page.getByRole("progressbar", { name: "Pagine analizzate" })).toHaveAttribute("value", "3");
-    expect(state.calls).toEqual([2, 3]);
+    await expect(page.getByRole("progressbar", { name: "Pagine analizzate" })).toHaveAttribute("value", "8");
+    expect([...state.calls].sort((a, b) => a - b)).toEqual([2, 3, 4, 5, 6, 7, 8]);
     await expect(page.getByRole("button", { name: "Analizza questa pagina", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Analizza tutto", exact: true })).toHaveCount(0);
     await page.getByRole("spinbutton", { name: "Numero della slide" }).fill("3");
+    await page.getByRole("spinbutton", { name: "Numero della slide" }).press("Enter");
     await expect(page.getByRole("heading", { name: "Spiegazione pagina 3" })).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -62,24 +66,24 @@ test("interrompe dopo la pagina in corso e riprende senza ripetere chiamate", as
   await page.route("**/api/documents/*/analyze", async route => {
     const p = route.request().postDataJSON().page;
     state.calls.push(p);
-    if (p === 1) await blocked;
+    await blocked;
     await route.fulfill({ json: state.save(p) });
   });
   try {
     await page.getByRole("button", { name: "Analizza tutto", exact: true }).click();
-    await expect.poll(() => state.calls).toEqual([1]);
+    await expect.poll(() => state.calls).toEqual([1, 4, 5, 8]);
     await expect(page.getByRole("button", { name: "Torna alla biblioteca", exact: true })).toBeEnabled();
-    await page.getByRole("button", { name: "Slide successiva", exact: true }).click();
+    await page.getByRole("button", { name: "Pagina successiva", exact: true }).click();
     await expect(page.getByRole("spinbutton", { name: "Numero della slide" })).toHaveValue("2");
     await expect(page.getByRole("button", { name: "Analizza questa pagina", exact: true })).toBeDisabled();
     await page.getByRole("button", { name: "Interrompi analisi", exact: true }).click();
     await expect(page.getByRole("button", { name: "Interruzione richiesta…" })).toBeDisabled();
     release();
     await expect(page.getByText("Analisi interrotta. Puoi riprendere quando vuoi.")).toBeVisible();
-    expect(state.calls).toEqual([1]);
+    expect(state.calls).toEqual([1, 4, 5, 8]);
     await page.getByRole("button", { name: "Analizza tutto", exact: true }).click();
     await expect(page.getByText("Analisi completata", { exact: true })).toBeVisible();
-    expect(state.calls).toEqual([1, 2, 3]);
+    expect([...state.calls].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   } finally { release(); await request.delete(`/api/documents/${state.id}`); }
 });
 
@@ -89,20 +93,24 @@ test("si ferma al primo errore e conserva i progressi per il nuovo tentativo", a
   await page.route("**/api/documents/*/analyze", async route => {
     const p = route.request().postDataJSON().page;
     state.calls.push(p);
-    if (p === 2 && fail) return route.fulfill({ status: 502, json: { error: "Quota API esaurita.", retryable: false } });
+    if (p === 4 && fail) return route.fulfill({ status: 502, json: { error: "Quota API esaurita.", retryable: false } });
     await route.fulfill({ json: state.save(p) });
   });
   try {
     await page.getByRole("button", { name: "Analizza tutto", exact: true }).click();
     await expect(page.getByRole("alert").filter({ hasText: "Analisi interrotta:" })).toContainText("Quota API esaurita");
     await expect(page.getByText("Analisi sospesa per un errore", { exact: true })).toBeVisible();
-    expect(state.calls).toEqual([1, 2]);
-    await expect(page.getByRole("progressbar", { name: "Pagine analizzate", exact: true })).toHaveAttribute("value", "1");
+    const savedBeforeRetry = state.savedCount();
+    expect(savedBeforeRetry).toBeGreaterThanOrEqual(3);
+    await expect(page.getByRole("progressbar", { name: "Pagine analizzate", exact: true })).toHaveAttribute("value", String(savedBeforeRetry));
     fail = false;
-    await page.getByRole("spinbutton", { name: "Numero della slide" }).fill("2");
+    await page.getByRole("spinbutton", { name: "Numero della slide" }).fill("4");
+    await page.getByRole("spinbutton", { name: "Numero della slide" }).press("Enter");
     await page.getByRole("button", { name: "Analizza tutto", exact: true }).click();
     await expect(page.getByText("Analisi completata", { exact: true })).toBeVisible();
-    expect(state.calls).toEqual([1, 2, 2, 3]);
+    expect(state.calls.filter(number => number === 4)).toHaveLength(2);
+    expect(new Set(state.calls).size).toBe(8);
+    expect(state.calls).toHaveLength(9);
   } finally { await request.delete(`/api/documents/${state.id}`); }
 });
 
@@ -113,23 +121,25 @@ test("reader batch keeps analyzing after leaving the PDF and returning home", as
   await page.route("**/api/documents/*/analyze", async route => {
     const number = route.request().postDataJSON().page as number;
     state.calls.push(number);
-    if (number === 1) await blocked;
+    await blocked;
     await route.fulfill({ json: state.save(number) });
   });
   try {
     await page.getByRole("button", { name: "Analizza tutto", exact: true }).click();
-    await expect.poll(() => state.calls).toEqual([1]);
+    await expect.poll(() => state.calls).toEqual([1, 4, 5, 8]);
     await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
     await expect(page.locator(".materials-list")).toBeVisible();
     await page.getByRole("button", { name: "Torna alla home", exact: true }).click();
     const island = page.getByRole("complementary", { name: "Avanzamento analisi in background" });
+    await page.getByRole("button", { name: /^Mostra notifiche/ }).click();
     await expect(island).toBeVisible();
     release();
     await expect(island).toContainText("100%");
-    expect(state.calls).toEqual([1, 2, 3]);
+    expect([...state.calls].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    await page.getByRole("button", { name: "Chiudi notifiche", exact: true }).click();
     await page.goBack();
     await page.getByRole("button", { name: "Apri esempio", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Spiegazione pagina 1", exact: true })).toBeVisible();
-    await expect(page.getByRole("progressbar", { name: "Pagine analizzate", exact: true })).toHaveAttribute("value", "3");
+    await expect(page.getByRole("progressbar", { name: "Pagine analizzate", exact: true })).toHaveAttribute("value", "8");
   } finally { release(); await request.delete(`/api/documents/${state.id}`); }
 });

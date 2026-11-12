@@ -6,6 +6,7 @@ import { apiError } from "@/lib/http";
 import { platformConfig } from "@/lib/platform-server";
 import { platformSchema } from "@/lib/platform-config";
 import { z } from "zod";
+import { lastKnownPlatformVisit } from "@/lib/platform-visits";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
         // pages requires a composite index and excludes legacy files missing either field.
         const documents = root.collection("documents");
         const [usage, count, bytes, pages, activity] = await Promise.all([root.collection("metrics").doc("usage").get(), documents.count().get(), documents.aggregate({ value: AggregateField.sum("size") }).get(), documents.aggregate({ value: AggregateField.sum("pages") }).get(), root.collection("metrics").doc("activity").get()]);
-        return { uid: user.uid, email: user.email || "", name: user.displayName || "", disabled: user.disabled, verified: user.emailVerified, createdAt: user.metadata.creationTime, lastLoginAt: user.metadata.lastSignInTime || null, lastVisitAt: activity.data()?.lastVisitAt || null, usage: usage.data() || null, files: { count: count.data().count, bytes: bytes.data().value, pages: pages.data().value }, activity: activity.data() || null };
+        return { uid: user.uid, email: user.email || "", name: user.displayName || "", disabled: user.disabled, verified: user.emailVerified, createdAt: user.metadata.creationTime, lastLoginAt: user.metadata.lastSignInTime || null, lastVisitAt: lastKnownPlatformVisit(activity.data()), usage: usage.data() || null, files: { count: count.data().count, bytes: bytes.data().value, pages: pages.data().value }, activity: activity.data() || null };
       })));
     }
     return NextResponse.json({ users, cursor: result.pageToken || null, config, audit: audit.docs.map(doc => ({ id: doc.id, ...doc.data() })), generatedAt: new Date().toISOString() }, { headers: { "Cache-Control": "private, no-store" } });

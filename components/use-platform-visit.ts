@@ -9,10 +9,16 @@ export function usePlatformVisit(uid: string | undefined, enabled: boolean) {
     let disposed = false;
     const abort = new AbortController();
     const detach = reportPlatformVisits(async () => {
-      const headers = await authHeaders();
-      if (disposed) return false;
-      const response = await fetch("/api/visits", { method: "POST", headers, cache: "no-store", signal: abort.signal });
-      return response.ok;
+      const attempt = new AbortController();
+      const cancel = () => attempt.abort();
+      abort.signal.addEventListener("abort", cancel, { once: true });
+      const timer = setTimeout(cancel, 15_000);
+      try {
+        const headers = await authHeaders();
+        if (disposed || attempt.signal.aborted) return false;
+        const response = await fetch("/api/visits", { method: "POST", headers, cache: "no-store", signal: attempt.signal });
+        return response.ok;
+      } finally { clearTimeout(timer); abort.signal.removeEventListener("abort", cancel); }
     });
     return () => { disposed = true; detach(); abort.abort(); };
   }, [uid, enabled]);

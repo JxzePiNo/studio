@@ -4,7 +4,9 @@
 
 ## Ultima visita e ultimo login
 
-La colonna **Ultima visita** indica l'ultima apertura della piattaforma o il ritorno alla scheda, anche con una sessione Firebase già attiva. Studio e la dashboard admin registrano l'ingresso tramite `/api/visits`, usando UID autenticato e orario del server; i passaggi ravvicinati entro 15 secondi vengono accorpati. Le schede nascoste non generano presenze periodiche. Il dato è salvato in `users/{uid}/metrics/activity.lastVisitAt`, senza sostituire i contatori delle domande. Nel dettaglio resta separato **Ultimo login**, proveniente da Firebase Authentication. Le visite precedenti all'attivazione non sono ricostruite dal login: vengono indicate come non ancora registrate.
+La colonna **Ultima visita** indica l'ultima presenza o attività rilevata nella piattaforma, anche con una sessione Firebase già attiva. Studio e la dashboard admin inviano `/api/visits` all'ingresso, al ritorno nella scheda, alla riconnessione e ogni minuto mentre la scheda è visibile. Un invio fallito viene riprovato automaticamente. I passaggi ravvicinati entro 15 secondi vengono accorpati; le schede nascoste non inviano presenze periodiche.
+
+Il server registra anche le azioni autenticate (ad esempio apertura PDF, cambio pagina o chat), quindi i client precedenti vengono rilevati alla prossima azione senza dover ricaricare. Questa registrazione è accorpata per utente su un minuto; polling, analisi in background e salvataggi automatici delle sessioni non mantengono artificialmente presente l'utente. Il dato usa UID verificato e orario del server in `users/{uid}/metrics/activity.lastVisitAt`, preservando i contatori. Per lo storico si considera anche la data di una domanda registrata, se più recente; non si usa la data del login per inventare una visita. Nel dettaglio resta separato **Ultimo login**, proveniente da Firebase Authentication. Se manca qualsiasi traccia, la visita resta non registrata. Il dato è una presenza approssimativa, non una garanzia che l'utente sia online in quell'istante. Usa **Aggiorna** per rileggere i dati della dashboard.
 
 ## Collegare i costi OpenAI
 

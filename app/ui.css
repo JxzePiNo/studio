@@ -61,7 +61,8 @@
 .ui-sidebar-sheet { z-index:50; height:100dvh; outline:none; }
 .ui-sidebar-close { position:absolute; right:8px; top:12px; }
 .ui-sidebar-sheet .ui-sidebar-header { padding-top:6px; }
-.course-header { margin:0 0 24px; }
+.course-header { display:flex; align-items:flex-start; gap:16px; margin:0 0 24px; }
+.course-header-copy { flex:1; min-width:0; }
 .course-header-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:16px; }
 .course-header .selected-exam { min-width:0; margin-bottom:0; gap:12px; align-items:center; }
 .course-header-settings { flex-shrink:0; color:var(--muted-foreground); }

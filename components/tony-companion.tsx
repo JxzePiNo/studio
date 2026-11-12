@@ -6,15 +6,10 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { ChevronRight, LifeBuoy, MousePointer2, X } from "lucide-react";
 import { TonyMascot } from "./mascot/tony-mascot";
 import styles from "./tony-companion.module.css";
+import { useTonyPhrase } from "./use-tony-phrase";
 
 type Context = "home" | "course" | "sessions" | "reader";
 type Step = { target: string; text: string };
-const tips: Record<Context, string[]> = {
-  home: ["Lucido i bicchieri. Tu scegli il prossimo esame!", "Un esame alla volta, come un buon caffè.", "Crea un esame e aggiungi i PDF: al resto pensiamo insieme.", "La griglia dei giorni racconta le pagine che hai studiato."],
-  course: ["Preparo uno spritz… tu prepara le slide!", "Puoi analizzare i PDF e continuare a girare per Studio.", "Tasto destro su un file: puoi segnare un intervallo di pagine già lette.", "Anche due esami possono essere analizzati contemporaneamente."],
-  sessions: ["Pulisco il bancone e facciamo il conto delle pagine.", "Avvia il timer quando studi: ritroverai qui la sessione.", "Tasto destro sulle sessioni per unirle o eliminarle.", "Clicca un giorno nella griglia per rivedere la tua attività."],
-  reader: ["Un caffè e una pagina alla volta.", "Premi Spazio per segnare la pagina come letta o da leggere.", "Dalla chat puoi chiedermi un quiz sugli argomenti del PDF."],
-};
 const guides: { title: string; hint: string; context: Context; steps: Step[] }[] = [
   { title: "Crea un esame", hint: "Il primo passo per organizzare lo studio", context: "home", steps: [{ target: '[aria-label="Crea esame"]', text: "Premi Crea esame: potrai scegliere nome, data e impostazioni del corso." }] },
   { title: "Trova un esame", hint: "Ricerca e organizzazione dei corsi", context: "home", steps: [{ target: '[aria-label="Cerca un esame"]', text: "Scrivi qui il nome del corso. Apri poi la sua cartella per vedere i materiali." }, { target: '[aria-label="Ordina esami"]', text: "Scegli come ordinare gli esami: per data, nome o creazione." }] },
@@ -23,8 +18,8 @@ const guides: { title: string; hint: string; context: Context; steps: Step[] }[]
 ];
 
 export function TonyCompanion({ context, onNavigate, sidebarSlot }: { context: Context; onNavigate: (context: Context) => boolean; sidebarSlot?: HTMLElement | null }) {
-  const [phrase, setPhrase] = useState(0);
   const [muted, setMuted] = useState(false);
+  const { phrase, next: nextPhrase } = useTonyPhrase(context, 12000, muted || context === "reader");
   const [help, setHelp] = useState(false);
   const [guide, setGuide] = useState<(typeof guides)[number] | null>(null);
   const [step, setStep] = useState(0);
@@ -53,10 +48,6 @@ export function TonyCompanion({ context, onNavigate, sidebarSlot }: { context: C
     window.addEventListener("studio-help", open);
     return () => window.removeEventListener("studio-help", open);
   }, []);
-  useEffect(() => {
-    const timer = window.setInterval(() => setPhrase(value => value + 1), 12000);
-    return () => window.clearInterval(timer);
-  }, [context]);
   useEffect(() => {
     if (!guide) return;
     let frame = 0;
@@ -91,8 +82,8 @@ export function TonyCompanion({ context, onNavigate, sidebarSlot }: { context: C
   const inSidebar = !!sidebarSlot && sidebarFits && context === "course";
   const companion = context !== "reader" && <div className={`${styles.lane} ${inSidebar ? styles.sidebarLane : ""}`} data-placement={inSidebar ? "sidebar" : "workspace"}>
       <div className={styles.companion}>
-        <button className={styles.mascot} type="button" onClick={() => { setMuted(false); setPhrase(value => value + 1); }} aria-label="Un consiglio da Tony del bar"><TonyMascot size="100%" animated={false} /></button>
-        {!muted && <div className={styles.bubble}><p key={`${context}:${phrase}`}>{tips[context][phrase % tips[context].length]}</p><button type="button" aria-label="Nascondi i consigli di Tony" onClick={() => setMuted(true)}><X size={13} /></button></div>}
+        <button className={styles.mascot} type="button" onClick={() => { if (muted) setMuted(false); else nextPhrase(); }} aria-label="Un consiglio da Tony del bar"><TonyMascot size="100%" animated={false} /></button>
+        {!muted && <div className={styles.bubble}><p key={`${context}:${phrase}`}>{phrase}</p><button type="button" aria-label="Nascondi i consigli di Tony" onClick={() => setMuted(true)}><X size={13} /></button></div>}
       </div>
     </div>;
   return <>

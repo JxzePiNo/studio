@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { PDFDocument } from "pdf-lib";
+import { createHash } from "node:crypto";
+import { extractAnalysisPage } from "@/lib/analysis-pdf";
 import { z } from "zod";
 import { readDocument, readPdf, updateSlide } from "@/lib/store";
-import { explainSlide, openaiError, retryableAnalysisError } from "@/lib/openai";
+import { explainSlide, openaiError, retryableAnalysisError, analysisRetryHeaders } from "@/lib/openai";
 import { apiError, requestGuard } from "@/lib/http";
 import { getStudyProfile } from "@/lib/study-profile";
 import { getFolder } from "@/lib/folders";
@@ -24,18 +25,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const lockId = `${id}:${page}`;
     if (inFlight.has(lockId)) return NextResponse.json({ error: "Questa slide è già in analisi. Attendi qualche secondo." }, { status: 409 });
     lock = lockId; inFlight.add(lock);
-    const original = await PDFDocument.load(await readPdf(id));
-    const single = await PDFDocument.create();
-    const [copied] = await single.copyPages(original, [page - 1]); single.addPage(copied);
+    const session = createHash("sha256").update(request.headers.get("authorization") || process.env.DATA_DIR || "local").digest("hex");
+    const single = await extractAnalysisPage(`${session}:${id}`, page, () => readPdf(id));
     let explanation;
     try {
       const [profile, folder] = await Promise.all([getStudyProfile(), getFolder(doc.folderId)]);
-      explanation = await explainSlide(await single.save(), page, { studyProgram: profile.studyProgram, courseName: folder?.name, documentName: doc.name });
+      explanation = await explainSlide(single, page, { studyProgram: profile.studyProgram, courseName: folder?.name, documentName: doc.name });
     }
     catch (e) {
       const known = openaiError(e);
       const retryable = retryableAnalysisError(e);
-      if (known) return NextResponse.json({ error: known.error, retryable }, { status: known.status });
+      if (known) return NextResponse.json({ error: known.error, retryable }, { status: known.status, headers: analysisRetryHeaders(e) });
       return NextResponse.json({ error: e instanceof Error && e.message.startsWith("L’AI") ? e.message : "La risposta AI non è valida. Riprova.", retryable }, { status: 502 });
     }
     const updated = await updateSlide(id, page, slide => ({ ...slide, explanation, generatedAt: new Date().toISOString() }));

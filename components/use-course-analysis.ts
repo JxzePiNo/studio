@@ -4,7 +4,7 @@ import { retryAnalysis } from "@/lib/analysis-retry";
 import { readApiResponse } from "@/lib/api-response";
 import { authHeaders } from "@/lib/firebase-client";
 import type { DocumentSummary, SlideData, StudyDocument } from "@/lib/types";
-import { runParallelFiles } from "@/lib/parallel-analysis";
+import { runParallelFiles, runDocumentPages, documentPageOrder, documentParallelism } from "@/lib/parallel-analysis";
 
 type Status = "checking" | "running" | "stopping" | "stopped" | "completed" | "error";
 export type CourseProgress = {
@@ -22,6 +22,7 @@ export type CourseProgress = {
   measured: boolean;
   parallelism: number;
   remainingByFile: number[];
+  pagesByFile: number[];
   active: { id: string; name: string; page: number }[];
 };
 
@@ -69,12 +70,12 @@ export function useCourseAnalysis({ folderId, documents, configured, disabled, c
     const requestController = new AbortController();
     const runtime = { stop: false, controller: requestController, documentIds };
     runtimes.current.set(folderId, runtime);
-    const parallelism = Math.max(1, files.filter(file => file.analyzedPages < file.pages).length);
+    const parallelism = documentParallelism(files.map(file => Math.max(0, file.pages - file.analyzedPages)), files.map(file => file.pages));
     const startedAt = Date.now();
     let current: CourseProgress = {
       folderId, documentIds, status: "checking", completed: totalPages - missingPages, total: totalPages,
       filesDone: 0, filesTotal: files.length, currentName: "",
-      startedAt, secondsPerPage: 20, measured: false, parallelism, remainingByFile: files.map(file => Math.max(0, file.pages - file.analyzedPages)), active: [],
+      startedAt, secondsPerPage: 20, measured: false, parallelism, remainingByFile: files.map(file => Math.max(0, file.pages - file.analyzedPages)), pagesByFile: files.map(file => file.pages), active: [],
     };
     const update = (changes: Partial<CourseProgress>) => {
       current = { ...current, ...changes };
@@ -102,27 +103,28 @@ export function useCourseAnalysis({ folderId, documents, configured, disabled, c
     };
     try {
       const loaded: StudyDocument[] = [];
-      for (const file of files) {
-        if (runtime.stop) break;
+      await runParallelFiles(files, Math.max(1, files.length), async file => {
         update({ currentName: file.name });
         const document = await request<StudyDocument>(`/api/documents/${file.id}`);
         if (document.folderId !== folderId) throw new Error(`“${file.name}” è stato spostato in un altro esame. Aggiorna i materiali e riprova.`);
         loaded.push(document);
-      }
+      }, () => runtime.stop);
       if (runtime.stop) { update({ status: "stopped", currentName: "" }); return; }
       const cached = (document: StudyDocument) => Object.entries(document.slides).filter(([page, slide]) => Number(page) >= 1 && Number(page) <= document.pages && slide.explanation).length;
       update({
-        status: "running", parallelism: Math.max(1, loaded.filter(document => cached(document) < document.pages).length), total: loaded.reduce((sum, document) => sum + document.pages, 0),
+        status: "running", parallelism: documentParallelism(loaded.map(document => document.pages - cached(document)), loaded.map(document => document.pages)), total: loaded.reduce((sum, document) => sum + document.pages, 0),
         completed: loaded.reduce((sum, document) => sum + cached(document), 0),
         filesDone: loaded.filter(document => cached(document) === document.pages).length,
         remainingByFile: loaded.map(document => document.pages - cached(document)),
+        pagesByFile: loaded.map(document => document.pages),
       });
-      await runParallelFiles(loaded.filter(document => cached(document) < document.pages), current.parallelism, async (document, shouldStop) => {
-        try {
-          for (let page = 1; page <= document.pages; page++) {
-            if (shouldStop()) break;
-            if (document.slides[page]?.explanation) continue;
-            active.set(document.id, { id: document.id, name: document.name, page });
+      let failed = false;
+      await runParallelFiles(loaded.filter(document => cached(document) < document.pages), Math.max(1, loaded.length), async (document, shouldStop) => {
+        const pending = documentPageOrder(document.pages).filter(page => !document.slides[page]?.explanation);
+        await runDocumentPages(pending, async page => {
+          const key = `${document.id}:${page}`;
+          try {
+            active.set(key, { id: document.id, name: document.name, page });
             update({ status: runtime.stop ? "stopping" : "running", active: [...active.values()] });
             const pageStartedAt = Date.now();
             const result = await retryAnalysis(() => request<SlideData>(`/api/documents/${document.id}/analyze`, page), { signal: requestController.signal });
@@ -131,7 +133,7 @@ export function useCourseAnalysis({ folderId, documents, configured, disabled, c
             onSlideSaved?.(document.id, page, result);
             timings.push((Date.now() - pageStartedAt) / 1000);
             if (timings.length > 12) timings.shift();
-            active.delete(document.id);
+            active.delete(key);
             update({
               status: runtime.stop ? "stopping" : "running", active: [...active.values()], completed: current.completed + 1,
               filesDone: loaded.filter(file => cached(file) === file.pages).length,
@@ -139,9 +141,10 @@ export function useCourseAnalysis({ folderId, documents, configured, disabled, c
               secondsPerPage: timings.reduce((sum, seconds) => sum + seconds, 0) / timings.length,
               measured: true,
             });
-          }
-        } finally { active.delete(document.id); update({ active: [...active.values()] }); }
-      }, () => runtime.stop);
+          } catch (error) { failed = true; throw error; }
+          finally { active.delete(key); update({ active: [...active.values()] }); }
+        }, () => failed || shouldStop(), document.pages);
+      }, () => runtime.stop || failed);
       update({ status: runtime.stop && current.completed < current.total ? "stopped" : "completed", currentName: "" });
     } catch (error) {
       if (mounted.current) {

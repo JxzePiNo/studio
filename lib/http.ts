@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cloudEnabled, services } from "./firebase-server";
 import { firebaseAuthFailure, firebaseCredentialDiagnostics } from "./firebase-auth-errors";
 import { platformDenial } from "./platform-server";
+import { recordAuthenticatedActivity, recordsPlatformActivity } from "./platform-visits";
 
 export async function requestGuard(request: Request) {
   const denied = localRequest(request);
@@ -23,7 +24,14 @@ export async function requestGuard(request: Request) {
     const failure = firebaseAuthFailure(error);
     return NextResponse.json({ error: failure.error }, { status: failure.status });
   }
-  try { return await platformDenial(request, identity); }
+  try {
+    const denied = await platformDenial(request, identity);
+    if (!denied && recordsPlatformActivity(request)) {
+      try { await recordAuthenticatedActivity(services().db, identity.uid); }
+      catch { /* Presence tracking must never prevent studying; retry on the next action. */ }
+    }
+    return denied;
+  }
   catch (error) { console.error("Platform policy unavailable", error); return NextResponse.json({ error: "Impossibile verificare lo stato della piattaforma." }, { status: 503 }); }
 }
 

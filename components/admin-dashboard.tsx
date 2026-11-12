@@ -78,7 +78,7 @@ export default function AdminDashboard() {
     </Sidebar>
     <main className="main-shell"><div className={`${styles.dashboard}${tab === "users" ? ` ${styles.users}` : ""}`}>
     <SidebarTrigger className={styles.menu} />
-    {!ready ? <p role="status">Verifico l'accesso…</p> : !signedIn ? <Button onClick={() => void run(async () => { await signInWithPopup(browserAuth(), new GoogleAuthProvider()); })}>Accedi con Google</Button> : !data && !error ? <p role="status">Carico la dashboard…</p> : null}
+    {!ready ? <p role="status">Verifico l'accesso…</p> : !signedIn ? <Button onClick={() => void run(async () => { await signInWithPopup(browserAuth(), new GoogleAuthProvider()); window.location.replace("/"); })}>Accedi con Google</Button> : !data && !error ? <p role="status">Carico la dashboard…</p> : null}
     {error && <div className={styles.error}><p role="alert">{error}</p>{signedIn && <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => loadUsers())}>Riprova</Button>}</div>}{status && <p className={styles.status} role="status">{status}</p>}
     {tab === "costs" && ready && signedIn && <AdminCosts key={sessionId} />}
     {tab !== "costs" && data && config && <>

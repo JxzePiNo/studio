@@ -9,6 +9,7 @@ import { readApiResponse } from "@/lib/api-response";
 import { invalidateApiCache } from "@/lib/browser-data-cache";
 import type { StudyDocument } from "@/lib/types";
 import styles from "./background-uploads.module.css";
+import { useTonyPhrase } from "./use-tony-phrase";
 
 type Status = "queued" | "preparing" | "uploading" | "processing" | "completed" | "error" | "cancelled";
 type Job = { id: string; folderId: string; folderName: string; name: string; size: number; loaded: number; status: Status; error?: string; documentId?: string };
@@ -61,6 +62,7 @@ export function UploadNotifications({ controller, onOpen }: { controller: Upload
 }
 export function UploadIsland({ controller, summaryHidden }: { controller: UploadController; summaryHidden: boolean }) {
   const items = controller.jobs.filter(active), job = items.find(item => item.status !== "queued") || items[0];
+  const { phrase } = useTonyPhrase("upload", 9000, !job);
   if (!job) return null;
-  return <button className={styles.island} style={{ top: summaryHidden ? 58 : 116 }} onClick={() => window.dispatchEvent(new Event("studio-open-notifications"))} aria-label="Mostra caricamenti in background"><LoaderCircle size={17} className="spin" /><span><strong>{job.name}</strong><small>{labels[job.status]}{job.status === "uploading" ? ` · ${Math.floor(job.loaded / Math.max(1, job.size) * 100)}%` : ""}{items.length > 1 ? ` · altri ${items.length - 1} in coda` : ""}</small><progress max={job.size || 1} value={job.status === "uploading" ? job.loaded : undefined} aria-label="Trasferimento file" /></span></button>;
+  return <button className={styles.island} style={{ top: summaryHidden ? 58 : 116 }} onClick={() => window.dispatchEvent(new Event("studio-open-notifications"))} aria-label="Mostra caricamenti in background"><LoaderCircle size={17} className="spin" /><span><strong>{job.name}</strong><small>{labels[job.status]}{job.status === "uploading" ? ` · ${Math.floor(job.loaded / Math.max(1, job.size) * 100)}%` : ""}{items.length > 1 ? ` · altri ${items.length - 1} in coda` : ""}</small><progress max={job.size || 1} value={job.status === "uploading" ? job.loaded : undefined} aria-label="Trasferimento file" /><small className={styles.quip} title={phrase}>Tony: {phrase}</small></span></button>;
 }

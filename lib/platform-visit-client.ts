@@ -1,5 +1,5 @@
-/** Record entries, not a continuous heartbeat or activity while the tab is hidden. */
-export function reportPlatformVisits(send: () => Promise<boolean>, page: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener"> = document, browser: Pick<Window, "addEventListener" | "removeEventListener"> = window, now: () => number = Date.now) {
+/** Refresh visible presence; failed sends are retried without requiring a reload. */
+export function reportPlatformVisits(send: () => Promise<boolean>, page: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener"> = document, browser: Pick<Window, "addEventListener" | "removeEventListener"> = window, now: () => number = Date.now, schedule = (tick: () => void) => { const timer = setInterval(tick, 60_000); return () => clearInterval(timer); }) {
   let lastSent = -Infinity, pending = false, disposed = false;
   const enter = async () => {
     if (disposed || pending || page.visibilityState !== "visible" || now() - lastSent < 15_000) return;
@@ -9,6 +9,7 @@ export function reportPlatformVisits(send: () => Promise<boolean>, page: Pick<Do
     finally { pending = false; }
   };
   const onEnter = () => { void enter(); };
-  onEnter(); browser.addEventListener("focus", onEnter); browser.addEventListener("pageshow", onEnter); page.addEventListener("visibilitychange", onEnter);
-  return () => { disposed = true; browser.removeEventListener("focus", onEnter); browser.removeEventListener("pageshow", onEnter); page.removeEventListener("visibilitychange", onEnter); };
+  const stopTimer = schedule(onEnter);
+  onEnter(); browser.addEventListener("focus", onEnter); browser.addEventListener("pageshow", onEnter); browser.addEventListener("online", onEnter); page.addEventListener("visibilitychange", onEnter);
+  return () => { disposed = true; stopTimer(); browser.removeEventListener("focus", onEnter); browser.removeEventListener("pageshow", onEnter); browser.removeEventListener("online", onEnter); page.removeEventListener("visibilitychange", onEnter); };
 }

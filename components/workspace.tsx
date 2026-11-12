@@ -3,6 +3,7 @@
 import { UPLOAD_ACCEPT } from "@/lib/upload-formats";
 import { useBackgroundUploads, UploadIsland, UploadNotifications } from "./background-uploads";
 import { retryAnalysis } from "@/lib/analysis-retry";
+import { documentPageOrder, runDocumentPages } from "@/lib/parallel-analysis";
 import { cachedApi, cachedPdf, invalidateApiCache } from "@/lib/browser-data-cache";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -55,7 +56,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 }
 const json = (method: string, data: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
 const size = (bytes: number) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-type BatchProgress = { id: string; startedAt: number; total: number; completed: number; current: number | null; status: "running" | "stopping" | "stopped" | "completed" | "error" };
+type BatchProgress = { id: string; startedAt: number; total: number; completed: number; current: number | null; active: number[]; status: "running" | "stopping" | "stopped" | "completed" | "error" };
 
 export default function Workspace() {
   const [section, setSection] = useState<"study" | "sessions" | "referrals">("study");
@@ -187,14 +188,14 @@ export default function Workspace() {
     id: `course:${progress.folderId}:${progress.startedAt}`,
     label: formatCourseName(folders.find(folder => folder.id === progress.folderId)?.name || "Esame"),
     status: progress.status, completed: progress.completed, total: progress.total,
-    detail: progress.active.length ? `${progress.active.length} file in analisi` : undefined,
+    detail: progress.active.length ? `${new Set(progress.active.map(item => item.id)).size} file / ${progress.active.length} pagine in analisi` : undefined,
     error: progress.error,
     onStop: () => courseAnalysis.stopAnalysis(progress.folderId),
   }));
   const readerJob: AnalysisIslandJob | null = batch ? {
     id: `reader:${batch.id}:${batch.startedAt}`, label: library.find(file => file.id === batch.id)?.name || "PDF",
     status: batch.status, completed: batch.completed, total: batch.total,
-    detail: batch.current ? `Pagina ${batch.current} / ${batch.total}` : undefined,
+    detail: batch.active.length ? `Pagine ${batch.active.join(", ")} / ${batch.total}` : undefined,
     onStop: stopAnalysis,
   } : pageJob;
   const islandJobs = [...courseJobs, ...(readerJob ? [readerJob] : [])];
@@ -411,7 +412,7 @@ export default function Workspace() {
     const id = doc.id;
     analysisLock.current = true; readerJobDocument.current = id; stopBatch.current = false;
     setError("");
-    setBatch({ id, startedAt: Date.now(), total: doc.pages, completed: analyzedCount, current: null, status: "running" });
+    setBatch({ id, startedAt: Date.now(), total: doc.pages, completed: analyzedCount, current: null, active: [], status: "running" });
     try {
       // Read the saved explanations again, including work completed in another tab.
       const saved = await api<StudyDocument>(`/api/documents/${id}`);
@@ -420,16 +421,19 @@ export default function Workspace() {
         if (slide.explanation) mergeSlide(id, Number(target), slide, true);
       }
       setBatch(previous => previous && { ...previous, completed });
-      for (let target = 1; target <= saved.pages; target++) {
-        if (stopBatch.current) break;
-        if (saved.slides[target]?.explanation) continue;
-        setBatch(previous => previous && { ...previous, current: target });
-        setAnalyzing(`${id}:${target}`);
-        const result = await retryAnalysis(() => api<SlideData>(`/api/documents/${id}/analyze`, json("POST", { page: target })));
-        mergeSlide(id, target, result, true);
-        completed++;
-        setBatch(previous => previous && { ...previous, completed });
-      }
+      const active = new Set<number>();
+      const pending = documentPageOrder(saved.pages).filter(target => !saved.slides[target]?.explanation);
+      const updateActive = () => setBatch(previous => previous && { ...previous, current: [...active][0] ?? null, active: [...active] });
+      await runDocumentPages(pending, async target => {
+        active.add(target); updateActive();
+        try {
+          const result = await retryAnalysis(() => api<SlideData>(`/api/documents/${id}/analyze`, json("POST", { page: target })));
+          if (!result.explanation) throw new Error("La pagina non ha restituito una spiegazione valida. Riprova.");
+          mergeSlide(id, target, result, true);
+          completed++;
+          setBatch(previous => previous && { ...previous, completed });
+        } finally { active.delete(target); updateActive(); }
+      }, () => stopBatch.current, saved.pages);
       setBatch(previous => previous && { ...previous, current: null, status: completed === saved.pages ? "completed" : "stopped" });
     } catch (e) {
       setError(`Analisi interrotta: ${(e as Error).message} Le pagine già analizzate restano salvate. Puoi riprendere da quelle mancanti.`);
@@ -508,12 +512,12 @@ export default function Workspace() {
       {error && <div className="error-banner" role="alert"><span>{error}</span><Button variant="ghost" aria-label="Chiudi messaggio" onClick={() => setError("")}><X size={16} /></Button></div>}
 
 
-      {section === "study" && !doc && !opening && !folderId && <ExamOverview requestedCourseAction={requestedCourseAction} onCourseActionHandled={() => setRequestedCourseAction(undefined)} onDeleted={id => { setFolders(items => items.filter(item => item.id !== id)); setLibrary(items => items.filter(item => item.folderId !== id)); void refresh(); }} isCourseBusy={id => uploads.jobs.some(job => job.folderId === id && ["queued", "preparing", "uploading", "processing"].includes(job.status)) || pendingWrites.current > 0 || courseAnalysis.jobs.some(job => job.folderId === id && ["checking", "running", "stopping"].includes(job.status)) || (!!readerJobDocument.current && analysisLock.current && library.some(item => item.id === readerJobDocument.current && item.folderId === id)) || Object.entries(chatController.sessions).some(([key, value]) => value.status === "pending" && library.some(item => item.folderId === id && key.startsWith(`${item.id}:`)))} onActivityDaySelect={openSessions} activity={studySession.activity} today={studySession.todayDate} folders={folders} documents={library} onOpen={openFolder} onCreate={() => { setSidebar(false); setCreatingFolder(true); }} onUpdated={folder => setFolders(current => current.map(f => f.id === folder.id ? folder : f))} />}
+      {section === "study" && !doc && !opening && <ExamOverview dialogOnly={!!folderId} requestedCourseAction={requestedCourseAction} onCourseActionHandled={() => setRequestedCourseAction(undefined)} onDeleted={id => { setFolders(items => items.filter(item => item.id !== id)); setLibrary(items => items.filter(item => item.folderId !== id)); if (folderId === id) openFolder(""); void refresh(); }} isCourseBusy={id => uploads.jobs.some(job => job.folderId === id && ["queued", "preparing", "uploading", "processing"].includes(job.status)) || pendingWrites.current > 0 || courseAnalysis.jobs.some(job => job.folderId === id && ["checking", "running", "stopping"].includes(job.status)) || (!!readerJobDocument.current && analysisLock.current && library.some(item => item.id === readerJobDocument.current && item.folderId === id)) || Object.entries(chatController.sessions).some(([key, value]) => value.status === "pending" && library.some(item => item.folderId === id && key.startsWith(`${item.id}:`)))} onActivityDaySelect={openSessions} activity={studySession.activity} today={studySession.todayDate} folders={folders} documents={library} onOpen={openFolder} onCreate={() => { setSidebar(false); setCreatingFolder(true); }} onUpdated={folder => { setFolders(current => current.map(f => f.id === folder.id ? folder : f)); if (folder.archived && folderId === folder.id) openFolder(""); }} />}
       <TonyGreeting key={`${section}:${selectedStudyDay}:${folderId}:${doc?.id || opening?.id || ""}:${page}`} />
       {section === "referrals" && !doc && !opening && <ReferralsSection />}
       {section === "sessions" && !doc && !opening && <StudySessionsView sessions={studySession.sessions} activity={studySession.activity} today={studySession.todayDate} loading={studySession.loadingHistory} error={studySession.errorHistory} onRetry={() => void studySession.reloadHistory()} selectedDay={selectedStudyDay || null} onSelectDay={day => openSessions(day || "")} />}
       {section === "study" && folderId && <div className={`welcome ${homeStyles.courseWorkspace}`} hidden={!!doc || !!opening}>
-        <CourseHeader folder={folders.find(f => f.id === folderId) || { id: folderId, name: "Esame", createdAt: "" }} />
+        <CourseHeader onSettings={() => setRequestedCourseAction({ folderId, action: "settings", requestId: Date.now() })} folder={folders.find(f => f.id === folderId) || { id: folderId, name: "Esame", createdAt: "" }} />
         <div className={`exam-action-grid${showCourseAnalysis ? "" : " exam-action-grid-complete"}`}>
         {showCourseAnalysis && <CourseAnalysis key={folderId} folderId={folderId} documents={selectedCourseDocuments} configured={configured} disabled={busy || selectedCourseReaderBusy} controller={courseAnalysis} />}
         <section className="upload-zone upload-banner" aria-label="Aggiungi file" onDrop={e => { e.preventDefault(); setDragging(false); void uploadFiles(e.dataTransfer.files); }}><span className="upload-symbol"><Upload size={22} strokeWidth={1.5} /></span><div className="upload-banner-copy"><h2>Aggiungi file</h2><p>Trascina qui PDF o immagini PNG e JPEG · Fino a 500 MB per file</p></div><Button variant="default" className="primary-button" disabled={busy} onClick={() => input.current?.click()}>{busy ? <LoaderCircle className="spin" size={17} /> : <Plus size={17} />}{busy ? "Caricamento in corso…" : "Scegli i file"}</Button></section>
@@ -531,7 +535,7 @@ export default function Workspace() {
           <div className="glossary"><div className="glossary-heading"><span><Languages size={17} /> Le parole della slide</span><span className="language-tag">EN <ArrowRight size={10} /> IT</span></div>{explanation?.glossary.length ? <div className="glossary-words">{explanation.glossary.map(g => <div key={g.word} className="glossary-word" title={g.context}><strong>{g.word}</strong><span>{g.translation}</span><small>{g.context}</small></div>)}</div> : <p>{explanation ? explanation.language === "en" ? "Nessun termine da tradurre individuato in questa slide." : "Questa slide non è in inglese. Puoi concentrarti sui concetti." : "Quando spieghi una slide in inglese, trovi qui i termini importanti con la traduzione italiana."}</p>}</div>
           </BottomPanel>
         </section>
-        <aside className="explanation-panel reader-chat-panel" style={{ "--reader-text-size": `${textSize}px` } as React.CSSProperties} aria-label="Tutor della slide"><h1 className="sr-only">{doc.name.replace(/\.pdf$/i, "")}</h1><StudyChat onNavigatePage={target => { if (target !== page) setMapReturn({ documentId: doc.id, page }); navigate(target); }} onReturnToMap={mapReturn?.documentId === doc.id && mapReturn.page !== page ? () => { navigate(mapReturn.page); setMapReturn(null); } : undefined} controller={chatController} documentName={doc.name} key={`${doc.id}:${page}`} id={doc.id} page={page} folder={doc.folderId} initial={activeSlide?.chat || []} explanation={explanation} onAnalyze={() => void analyze()} onAnalyzeAll={() => void analyzeAll()} analyzing={currentAnalyzing} batchRunning={!!batchRunning && batch?.id === doc.id} analysisBusy={selectedDocumentAnalyzing || !!analyzing || !!batchRunning} configured={configured} disabled={busy} analysisProgress={batch?.id === doc.id ? { completed: batch.completed, total: batch.total, current: batch.current, status: batch.status } : undefined} onStopAnalysis={stopAnalysis} onSettings={() => setSettings(true)} />
+        <aside className="explanation-panel reader-chat-panel" style={{ "--reader-text-size": `${textSize}px` } as React.CSSProperties} aria-label="Tutor della slide"><h1 className="sr-only">{doc.name.replace(/\.pdf$/i, "")}</h1><StudyChat onNavigatePage={target => { if (target !== page) setMapReturn({ documentId: doc.id, page }); navigate(target); }} onReturnToMap={mapReturn?.documentId === doc.id && mapReturn.page !== page ? () => { navigate(mapReturn.page); setMapReturn(null); } : undefined} controller={chatController} documentName={doc.name} key={`${doc.id}:${page}`} id={doc.id} page={page} folder={doc.folderId} initial={activeSlide?.chat || []} explanation={explanation} onAnalyze={() => void analyze()} onAnalyzeAll={() => void analyzeAll()} analyzing={currentAnalyzing} batchRunning={!!batchRunning && batch?.id === doc.id} analysisBusy={selectedDocumentAnalyzing || !!analyzing || !!batchRunning} configured={configured} disabled={busy} analysisProgress={batch?.id === doc.id ? { completed: batch.completed, total: batch.total, current: batch.current, active: batch.active, status: batch.status } : undefined} onStopAnalysis={stopAnalysis} onSettings={() => setSettings(true)} />
         </aside></ReaderSplit>
       </>}
     </main>

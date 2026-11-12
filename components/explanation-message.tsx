@@ -3,8 +3,22 @@ import { ChatMessageAuthor } from "./chat-message-author";
 import { MarkdownContent } from "./markdown-content";
 import { Button } from "./ui/button";
 import type { Explanation } from "@/lib/types";
+import { introductoryPageKind, pageKindLabels } from "@/lib/page-kind";
 
-export function ExplanationMessage({ explanation, page, onDeepen, disabled }: { explanation: Explanation; page?: number; onDeepen?: (topic: string) => void; disabled?: boolean }) {
+type ExplanationMessageProps = { explanation: Explanation; page?: number; onDeepen?: (topic: string) => void; disabled?: boolean };
+
+export function ExplanationMessage(props: ExplanationMessageProps) {
+  const { explanation, page } = props;
+  const kind = introductoryPageKind(explanation);
+  if (!kind) return <ExpandedExplanation {...props} />;
+  const hasDetails = explanation.concepts.length > 0 || !!explanation.example.trim() || !!explanation.takeaway.trim() || (!explanation.pageKind && !!explanation.overview.trim());
+  return <article className="chat-message assistant chat-analysis-message chat-analysis-summary" data-source="analysis" aria-label={page ? `Analisi della slide ${page}` : "Analisi della slide"}>
+    <h2>{explanation.title}</h2><p className="chat-analysis-kind">{pageKindLabels[kind]}</p>
+    {hasDetails && <details className="chat-analysis-details"><summary>Vedi di più</summary><ExpandedExplanation {...props} /></details>}
+  </article>;
+}
+
+function ExpandedExplanation({ explanation, page, onDeepen, disabled }: ExplanationMessageProps) {
   const deepen = (topic: string) => onDeepen && <Button variant="ghost" size="sm" className="deepen-button" disabled={disabled} onClick={() => onDeepen(topic)}><Sparkles size={14} /> Approfondisci</Button>;
   return <article className="chat-message assistant chat-analysis-message" data-source="analysis" aria-label={page ? `Analisi della slide ${page}` : "Analisi della slide"}>
     <ChatMessageAuthor />

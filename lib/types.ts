@@ -1,4 +1,5 @@
 export interface Explanation {
+  pageKind?: "content" | "cover" | "index" | "title";
   title: string;
   language: "en" | "it" | "other";
   overview: string;
