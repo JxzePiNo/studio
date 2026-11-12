@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cloudEnabled, services } from "./firebase-server";
 import { firebaseAuthFailure, firebaseCredentialDiagnostics } from "./firebase-auth-errors";
+import { platformDenial } from "./platform-server";
 
 export async function requestGuard(request: Request) {
   const denied = localRequest(request);
@@ -15,12 +16,15 @@ export async function requestGuard(request: Request) {
     const failure = firebaseAuthFailure(error, "initialize");
     return NextResponse.json({ error: failure.error }, { status: failure.status });
   }
-  try { await auth.verifyIdToken(authorization.slice(7), true); }
+  let identity;
+  try { identity = await auth.verifyIdToken(authorization.slice(7), true); }
   catch (error) {
     logAuthFailure("verify", error);
     const failure = firebaseAuthFailure(error);
     return NextResponse.json({ error: failure.error }, { status: failure.status });
   }
+  try { return await platformDenial(request, identity); }
+  catch (error) { console.error("Platform policy unavailable", error); return NextResponse.json({ error: "Impossibile verificare lo stato della piattaforma." }, { status: 503 }); }
 }
 
 function logAuthFailure(stage: "initialize" | "verify", error: unknown) {
@@ -44,7 +48,7 @@ export function apiError(error: unknown) {
   const code = (error as NodeJS.ErrnoException)?.code;
   if (code === "ENOENT") return NextResponse.json({ error: "Documento non trovato." }, { status: 404 });
   const status = (error as { status?: number })?.status;
-  if (status === 401 || status === 400 || status === 404 || status === 409 || status === 502 || status === 503) return NextResponse.json({ error: (error as Error).message }, { status });
+  if (status === 401 || status === 403 || status === 400 || status === 404 || status === 409 || status === 502 || status === 503) return NextResponse.json({ error: (error as Error).message }, { status });
   console.error(error);
   return NextResponse.json({ error: "Impossibile completare l’operazione. Controlla i file e riprova." }, { status: 500 });
 }

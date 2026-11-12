@@ -10,7 +10,7 @@ async function drag(page: Page, divider: Locator, x: number, y: number) {
   await page.mouse.up();
 }
 
-test("chat divider resizes, closes and reopens without losing the draft on desktop and mobile", async ({ page, request }) => {
+test("chat resizes on desktop and opens through Tony on mobile without losing the draft", async ({ page, request }) => {
   await page.setViewportSize({ width: 1440, height: 1050 });
   await page.route("**/api/status", route => route.fulfill({ json: { configured: true } }));
   await page.goto("/");
@@ -53,10 +53,9 @@ test("chat divider resizes, closes and reopens without losing the draft on deskt
     await expect(chat).toBeVisible();
     await page.screenshot({ path: "test-results/chat-divider-desktop.png" });
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(divider).toHaveAttribute("aria-orientation", "horizontal");
-    await drag(page, divider, 195, 833);
+    await expect(divider).toBeHidden();
     await expect(chat).toBeHidden();
-    await drag(page, divider, 195, 450);
+    await page.getByRole("button", { name: "Apri chat con Tony", exact: true }).click();
     await expect(chat).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: "test-results/chat-divider-mobile.png" });

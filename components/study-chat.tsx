@@ -10,6 +10,9 @@ import type { ChatMessage, Explanation } from "@/lib/types";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { MarkdownContent } from "./markdown-content";
+import { CreationDialog } from "./creation-dialog";
+import { StudyArtifactView } from "./study-artifact-view";
+import { ConceptModelView } from "./concept-model-view";
 import { QuizDialog } from "./quiz-dialog";
 import { quizRequestSummary } from "@/lib/quiz";
 import { ExplanationMessage } from "./explanation-message";
@@ -40,6 +43,8 @@ export interface StudyChatProps {
   analysisProgress?: AnalysisProgress;
   onStopAnalysis?: () => void;
   onSettings?: () => void;
+  onNavigatePage?: (page: number) => void;
+  onReturnToMap?: () => void;
 }
 
 function BatchProgress({ progress, running, onStop }: { progress?: AnalysisProgress; running: boolean; onStop?: () => void }) {
@@ -52,7 +57,7 @@ function BatchProgress({ progress, running, onStop }: { progress?: AnalysisProgr
   </div>;
 }
 
-export function StudyChat({ id, controller, documentName = "PDF", page, initial, explanation, onAnalyze, onAnalyzeAll, analyzing = false, batchRunning = false, analysisBusy = false, configured = true, disabled = false, analysisProgress, onStopAnalysis, onSettings }: StudyChatProps) {
+export function StudyChat({ id, controller, documentName = "PDF", page, initial, explanation, onAnalyze, onAnalyzeAll, analyzing = false, batchRunning = false, analysisBusy = false, configured = true, disabled = false, analysisProgress, onStopAnalysis, onSettings, onNavigatePage, onReturnToMap }: StudyChatProps) {
   const { profile } = useStudyProfile();
   const [user, setUser] = useState<User | null>(null);
   useEffect(() => {
@@ -63,6 +68,7 @@ export function StudyChat({ id, controller, documentName = "PDF", page, initial,
   const session = controller.sessions[chatSessionKey(id, page)];
   const [question, setQuestion] = useState(() => session?.status === "error" ? session.question : "");
   const [quizDialog, setQuizDialog] = useState(false);
+  const [modelDialog, setModelDialog] = useState(false);
   const [wholeDocument, setWholeDocument] = useState(false);
   const messages = session?.messages || initial;
   const busy = session?.status === "pending";
@@ -78,6 +84,7 @@ export function StudyChat({ id, controller, documentName = "PDF", page, initial,
   const scopeHintId = useId();
   const errorId = useId();
   const conversation = messages.filter(message => message.source !== "analysis");
+  const lastModel = conversation.at(-1)?.artifact || conversation.at(-1)?.visualization;
   const canSend = !busy && !disabled && configured && !!question.trim();
   const showProgress = batchRunning || !!analysisProgress;
 
@@ -101,6 +108,12 @@ export function StudyChat({ id, controller, documentName = "PDF", page, initial,
     if (area) area.scrollTo({ top: area.scrollHeight, behavior: "smooth" });
   }, [scrollRequest]);
 
+  useEffect(() => {
+    if (session?.kind !== "visualization" || session.status !== "completed" || !lastModel) return;
+    const frame = requestAnimationFrame(() => scrollArea.current?.querySelector(`[data-artifact-id="${lastModel.id}"], [data-model-id="${lastModel.id}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" }));
+    return () => cancelAnimationFrame(frame);
+  }, [session?.kind, session?.status, session?.revision, lastModel?.id]);
+
   async function send(prompt?: string) {
     if (lock.current || busy || disabled || !configured || !(prompt || question).trim()) return;
     const submittedQuestion = (prompt || question).trim().slice(0, 4000);
@@ -119,14 +132,17 @@ export function StudyChat({ id, controller, documentName = "PDF", page, initial,
 
   return <section className="chat-pane" aria-label={`Chat sulla slide ${page}`}>
     {quizDialog && <QuizDialog id={id} name={documentName} onClose={() => setQuizDialog(false)} onGenerate={config => { void controller.send({ id, page, name: documentName, question: quizRequestSummary(config), scope: "document", quiz: config }); }} />}
+    {modelDialog && <CreationDialog documentName={documentName} configured={configured} wholeDocument={wholeDocument} onClose={() => setModelDialog(false)} onGenerate={(prompt, kind, scope) => { setModelDialog(false); void controller.send({ id, page, name: documentName, question: prompt, scope, visualization: true, artifactKind: kind }); }} />}
     <header className="chat-reader-header">
       <span className="chat-slide-label">Slide {page}</span>
       <div className="chat-reader-actions">
         <Button variant="outline" size="sm" onClick={() => setQuizDialog(true)} disabled={busy || disabled || !configured} aria-label="Crea quiz"><ClipboardList size={15} /> Quiz</Button>
         <Button variant="outline" size="sm" className="chat-mode-toggle" aria-pressed={wholeDocument} aria-describedby={scopeHintId} disabled={busy || disabled} onClick={() => setWholeDocument(value => !value)}><FileText size={15} /> Tutto PDF</Button>
+        <Button variant="outline" size="sm" className="chat-model-button" aria-label="Crea materiale" title="Crea mappe, immagini e schemi" disabled={busy || disabled} onClick={() => setModelDialog(true)}><Sparkles size={16} /><span>Crea</span></Button>
         {onSettings && <Button variant="outline" size="icon" className="chat-reader-settings" aria-label="Impostazioni della lettura" onClick={onSettings}><Settings2 size={17} /></Button>}
       </div>
     </header>
+    {onReturnToMap && <Button variant="outline" size="sm" className="chat-map-return" onClick={onReturnToMap}>Torna alla mappa</Button>}
     <div className="chat-scroll-area" ref={scrollArea}>
       <p className="chat-scope-hint" id={scopeHintId} aria-live="polite">{wholeDocument ? "Le domande riguardano tutto il PDF corrente, tenendo conto delle pagine lette e delle domande precedenti." : "Le domande riguardano questa slide, tenendo conto delle pagine lette e delle domande precedenti nel PDF."}</p>
       <div className="chat-messages">
@@ -142,16 +158,17 @@ export function StudyChat({ id, controller, documentName = "PDF", page, initial,
           {!configured && <p className="chat-analysis-configure">Configura OpenAI dalle impostazioni della lettura per iniziare.</p>}
         </div>}
         <div className="chat-conversation" aria-live="polite" aria-relevant="additions text">
-          {conversation.filter(message => !message.quiz).map((message, index) => <article className={`chat-message ${message.role}`} key={`conversation-${index}`}><ChatMessageAuthor role={message.role} name={authorName} photoURL={user?.photoURL} />{message.role === "assistant" ? <MarkdownContent>{message.content}</MarkdownContent> : <p>{message.content}</p>}{message.role === "assistant" && <Button variant="ghost" size="sm" className="deepen-button" disabled={busy || disabled || !configured} onClick={() => void send(`Approfondisci questa spiegazione con passaggi ed esempi: ${message.content.slice(0, 2800)}`)}><Sparkles size={14} /> Approfondisci</Button>}</article>)}
+          {conversation.filter(message => !message.quiz).map((message, index) => <article className={`chat-message ${message.role}`} key={`conversation-${index}`}><ChatMessageAuthor role={message.role} name={authorName} photoURL={user?.photoURL} />{message.artifact ? <StudyArtifactView key={message.artifact.id} artifact={message.artifact} documentId={id} page={page} onNavigatePage={onNavigatePage} onSaved={messages => controller.receiveMessages(id, page, messages)} /> : message.visualization ? <ConceptModelView model={message.visualization} /> : message.role === "assistant" ? <MarkdownContent>{message.content}</MarkdownContent> : <p>{message.content}</p>}{message.role === "assistant" && !message.visualization && !message.artifact && <Button variant="ghost" size="sm" className="deepen-button" disabled={busy || disabled || !configured} onClick={() => void send(`Approfondisci questa spiegazione con passaggi ed esempi: ${message.content.slice(0, 2800)}`)}><Sparkles size={14} /> Approfondisci</Button>}</article>)}
           {pendingQuestion && <article className="chat-message user is-pending"><ChatMessageAuthor role="user" name={authorName} photoURL={user?.photoURL} /><p>{pendingQuestion}</p></article>}
           {session?.streamingText && session.kind !== "quiz" && <article className="chat-message assistant is-streaming"><ChatMessageAuthor /><MarkdownContent>{session.streamingText}</MarkdownContent></article>}
-          {busy && !session?.streamingText && <p className="chat-thinking" role="status"><LoaderCircle className="spin" size={15} aria-hidden="true" /> Sto approfondendo il materiale…</p>}
+          {busy && !session?.streamingText && <p className="chat-thinking" role="status"><LoaderCircle className="spin" size={15} aria-hidden="true" /> {session?.kind === "visualization" ? "Sto creando il materiale…" : "Sto approfondendo il materiale…"}</p>}
         </div>
       </div>
     </div>
     <div className="chat-composer-area"><label className="form-field-label chat-question-label" htmlFor={questionInputId}>Domanda al tutor</label>
       {showProgress && <BatchProgress progress={analysisProgress} running={batchRunning} onStop={onStopAnalysis} />}
       {error && <p className="chat-error" id={errorId} role="alert">{error}</p>}
+      {error && session?.kind === "visualization" && <Button variant="outline" size="sm" onClick={() => controller.retry(chatSessionKey(id, page))}>Riprova generazione</Button>}
       <form className="chat-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
         <Textarea id={questionInputId} ref={textarea} className="chat-composer-textarea" aria-label="Domanda al tutor" aria-describedby={error ? errorId : undefined} value={question} onChange={event => setQuestion(event.target.value)} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onKeyDown={event => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !composing.current && event.nativeEvent.keyCode !== 229) {

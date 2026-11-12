@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { Eye, EyeOff, GripVertical, Pause, Play, Square } from "lucide-react";
+import * as Popover from "@radix-ui/react-popover";
+import { Eye, EyeOff, Pause, Play, Square } from "lucide-react";
 import { onAuthStateChanged } from "firebase/auth";
 import { buildSavedSession, type SavedSessionInput, type SavedStudySession, type StudyHistorySnapshot } from "@/lib/study-history";
 import type { DocumentSummary } from "@/lib/types";
@@ -66,8 +66,13 @@ export function useStudySession({ documents = [] }: { documents?: DocumentSummar
         setErrorHistory("");
       }
     } catch (error) { if (owner === key.current) setErrorHistory((error as Error).message); }
-    finally { syncing.current = false; setSavingHistory(false); }
-  }, [merge, persistQueue]);
+    finally {
+      syncing.current = false; setSavingHistory(false);
+      // Initial imports or queued writes can supersede the first history read.
+      // Refresh after draining so today's counter also includes existing pages.
+      if (owner === key.current && !queue.current.length) await reloadHistory();
+    }
+  }, [persistQueue, reloadHistory]);
   const enqueue = useCallback((action: PendingAction) => { revision.current++; queue.current.push(action); persistQueue(); void flush(); }, [flush, persistQueue]);
   useEffect(() => {
     function initialize(uid: string) {
@@ -125,60 +130,21 @@ export function useStudySession({ documents = [] }: { documents?: DocumentSummar
   return { today: session.pages.length, todayDate: session.day, activity: session.activity, hasReadToday, elapsed: sessionElapsed(session, now), running: session.startedAt !== null, hasActiveSession: !!session.activeId || session.startedAt !== null, recordRead, commitRead, toggleTimer, endSession, resetTimer: endSession, hidden, toggleVisibility, sessions, loadingHistory, errorHistory, savingHistory, reloadHistory: async () => { await flush(); await reloadHistory(); } };
 }
 
-export function StudySessionBar({ session, document }: { session: ReturnType<typeof useStudySession>; document?: { name: string; read: number; total: number } }) {
+export function StudySessionBar({ session, document, portrait = false }: { portrait?: boolean; session: ReturnType<typeof useStudySession>; document?: { name: string; read: number; total: number } }) {
   const [mounted, setMounted] = useState(false);
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
-  const floating = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
-  const move = useCallback((x: number, y: number) => {
-    const bounds = floating.current?.getBoundingClientRect();
-    const next = { x: Math.max(8, Math.min(x, innerWidth - (bounds?.width || 0) - 8)), y: Math.max(8, Math.min(y, innerHeight - (bounds?.height || 0) - 8)) };
-    setPosition(next);
-    try { localStorage.setItem("studio-studybar-position", JSON.stringify(next)); } catch {}
-  }, []);
-  useEffect(() => {
-    setMounted(true);
-    try { const saved = JSON.parse(localStorage.getItem("studio-studybar-position") || "null"); if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) setPosition(saved); } catch {}
-  }, []);
-  useEffect(() => {
-    if (!mounted) return;
-    const clamp = () => {
-      const rect = floating.current?.getBoundingClientRect();
-      if (rect && position) move(rect.left, rect.top);
-    };
-    clamp();
-    const observer = new ResizeObserver(clamp);
-    if (floating.current) observer.observe(floating.current);
-    window.addEventListener("resize", clamp);
-    return () => { observer.disconnect(); window.removeEventListener("resize", clamp); };
-  // Position is read when the size changes; moves themselves do not need a new observer.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, session.hidden, !!document, !!position, move]);
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => { setMounted(true); const media = window.matchMedia("(max-width:700px)"); const update = () => setMobile(media.matches); update(); media.addEventListener("change", update); return () => media.removeEventListener("change", update); }, []);
   if (!mounted) return null;
-  if (session.hidden) return <button className={styles.restore} onClick={session.toggleVisibility} aria-label="Mostra riepilogo studio" aria-expanded={false} title="Mostra riepilogo studio"><Eye size={15} /></button>;
+  const visibility = <button className={styles.restore} aria-label={session.hidden ? "Mostra riepilogo studio" : "Nascondi riepilogo studio"} aria-expanded={!session.hidden} title={session.hidden ? "Mostra riepilogo studio" : "Nascondi riepilogo studio"}>{session.hidden ? <Eye size={18} /> : <EyeOff size={18} />}</button>;
   const seconds = Math.floor(session.elapsed / 1000);
   const time = `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
-  return <><div aria-hidden="true" style={{ height: 54, pointerEvents: "none" }} />{createPortal(<div ref={floating} className={styles.floating} style={position ? { left: position.x, top: position.y, transform: "none" } : undefined}>
+  return <Popover.Root open={!session.hidden} onOpenChange={open => { if (open === session.hidden) session.toggleVisibility(); }}><Popover.Trigger asChild>{visibility}</Popover.Trigger><Popover.Portal><Popover.Content role="region" aria-label="Controlli della sessione" className={styles.floating} side="bottom" align="center" sideOffset={mobile && portrait ? 76 : 8} collisionPadding={8} onOpenAutoFocus={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}>
     <section className={styles.bar} aria-label="Riepilogo studio">
-    <button className={styles.drag} aria-label="Sposta riepilogo studio" title="Trascina o usa i tasti freccia per spostare" onPointerDown={event => {
-      if (event.button !== 0) return;
-      const rect = floating.current!.getBoundingClientRect();
-      drag.current = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top };
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }} onPointerMove={event => { if (drag.current) move(drag.current.left + event.clientX - drag.current.x, drag.current.top + event.clientY - drag.current.y); }} onPointerUp={event => { drag.current = null; event.currentTarget.releasePointerCapture(event.pointerId); }} onPointerCancel={() => { drag.current = null; }} onKeyDown={event => {
-      const directions: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
-      const direction = directions[event.key];
-      if (!direction) return;
-      event.preventDefault();
-      const rect = floating.current!.getBoundingClientRect();
-      const step = event.shiftKey ? 40 : 10;
-      move(rect.left + direction[0] * step, rect.top + direction[1] * step);
-    }}><GripVertical size={15} /></button>
     <div className={styles.count}><strong>{session.today}</strong><span>pag oggi</span></div>
     <div className={styles.timer}><span role="timer" aria-label="Tempo di studio">{time}</span><button onClick={session.toggleTimer} disabled={session.running} aria-label="Play" title="Avvia o riprendi timer"><Play size={13} /><span className={styles.actionLabel}>Play</span></button><button onClick={session.toggleTimer} disabled={!session.running} aria-label="Pausa" title="Metti in pausa"><Pause size={13} /><span className={styles.actionLabel}>Pausa</span></button><button onClick={session.endSession} disabled={!session.hasActiveSession} aria-label="Fine sessione" title="Termina e salva la sessione"><Square size={12} /><span>Fine sessione</span></button></div>
     {document && <div className={styles.document} title={document.name}><strong>{document.read}<span> / {document.total}</span></strong><span>pag PDF</span></div>}
     {session.errorHistory && <button onClick={() => void session.reloadHistory()} title={session.errorHistory} aria-label="Riprova salvataggio sessioni">Riprova salvataggio</button>}
-    <button className={styles.hide} onClick={session.toggleVisibility} aria-label="Nascondi riepilogo studio" title="Nascondi riepilogo" aria-expanded={true}><EyeOff size={15} /></button>
+
   </section>
-  </div>, window.document.body)}</>;
+  </Popover.Content></Popover.Portal></Popover.Root>;
 }

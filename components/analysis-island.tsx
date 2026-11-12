@@ -22,7 +22,7 @@ function statusTitle(job: AnalysisIslandJob) {
   return job.status === "completed" ? "Tutte le spiegazioni sono pronte" : job.status === "stopped" ? "Analisi interrotta" : job.status === "error" ? "Analisi sospesa" : job.status === "stopping" ? "Salvo le pagine in corso…" : job.status === "checking" ? "Controllo le pagine salvate…" : "Tony sta analizzando";
 }
 
-export function AnalysisIsland({ jobs, embedded = false }: { jobs: AnalysisIslandJob[]; embedded?: boolean }) {
+export function AnalysisIsland({ jobs, embedded = false, onHide }: { jobs: AnalysisIslandJob[]; embedded?: boolean; onHide?: () => void }) {
   const [hidden, setHidden] = useState(false);
   const activeJobs = jobs.filter(isActive);
   const active = activeJobs.length > 0;
@@ -40,7 +40,7 @@ export function AnalysisIsland({ jobs, embedded = false }: { jobs: AnalysisIslan
       <span className={styles.icon}><Icon size={18} className={active ? "spin" : undefined} /></span>
       <div className={styles.copy}><strong role="status" aria-live="polite">{title}</strong><span title={multiple ? `${jobs.length} analisi` : job.label}>{multiple ? `${jobs.length} analisi · ${totals.completed} / ${totals.total} pagine` : job.label}</span></div>
       <strong className={styles.percent}>{percent}%</strong>
-      <button className={styles.hide} onClick={() => setHidden(true)} aria-label="Riduci avanzamento analisi" aria-expanded={true} title="Riduci avanzamento"><ChevronUp size={16} /></button>
+      <button className={styles.hide} onClick={onHide || (() => setHidden(true))} aria-label="Riduci avanzamento analisi" aria-expanded={true} title="Riduci avanzamento"><ChevronUp size={16} /></button>
     </div>
     <progress className={styles.progress} max={Math.max(1, totals.total)} value={totals.completed} aria-label="Avanzamento globale analisi" />
     {multiple ? <ul className={styles.jobs} aria-label="Analisi per materia">{jobs.map(item => <li key={item.id} aria-label={`Analisi ${item.label}`}>

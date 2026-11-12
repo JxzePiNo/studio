@@ -19,6 +19,6 @@ test("Tony resta nello spazio riservato e le guide navigano senza modificare dat
   await page.getByRole("button", { name: /I tuoi esami/ }).click();
   await expect(page.getByRole("heading", { name: "I tuoi esami", exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(tony).toBeVisible();
+  await expect(tony).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });

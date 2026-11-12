@@ -16,8 +16,8 @@ test("study summary counts saved reads and keeps the timer while navigating and 
     await expect(page.locator(".slide-stage canvas")).toBeVisible();
     const bar = page.getByRole("region", { name: "Riepilogo studio", exact: true });
     await expect(bar).toContainText("0 / 3");
-    await page.getByRole("button", { name: "Mostra pannello inferiore" }).click();
-    await page.getByRole("button", { name: "Da leggere", exact: true }).click();
+    await page.locator(".slide-stage canvas").click();
+    await page.keyboard.press("Space");
     await expect(bar.getByText("pag oggi", { exact: true }).locator("..").locator("strong")).toHaveText(String(baseline + 1));
     await expect(bar).toContainText("1 / 3");
     await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
@@ -30,7 +30,7 @@ test("study summary counts saved reads and keeps the timer while navigating and 
     await bar.getByRole("button", { name: "Pausa", exact: true }).click();
     await page.clock.runFor(5000);
     await expect(bar.getByRole("timer")).toHaveText("00:05");
-    await bar.getByRole("button", { name: "Nascondi riepilogo studio", exact: true }).click();
+    await page.getByRole("button", { name: "Nascondi riepilogo studio", exact: true }).click();
     await expect(bar).toHaveCount(0);
     await page.getByRole("button", { name: "Mostra riepilogo studio", exact: true }).click();
     await expect(bar.getByRole("timer")).toHaveText("00:05");
@@ -41,21 +41,10 @@ test("study summary counts saved reads and keeps the timer while navigating and 
     await page.clock.runFor(2100);
     await expect(bar.getByRole("timer")).toHaveText("00:07");
     await bar.getByRole("button", { name: "Pausa", exact: true }).click();
-    const handle = bar.getByRole("button", { name: "Sposta riepilogo studio", exact: true });
-    const initial = (await bar.boundingBox())!;
-    await handle.focus();
-    await handle.press("Shift+ArrowDown");
-    await expect.poll(async () => (await bar.boundingBox())!.y).toBe(initial.y + 40);
-    const grip = (await handle.boundingBox())!;
-    const beforeDrag = (await bar.boundingBox())!;
-    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(grip.x + grip.width / 2 + 50, grip.y + grip.height / 2 + 30, { steps: 5 });
-    await page.mouse.up();
-    await expect.poll(async () => (await bar.boundingBox())!.y).toBe(beforeDrag.y + 30);
-    const moved = (await bar.boundingBox())!;
+    await expect(page.getByRole("button", { name: "Sposta riepilogo studio", exact: true })).toHaveCount(0);
+    const fixed = (await bar.boundingBox())!;
     await page.reload();
-    await expect.poll(async () => (await bar.boundingBox())?.y).toBe(moved.y);
+    await expect.poll(async () => (await bar.boundingBox())?.y).toBe(fixed.y);
     await page.setViewportSize({ width: 390, height: 844 });
     await expect.poll(async () => {
       const bounds = (await bar.boundingBox())!;

@@ -30,7 +30,7 @@ async function profileRequest(init?: RequestInit): Promise<StudyProfile> {
   return result as StudyProfile;
 }
 
-export function StudyProfileProvider({ children, onSignOut }: { children: ReactNode; onSignOut?: () => Promise<void> }) {
+export function StudyProfileProvider({ children, onSignOut, requireProfile = true }: { children: ReactNode; onSignOut?: () => Promise<void>; requireProfile?: boolean }) {
   const [profile, setProfile] = useState<StudyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -84,7 +84,7 @@ export function StudyProfileProvider({ children, onSignOut }: { children: ReactN
   }
 
   return <StudyProfileContext.Provider value={{ profile, loading, error, saveProfile, reload }}>
-    {!profile ? <main className="study-profile-loading" aria-busy={loading}>
+    {!profile && requireProfile ? <main className="study-profile-loading" aria-busy={loading}>
       {loading ? <p role="status"><LoaderCircle size={18} className="spin" aria-hidden="true" /> Caricamento del profilo di studio…</p> : <>
         <p role="alert">{error || "Il profilo di studio non è disponibile."}</p>
         <div className="profile-recovery-actions">
@@ -92,7 +92,7 @@ export function StudyProfileProvider({ children, onSignOut }: { children: ReactN
           {onSignOut && <Button variant="outline" disabled={signingOut} onClick={() => void leaveSession()}>{signingOut ? <LoaderCircle size={16} className="spin" /> : <LogOut size={16} />} {signingOut ? "Uscita in corso..." : "Esci e torna al login"}</Button>}
         </div>
       </>}
-    </main> : <NicknamesProvider>{children}<StudyOnboarding key={profile.studyProgram} profile={profile} saveProfile={saveProfile} /></NicknamesProvider>}
+    </main> : <NicknamesProvider>{children}{profile && requireProfile && <StudyOnboarding key={profile.studyProgram} profile={profile} saveProfile={saveProfile} />}</NicknamesProvider>}
   </StudyProfileContext.Provider>;
 }
 

@@ -1,3 +1,5 @@
+import { recordQuestion } from "@/lib/question-log";
+import { meteredFetch } from "@/lib/ai-metering";
 import { NextResponse } from "next/server";
 import { PDFDocument } from "pdf-lib";
 import OpenAI from "openai";
@@ -26,6 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const doc = await readDocument(id);
     if (page > doc.pages) return NextResponse.json({ error: "Slide non valida." }, { status: 400 });
     if (!process.env.OPENAI_API_KEY?.trim()) return NextResponse.json({ error: "Configura OPENAI_API_KEY per usare la chat." }, { status: 503 });
+    await recordQuestion(id, page, question);
     const originalBytes = await readPdf(id);
     const [profile, folder] = await Promise.all([getStudyProfile(), getFolder(doc.folderId)]);
     const studyContext = formatStudyContext({ studyProgram: profile.studyProgram, courseName: folder?.name, documentName: doc.name });
@@ -64,7 +67,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (context.length >= 60000) break;
     }
     const history = withAnalysisMessage(doc.slides[page]?.explanation, (doc.slides[page]?.chat || []).slice(-12));
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 150000, maxRetries: 0 });
+    const client = new OpenAI({ fetch: meteredFetch("chat"), apiKey: process.env.OPENAI_API_KEY, timeout: 150000, maxRetries: 0 });
     const parameters: OpenAI.Responses.ResponseCreateParamsNonStreaming = {
       model: process.env.OPENAI_MODEL || "gpt-4.1-mini", store: false, max_output_tokens: 7000, tools: [quizTool], parallel_tool_calls: false,
       instructions: `${graduateTutorInstructions}\n${learningContextInstructions}\nSe l'utente chiede di creare un quiz, usa create_quiz: il quiz riguarda il PDF completo anche quando il contesto chat è una singola pagina. Rispetta quantità, domande aperte/chiuse/vero-falso e argomenti; se chiede più di 30 domande spiega il limite per singolo quiz. Se mancano preferenze, scegli 10 domande a scelta multipla. Non usare il tool per una semplice spiegazione o per risolvere domande già presenti.\nLa spiegazione salvata della slide è il primo intervento del tutor: continua da lì senza ripeterla integralmente se la domanda riguarda un dettaglio. Rispondi in modo ampio e approfondito alle domande concettuali; per chiarimenti circoscritti concentrati sul punto richiesto senza perdere rigore. Cita nome documento e numero pagina per i riferimenti al materiale. ${scope === "document" ? "È allegato l'intero PDF aperto, con tutte le pagine comprese quelle non ancora analizzate. Puoi collegare queste pagine; la pagina selezionata è indicata nella domanda. Non sono allegati gli altri PDF del corso." : "Sono allegate la slide selezionata e fino a 20 pagine precedenti segnate come lette, nei numeri originali elencati nel contesto. Usa queste ultime come supporto e mantieni il focus sulla domanda relativa alla slide selezionata. Non dichiarare di aver letto il resto del PDF."} L'eventuale contesto aggiuntivo contiene solo spiegazioni e appunti salvati e può essere parziale o troncato: non dichiarare di aver letto altri PDF. Formatta la risposta in Markdown leggibile: usa titoli, paragrafi brevi, grassetto per i termini chiave, elenchi quando aiutano e tabelle solo per confronti. Usa blocchi di codice con il linguaggio indicato. Scrivi le formule LaTeX tra $ per quelle inline e tra $$ su righe separate per quelle in evidenza. Non racchiudere tutta la risposta in un blocco di codice e non usare HTML.`,

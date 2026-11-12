@@ -1,11 +1,6 @@
-.dock { position: fixed; z-index: 46; top: 12px; left: 50%; transform: translateX(-50%); width: min(440px, calc(100vw - 100px)); display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 9px; pointer-events: none; }
-.dock > * { pointer-events: auto; }
-.dock > :is(aside, section), .dock > [aria-hidden="true"] { flex:0 0 100%; width:100%; }
-.dock > [aria-hidden="true"] { order:0; }
-.dock > :is(aside, section) { order:1; }
-.dock > button, .dock > [data-collapsed="true"] { order:3; flex:0 0 auto; width:auto; }
-.dock > button { min-width:32px; }
-.floating { position: fixed; z-index: 47; top: 12px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 16px); }
+.dock { position:fixed;z-index:46;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:8px;width:max-content;pointer-events:none; }
+.dock > * { pointer-events:auto; }
+.floating{z-index:47;width:max-content;max-width:calc(100vw - 64px);outline:none;pointer-events:auto}
 .bar { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 13px; max-width: 100%; border: 1px solid var(--border); border-radius: 19px; background: #ffffff; backdrop-filter: blur(16px); color: var(--foreground); box-shadow: 0 7px 26px #26372216, 0 1px 4px #26372208; }
 .count,.document { display: grid; gap: 2px; white-space: nowrap; }
 .count strong,.document strong { font-size: 14px; line-height: 1.15; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -17,12 +12,12 @@
 .bar button:hover { background: var(--accent); }
 .bar button:focus-visible,.restore:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .bar button:disabled { opacity: .4; cursor: default; }
-.bar .drag { cursor: grab; touch-action: none; background: transparent; width: 18px; }
-.bar .drag:active { cursor: grabbing; }
 .timer button { display: flex; width: auto; gap: 4px; padding: 0 7px; font-size: 10px; white-space: nowrap; height: 28px; }
 .bar .hide { background: transparent; color: var(--muted-foreground); }
 .restore { width: 32px; height: 34px; border: 1px solid var(--border); background: var(--card); box-shadow: 0 5px 16px #26372212; }
 @media(max-width:600px) { .dock { top: 8px; width: calc(100vw - 86px); } .bar { width: 100%; gap: 8px; padding: 9px; border-radius: 16px; } .timer { gap: 3px; padding-left: 7px; } .timer > span { font-size: 11px; } .count strong,.document strong { font-size: 12px; } .count > span,.document > span { font-size: 8px; } .bar button { width: 22px; height: 24px; } }
-@media(max-width:600px) { .floating { top: 56px; } .bar { gap: 5px; padding: 7px; } .timer { gap: 3px; padding-left: 5px; } .timer button { width: auto; padding: 0 4px; font-size: 9px; } .timer .actionLabel { display: none; } .bar .drag { width: 14px; } }
+@media(max-width:600px) { .floating { top: 56px; } .bar { gap: 5px; padding: 7px; } .timer { gap: 3px; padding-left: 5px; } .timer button { width: auto; padding: 0 4px; font-size: 9px; } .timer .actionLabel { display: none; }  }
 @media(max-width:380px) { .bar { flex-wrap: wrap; } .document { display: none; } }
 @media(min-width:601px) and (max-width:700px) { .floating { top:56px; } }
+
+.restore{width:38px;height:38px;border-radius:12px}@media(max-width:700px){.dock{top:8px;width:max-content}}

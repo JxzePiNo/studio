@@ -227,16 +227,18 @@ test("course analysis continues through reader, home and another exam, with a hi
     await page.getByRole("button", { name: "Analizza tutto", exact: true }).click();
     await expect.poll(() => state.calls.length).toBe(2);
     const island = page.getByRole("complementary", { name: "Avanzamento analisi in background" });
+    await page.getByRole("button", { name: /^Mostra notifiche/ }).click();
     await expect(island).toBeVisible();
     await island.hover();
     await island.getByRole("button", { name: "Riduci avanzamento analisi", exact: true }).click();
     await expect(island).toHaveCount(0);
-    await page.getByRole("button", { name: "Mostra avanzamento analisi", exact: true }).click();
+    await page.getByRole("button", { name: /^Mostra notifiche/ }).click();
     await expect(island).toBeVisible();
 
+    await page.getByRole("button", { name: "Chiudi notifiche", exact: true }).click();
     await page.getByRole("button", { name: "Apri Corso A", exact: true }).click();
     await expect(page.locator(".slide-stage canvas")).toBeVisible();
-    await expect(island).toBeVisible();
+    await expect(island).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Analizza questa pagina", exact: true })).toBeDisabled();
     await page.goBack();
     await expect(page.locator(".materials-list")).toBeVisible();
@@ -244,6 +246,7 @@ test("course analysis continues through reader, home and another exam, with a hi
     await expect(page).toHaveURL(/\/$/);
     const other = await createExam(page, "Altro esame durante analisi");
     await expect(page).toHaveURL(new RegExp(`/esami/${other.id}$`));
+    await page.getByRole("button", { name: /^Mostra notifiche/ }).click();
     await expect(island).toContainText("0%");
     expect(state.calls).toHaveLength(2);
     state.release();
@@ -251,9 +254,11 @@ test("course analysis continues through reader, home and another exam, with a hi
     await expect(island).toContainText("Tutte le spiegazioni sono pronte");
     expect(state.calls).toHaveLength(6);
     expect(new Set(state.calls).size).toBe(6);
+    await page.getByRole("button", { name: "Chiudi notifiche", exact: true }).click();
     await page.getByRole("button", { name: new RegExp(formatCourseName(state.folder.name)) }).click();
     await expect(page.locator(".material-analysis-badge.is-analyzed")).toHaveCount(2);
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("button", { name: /^Mostra notifiche/ }).click();
     await expect(island).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: "test-results/background-island-mobile.png", fullPage: true });
@@ -278,11 +283,13 @@ test("two exams analyze concurrently and stopping one preserves the other's work
     expect(state.maximumConcurrent()).toBe(4);
 
     const island = page.getByRole("complementary", { name: "Avanzamento analisi in background" });
+    await page.getByRole("button", { name: /^Mostra notifiche/ }).click();
     await expect(island).toContainText(formatCourseName(state.folder.name));
     await expect(island).toContainText(formatCourseName(other.name));
     await expect(island.getByRole("button", { name: `Interrompi analisi ${formatCourseName(state.folder.name)}`, exact: true })).toBeEnabled();
     await island.getByRole("button", { name: `Interrompi analisi ${formatCourseName(state.folder.name)}`, exact: true }).click();
     await expect(island.getByRole("button", { name: `Interrompi analisi ${formatCourseName(other.name)}`, exact: true })).toBeEnabled();
+    await page.getByRole("button", { name: "Chiudi notifiche", exact: true }).click();
     state.release();
 
     await expect(analysis).toHaveCount(0);

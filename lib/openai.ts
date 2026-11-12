@@ -1,10 +1,11 @@
+import { meteredFetch } from "./ai-metering";
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { explanationSchema } from "./schema";
 import { formatStudyContext, graduateTutorInstructions, type TutorStudyContext } from "./tutor-context";
 
 export async function explainSlide(bytes: Uint8Array, page: number, context: TutorStudyContext = {}) {
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 150000, maxRetries: 0 });
+  const client = new OpenAI({ fetch: meteredFetch("analysis"), apiKey: process.env.OPENAI_API_KEY, timeout: 150000, maxRetries: 0 });
   const response = await client.responses.parse({
     model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
     store: false,

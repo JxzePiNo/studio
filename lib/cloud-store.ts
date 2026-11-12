@@ -132,5 +132,6 @@ export async function remove(id: string) {
   await services().db.runTransaction(async tx => { if (!(await tx.get(r)).exists) throw missing(); tx.update(r, { deleting: true }); });
   documentSnapshots.delete(r.path); pdfBytes.delete(r.path);
   await services().bucket.file(`${r.path}/original.pdf`).delete({ ignoreNotFound: true });
+  await services().bucket.deleteFiles({ prefix: `${r.path}/visuals/` });
   await services().db.recursiveDelete(r);
 }

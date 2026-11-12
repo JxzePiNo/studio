@@ -1,0 +1,84 @@
+import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+
+test.use({ hasTouch: true });
+
+test("mobile navigation opens Home, Sessions, Invitations and Account without the companion", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const nav = page.getByRole("navigation", { name: "Navigazione principale", exact: true });
+  await expect(nav).toBeVisible();
+  await expect(nav.getByRole("button")).toHaveCount(4);
+  await expect(page.getByRole("button", { name: "Un consiglio da Tony del bar", exact: true })).toBeHidden();
+  await nav.getByRole("button", { name: "Sessioni", exact: true }).click();
+  await expect(page).toHaveURL(/\/sessioni$/);
+  const sessionsBack = (await page.getByRole("button", { name: "Torna alla home", exact: true }).boundingBox())!;
+  await nav.getByRole("button", { name: "Inviti", exact: true }).click();
+  await expect(page).toHaveURL(/\/inviti$/);
+  await expect(page.getByRole("heading", { name: "Inviti e saluti", exact: true })).toBeVisible();
+  const back = await page.getByRole("button", { name: "Torna alla home", exact: true }).boundingBox();
+  expect(back!.x).toBe(sessionsBack.x);
+  expect(back!.y).toBe(sessionsBack.y);
+  await page.screenshot({ path: "test-results/mobile-invitations.png" });
+  await nav.getByRole("button", { name: "Account", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Account", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Il tuo account", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Chiudi account", exact: true }).click();
+  await nav.getByRole("button", { name: "Home", exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "test-results/mobile-bottom-menu.png" });
+});
+
+test("mobile PDF fills the viewport, Tony is draggable and toggles a half-height chat without losing a draft", async ({ page, request }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const folder = await (await request.post("/api/folders", { data: { name: `Lettore mobile ${Date.now()}` } })).json();
+  const document = await (await request.post("/api/documents", { multipart: { folderId: folder.id, file: { name: "Mobile.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") } } })).json();
+  await page.route("**/api/status", route => route.fulfill({ json: { configured: true } }));
+  try {
+    await page.goto(`/esami/${folder.id}/documenti/${document.id}`);
+    await expect(page.locator(".slide-stage canvas")).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Navigazione principale", exact: true })).toHaveCount(0);
+    const chat = page.getByRole("complementary", { name: "Tutor della slide", exact: true });
+    await expect(chat).toBeHidden();
+    const slide = await page.locator(".slide-panel").boundingBox();
+    expect(slide!.y).toBeLessThanOrEqual(1);
+    expect(slide!.height).toBeGreaterThanOrEqual(843);
+    const stage = (await page.locator(".slide-stage").boundingBox())!;
+    const canvas = (await page.locator(".slide-stage canvas").boundingBox())!;
+    expect(Math.abs(canvas.y + canvas.height / 2 - stage.y - stage.height / 2)).toBeLessThan(4);
+    const tony = page.getByRole("button", { name: "Apri chat con Tony", exact: true });
+    await expect(tony).toBeVisible();
+    const initial = (await tony.boundingBox())!;
+    const touch = await page.context().newCDPSession(page);
+    await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: initial.x + 32, y: initial.y + 32 }] });
+    for (let step = 1; step <= 12; step++) await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: initial.x + 32 + (95 - initial.x - 32) * step / 12, y: initial.y + 32 + (270 - initial.y - 32) * step / 12 }] });
+    await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await touch.detach();
+    await expect(chat).toBeHidden();
+    const dropped = (await tony.boundingBox())!;
+    expect(dropped.x).toBeLessThan(initial.x - 100);
+    expect(dropped.y).toBeLessThan(initial.y - 100);
+    await tony.tap();
+    await expect(chat).toBeVisible();
+    const chatBox = (await page.locator(".reader-chat-slot").boundingBox())!;
+    expect(Math.abs(chatBox.height - 422)).toBeLessThan(3);
+    expect(Math.abs(chatBox.y - 422)).toBeLessThan(3);
+    const draft = page.getByRole("textbox", { name: "Domanda al tutor", exact: true });
+    await draft.fill("La mia domanda da conservare");
+    await page.getByRole("button", { name: "Chiudi chat con Tony", exact: true }).click();
+    await expect(chat).toBeHidden();
+    await page.getByRole("button", { name: "Apri chat con Tony", exact: true }).click();
+    await expect(draft).toHaveValue("La mia domanda da conservare");
+    await page.screenshot({ path: "test-results/mobile-reader-half-chat.png" });
+    await page.reload();
+    await expect(page.locator(".slide-stage canvas")).toBeVisible();
+    await expect(chat).toBeHidden();
+    const restored = (await page.getByRole("button", { name: "Apri chat con Tony", exact: true }).boundingBox())!;
+    expect(Math.abs(restored.x - dropped.x)).toBeLessThan(3);
+    expect(Math.abs(restored.y - dropped.y)).toBeLessThan(3);
+    await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
+    await expect(page.getByRole("navigation", { name: "Navigazione principale", exact: true })).toBeVisible();
+  } finally { await request.delete(`/api/folders/${folder.id}`); }
+});

@@ -11,9 +11,9 @@ import styles from "./background-chat.module.css";
 
 import type { QuizConfig, StudyQuiz } from "@/lib/quiz";
 
-type ChatRequest = { id: string; page: number; name: string; question: string; scope: "document" | "slide"; quiz?: QuizConfig; quizIntent?: boolean };
-export type BackgroundChatSession = { status: "pending" | "completed" | "error"; question: string; messages?: ChatMessage[]; streamingText?: string; error?: string; revision: number; kind?: "chat" | "quiz"; documentId?: string; request?: ChatRequest };
-type ChatNotification = { key: string; id: string; page: number; name: string; error?: string; quizId?: string; kind?: "chat" | "quiz" };
+type ChatRequest = { id: string; page: number; name: string; question: string; scope: "document" | "slide"; quiz?: QuizConfig; quizIntent?: boolean; visualization?: boolean; artifactKind?: import("@/lib/study-artifact").ArtifactKind };
+export type BackgroundChatSession = { status: "pending" | "completed" | "error"; question: string; messages?: ChatMessage[]; streamingText?: string; error?: string; revision: number; kind?: "chat" | "quiz" | "visualization"; documentId?: string; request?: ChatRequest };
+type ChatNotification = { key: string; id: string; page: number; name: string; error?: string; quizId?: string; kind?: "chat" | "quiz" | "visualization" };
 export const chatSessionKey = (id: string, page: number) => `${id}:${page}`;
 
 export function useBackgroundChat({ onSaved, onQuizStarted }: { onSaved: (id: string, page: number, messages: ChatMessage[]) => void; onQuizStarted?: (id: string) => void }) {
@@ -52,14 +52,14 @@ export function useBackgroundChat({ onSaved, onQuizStarted }: { onSaved: (id: st
     const controller = new AbortController();
     requests.current.set(key, controller);
     const revision = ++sequence.current;
-    let kind: "quiz" | "chat" = input.quiz ? "quiz" : "chat";
+    let kind: "quiz" | "chat" | "visualization" = input.quiz ? "quiz" : input.visualization ? "visualization" : "chat";
     setSessions(current => ({ ...current, [key]: { ...current[key], status: "pending", question: input.question, error: undefined, streamingText: "", revision, kind, documentId: input.id, request: input } }));
     setNotifications(current => current.filter(item => chatSessionKey(item.id, item.page) !== key));
     if (kind === "quiz") quizStartedCallback.current?.(input.id);
     try {
-      const response = await fetch(`/api/documents/${input.id}/${input.quiz ? "quiz" : "chat"}`, {
-        method: "POST", headers: { "Content-Type": "application/json", ...(!input.quiz ? { Accept: "text/event-stream" } : {}), ...await authHeaders() },
-        body: JSON.stringify(input.quiz || { page: input.page, question: input.question, scope: input.scope }), signal: controller.signal,
+      const response = await fetch(`/api/documents/${input.id}/${input.quiz ? "quiz" : input.visualization ? "visualizations" : "chat"}`, {
+        method: "POST", headers: { "Content-Type": "application/json", ...(!input.quiz && !input.visualization ? { Accept: "text/event-stream" } : {}), ...await authHeaders() },
+        body: JSON.stringify(input.quiz || { page: input.page, question: input.question, scope: input.scope, ...(input.visualization ? { kind: input.artifactKind || "map" } : {}) }), signal: controller.signal,
       });
       let result: ChatMessage[] | StudyQuiz | undefined;
       let streamedQuizId: string | undefined;
@@ -80,14 +80,15 @@ export function useBackgroundChat({ onSaved, onQuizStarted }: { onSaved: (id: st
       const quizId = input.quiz ? (result as StudyQuiz).id : streamedQuizId || response.headers.get("X-Studio-Quiz-Id") || undefined;
       const messages = Array.isArray(result) ? result : undefined;
       if (kind === "quiz" && !quizId) throw new Error(messages?.at(-1)?.content || "La richiesta non ha prodotto un quiz. Riprova dal pulsante Quiz.");
-      setSessions(current => ({ ...current, [key]: { status: "completed", question: input.question, messages, revision, kind: quizId ? "quiz" : "chat", documentId: input.id, request: input } }));
+      if (kind === "visualization" && !messages?.at(-1)?.artifact) throw new Error("Il materiale è incompleto. Riprova con una richiesta più circoscritta.");
+      setSessions(current => ({ ...current, [key]: { status: "completed", question: input.question, messages, revision, kind: quizId ? "quiz" : kind, documentId: input.id, request: input } }));
       await invalidateApiCache(`/api/documents/${input.id}`, `/api/documents/${input.id}/quiz`);
       if (messages) savedCallback.current(input.id, input.page, messages);
       if (quizId) {
         window.dispatchEvent(new CustomEvent("studio-quizzes-changed", { detail: { documentId: input.id } }));
         if (kind !== "quiz") quizStartedCallback.current?.(input.id);
       }
-      setNotifications(current => [...current, { key: `${key}:${revision}`, id: input.id, page: input.page, name: input.name, quizId, kind: quizId ? "quiz" : "chat" }]);
+      setNotifications(current => [...current, { key: `${key}:${revision}`, id: input.id, page: input.page, name: input.name, quizId, kind: quizId ? "quiz" : kind }]);
       return true;
     } catch (cause) {
       if (!mounted.current || controller.signal.aborted) return false;
@@ -100,26 +101,26 @@ export function useBackgroundChat({ onSaved, onQuizStarted }: { onSaved: (id: st
     }
   }
   function dismissNotification(key: string) { setNotifications(current => current.filter(item => item.key !== key)); }
-  return { sessions, notifications, send, dismissNotification, pending: Object.values(sessions).some(session => session.status === "pending"), retry: (key: string) => { const request = sessions[key]?.request; if (request) void send(request); } };
+  return { sessions, notifications, send, receiveMessages: (id: string, page: number, messages: ChatMessage[]) => { const key = chatSessionKey(id, page); setSessions(current => current[key] ? { ...current, [key]: { ...current[key], messages } } : current); savedCallback.current(id, page, messages); }, dismissNotification, pending: Object.values(sessions).some(session => session.status === "pending"), retry: (key: string) => { const request = sessions[key]?.request; if (request) void send(request); } };
 }
 
 export type BackgroundChatController = ReturnType<typeof useBackgroundChat>;
 
-export function ChatNotifications({ controller, onOpen, onOpenQuiz }: { controller: BackgroundChatController; onOpen: (id: string, page: number) => void; onOpenQuiz?: (id: string, quizId?: string) => void }) {
+export function ChatNotifications({ controller, onOpen, onOpenQuiz, onHide }: { controller: BackgroundChatController; onOpen: (id: string, page: number) => void; onOpenQuiz?: (id: string, quizId?: string) => void; onHide?: () => void }) {
   const [collapsed, setCollapsed] = useState(false);
   if (!controller.notifications.length) return null;
   return <section className={styles.notifications} aria-label="Notifiche del tutor" data-collapsed={collapsed}>
-    <button className={styles.heading} onClick={() => setCollapsed(value => !value)} aria-expanded={!collapsed} aria-label={collapsed ? "Espandi notifiche del tutor" : "Riduci notifiche del tutor"}>
+    <button className={styles.heading} onClick={onHide || (() => setCollapsed(value => !value))} aria-expanded={!collapsed} aria-label={collapsed ? "Espandi notifiche del tutor" : "Riduci notifiche del tutor"}>
       <MessageCircle size={15} aria-hidden="true" /><span>{collapsed ? "Notifiche" : "Notifiche del tutor"}</span><span className={styles.count}>{controller.notifications.length}</span>{collapsed ? <ChevronDown size={17} aria-hidden="true" /> : <ChevronUp size={17} aria-hidden="true" />}
     </button>
     <div className={styles.items} hidden={collapsed}>
       {controller.notifications.map(notification => <div key={notification.key} className={styles.notification} role="status">
         <span className={styles.icon}>{notification.error ? <MessageCircle size={17} /> : <Check size={17} />}</span>
         <button className={styles.open} onClick={() => { controller.dismissNotification(notification.key); if (notification.kind === "quiz") onOpenQuiz?.(notification.id, notification.quizId); else onOpen(notification.id, notification.page); }}>
-          <strong>{notification.error ? "Il tutor richiede attenzione" : notification.quizId ? "Il quiz è pronto" : "La risposta è pronta"}</strong>
+          <strong>{notification.error ? "Il tutor richiede attenzione" : notification.quizId ? "Il quiz è pronto" : notification.kind === "visualization" ? "Il materiale è pronto" : "La risposta è pronta"}</strong>
           <span>{notification.name} · Pagina {notification.page}</span>
         </button>
-        <button className={styles.dismiss} onClick={() => controller.dismissNotification(notification.key)} aria-label="Chiudi notifica del tutor"><X size={15} /></button>
+        <button className={styles.dismiss} onClick={() => { if (controller.notifications.length === 1) onHide?.(); controller.dismissNotification(notification.key); }} aria-label="Chiudi notifica del tutor"><X size={15} /></button>
       </div>)}
     </div>
   </section>;

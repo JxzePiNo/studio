@@ -5,12 +5,14 @@ import { browserAuth, firebaseEnabled } from "@/lib/firebase-client";
 import { LoginScreen } from "./login-screen";
 import { StudyProfileProvider } from "./study-profile-provider";
 import Workspace from "./workspace";
+import { useReferralCapture } from "./use-referral-capture";
 
 export default function AccountGate() {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(!firebaseEnabled);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  useReferralCapture(user);
   useEffect(() => {
     if (!firebaseEnabled) return;
     try { return onAuthStateChanged(browserAuth(), current => { setUser(current); setReady(true); }, e => { setError(e.message); setReady(true); }); }

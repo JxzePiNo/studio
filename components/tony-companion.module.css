@@ -1,5 +1,11 @@
 .lane { position:fixed; bottom:12px; left:276px; z-index:35; width:min(470px,calc(100vw - 292px)); pointer-events:none; }
 .companion { position:relative; display:flex; align-items:center; gap:12px; width:min(100%,470px); left:0; }
+.sidebarLane { position:absolute; inset:0; width:100%; display:flex; align-items:flex-end; justify-content:center; padding:0 2px 8px; }
+.sidebarLane .companion { flex-direction:row; align-items:flex-end; gap:6px; width:100%; }
+.sidebarLane .mascot { flex:0 0 86px; width:86px; }
+.sidebarLane .bubble { width:auto; flex:1; min-width:0; max-width:none; padding:10px 22px 10px 10px; border-radius:16px 16px 16px 4px; }
+.sidebarLane .bubble p { font-size:11px; }
+@media(max-width:700px) { .lane { display:none; } }
 .mascot { flex:0 0 142px; width:142px; padding:0; border-radius:24px; pointer-events:auto; }
 .mascot,
 .mascot:hover,

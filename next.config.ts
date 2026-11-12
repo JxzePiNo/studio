@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  distDir: process.env.MARGINE_E2E === "true" ? ".next-e2e" : ".next",
+  distDir: process.env.MARGINE_E2E === "true" ? process.env.STUDIO_E2E_READER === "true" ? ".next-e2e-reader" : ".next-e2e" : ".next",
   turbopack: { root: process.cwd() },
   serverExternalPackages: ["pdf-lib"],
   rewrites() {

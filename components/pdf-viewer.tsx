@@ -15,7 +15,7 @@ export async function loadPdf(url: string | Uint8Array, httpHeaders?: Record<str
   try { return await Promise.race([task.promise, aborted]); }
   finally { signal?.removeEventListener("abort", abort); }
 }
-export function PdfCanvas({ pdf, page, zoom = 1, thumbnail = false, fitHeight = false }: { pdf: PDFDocumentProxy; page: number; zoom?: number; thumbnail?: boolean; fitHeight?: boolean }) {
+export function PdfCanvas({ pdf, page, zoom = 1, thumbnail = false, fitHeight = false, onOrientationChange }: { pdf: PDFDocumentProxy; page: number; zoom?: number; thumbnail?: boolean; fitHeight?: boolean; onOrientationChange?: (portrait: boolean) => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const container = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -50,6 +50,7 @@ export function PdfCanvas({ pdf, page, zoom = 1, thumbnail = false, fitHeight = 
         const p = await pdf.getPage(page);
         if (canceled) return;
         const base = p.getViewport({ scale: 1 });
+        onOrientationChange?.(base.height > base.width);
         const ratio = thumbnail ? 1 : Math.min(window.devicePixelRatio || 1, 2);
         const scale = fitHeight && height > 0 ? Math.min(width / base.width, height / base.height) : width / base.width;
         const viewport = p.getViewport({ scale: scale * zoom * ratio });

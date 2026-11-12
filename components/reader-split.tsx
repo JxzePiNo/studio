@@ -2,6 +2,7 @@
 
 import { Children, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
+import { MobileReaderTony } from "./mobile-reader-tony";
 
 type Sizes = { desktop: number; mobile: number };
 const defaults: Sizes = { desktop: 0.46, mobile: 0.6 };
@@ -11,6 +12,7 @@ export function ReaderSplit({ children }: { children: ReactNode }) {
   const panels = Children.toArray(children);
   const [sizes, setSizes] = useState<Sizes>(defaults);
   const [mobile, setMobile] = useState(false);
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [ready, setReady] = useState(false);
   const container = useRef<HTMLDivElement>(null);
@@ -20,7 +22,7 @@ export function ReaderSplit({ children }: { children: ReactNode }) {
   const previous = useRef<Sizes>({ ...defaults });
   const chatId = useId();
   const axis = mobile ? "mobile" : "desktop";
-  const fraction = sizes[axis];
+  const fraction = mobile ? mobileChatOpen ? 0.5 : 0 : sizes.desktop;
   const collapsed = fraction === 0;
 
   useEffect(() => {
@@ -43,7 +45,17 @@ export function ReaderSplit({ children }: { children: ReactNode }) {
     try { localStorage.setItem(storageKey, JSON.stringify(sizes)); } catch {}
   }, [sizes, ready, dragging]);
 
+  useEffect(() => {
+    if (!mobile) return;
+    const update = () => container.current?.style.setProperty("--reader-height", `${window.visualViewport?.height || innerHeight}px`);
+    update();
+    window.visualViewport?.addEventListener("resize", update);
+    window.addEventListener("resize", update);
+    return () => { window.visualViewport?.removeEventListener("resize", update); window.removeEventListener("resize", update); container.current?.style.removeProperty("--reader-height"); };
+  }, [mobile]);
+
   function change(next: number) {
+    if (mobile) { setMobileChatOpen(next > 0); return; }
     if (next > 0) previous.current[axis] = next;
     setSizes(current => ({ ...current, [axis]: next }));
   }
@@ -57,6 +69,7 @@ export function ReaderSplit({ children }: { children: ReactNode }) {
     change(pixels < (mobile ? 90 : 140) ? 0 : Math.min(maximum, Math.max(minimum, pixels)) / total);
   }
   function toggle() {
+    if (mobile) { setMobileChatOpen(value => !value); return; }
     if (!collapsed) change(0);
     else {
       const bounds = container.current?.getBoundingClientRect();
@@ -66,7 +79,7 @@ export function ReaderSplit({ children }: { children: ReactNode }) {
   function finish() { pointer.current = null; setDragging(false); }
   const Icon = mobile ? collapsed ? ChevronUp : ChevronDown : collapsed ? ChevronLeft : ChevronRight;
 
-  return <div ref={container} className={`study-grid reader-split${collapsed ? " chat-collapsed" : ""}${dragging ? " is-resizing" : ""}`} style={{ "--desktop-chat-size": `${sizes.desktop * 100}%`, "--mobile-chat-size": `${sizes.mobile * 100}%` } as CSSProperties}>
+  return <div ref={container} className={`study-grid reader-split${collapsed ? " chat-collapsed" : ""}${dragging ? " is-resizing" : ""}${mobileChatOpen ? " mobile-chat-open" : ""}`} style={{ "--desktop-chat-size": `${sizes.desktop * 100}%`, "--mobile-chat-size": "50%" } as CSSProperties}>
     {panels[0]}
     <div className="reader-splitter" role="separator" tabIndex={0} aria-label="Ridimensiona chat" aria-orientation={mobile ? "horizontal" : "vertical"} aria-controls={chatId} aria-valuemin={0} aria-valuemax={mobile ? 80 : 70} aria-valuenow={Math.round(fraction * 100)} aria-valuetext={collapsed ? "Chat chiusa" : `Chat al ${Math.round(fraction * 100)}%`} title="Trascina per ridimensionare la chat. Doppio clic per aprirla o chiuderla."
       onDoubleClick={event => { if (!(event.target as HTMLElement).closest("button")) toggle(); }}
@@ -107,5 +120,6 @@ export function ReaderSplit({ children }: { children: ReactNode }) {
       <button type="button" className="reader-splitter-toggle" aria-label={collapsed ? "Apri chat" : "Chiudi chat"} aria-expanded={!collapsed} aria-controls={chatId} onClick={event => { if (!moved.current || event.detail === 0) toggle(); moved.current = false; }}><Icon size={14} aria-hidden="true" /></button>
     </div>
     <div id={chatId} className="reader-chat-slot" hidden={collapsed}>{panels[1]}</div>
+    {mobile && <MobileReaderTony open={mobileChatOpen} onToggle={toggle} controls={chatId} />}
   </div>;
 }

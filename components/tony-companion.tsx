@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import { ChevronRight, LifeBuoy, MousePointer2, X } from "lucide-react";
 import { TonyMascot } from "./mascot/tony-mascot";
@@ -21,7 +22,7 @@ const guides: { title: string; hint: string; context: Context; steps: Step[] }[]
   { title: "Rivedi le sessioni", hint: "Attività, statistiche e pagine studiate", context: "sessions", steps: [{ target: '[aria-label="Sessioni di studio"]', text: "Qui trovi le statistiche e le sessioni salvate. Clicca un giorno nella griglia per filtrare; usa il tasto destro su una sessione per gestirla." }] },
 ];
 
-export function TonyCompanion({ context, onNavigate }: { context: Context; onNavigate: (context: Context) => boolean }) {
+export function TonyCompanion({ context, onNavigate, sidebarSlot }: { context: Context; onNavigate: (context: Context) => boolean; sidebarSlot?: HTMLElement | null }) {
   const [phrase, setPhrase] = useState(0);
   const [muted, setMuted] = useState(false);
   const [help, setHelp] = useState(false);
@@ -31,6 +32,21 @@ export function TonyCompanion({ context, onNavigate }: { context: Context; onNav
   const [missing, setMissing] = useState(false);
   const [notice, setNotice] = useState("");
   const panel = useRef<HTMLDivElement>(null);
+  const [sidebarFits, setSidebarFits] = useState(false);
+
+  useEffect(() => {
+    if (!sidebarSlot) { setSidebarFits(false); return; }
+    const desktop = window.matchMedia("(min-width: 701px)");
+    const measure = () => {
+      const rect = sidebarSlot.getBoundingClientRect();
+      setSidebarFits(desktop.matches && rect.width >= 180 && rect.height >= 160);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(sidebarSlot);
+    desktop.addEventListener("change", measure);
+    measure();
+    return () => { observer.disconnect(); desktop.removeEventListener("change", measure); };
+  }, [sidebarSlot]);
 
   useEffect(() => {
     const open = () => { setGuide(null); setHelp(true); setNotice(""); };
@@ -72,13 +88,15 @@ export function TonyCompanion({ context, onNavigate }: { context: Context; onNav
     setHelp(false); setStep(0); setBox(null); setMissing(false); setGuide(next);
   }
 
-  return <>
-    {context !== "reader" && <div className={styles.lane}>
+  const inSidebar = !!sidebarSlot && sidebarFits && context === "course";
+  const companion = context !== "reader" && <div className={`${styles.lane} ${inSidebar ? styles.sidebarLane : ""}`} data-placement={inSidebar ? "sidebar" : "workspace"}>
       <div className={styles.companion}>
         <button className={styles.mascot} type="button" onClick={() => { setMuted(false); setPhrase(value => value + 1); }} aria-label="Un consiglio da Tony del bar"><TonyMascot size="100%" animated={false} /></button>
         {!muted && <div className={styles.bubble}><p key={`${context}:${phrase}`}>{tips[context][phrase % tips[context].length]}</p><button type="button" aria-label="Nascondi i consigli di Tony" onClick={() => setMuted(true)}><X size={13} /></button></div>}
       </div>
-    </div>}
+    </div>;
+  return <>
+    {inSidebar ? createPortal(companion, sidebarSlot!) : companion}
     <Dialog.Root open={help} onOpenChange={setHelp}><Dialog.Portal>
       <Dialog.Overlay className={styles.overlay} />
       <Dialog.Content className={styles.help}>

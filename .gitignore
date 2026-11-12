@@ -71,3 +71,7 @@ desktop.ini
 *.swp
 *.swo
 *~
+/.e2e-data/
+/.e2e-reader-data/
+/.next-e2e-reader/
+/test-results-reader/

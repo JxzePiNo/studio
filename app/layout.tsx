@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { ThemeProvider } from "@/components/theme-provider";
 import "react-day-picker/style.css";
+import "@xyflow/react/dist/style.css";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import "./reader.css";
@@ -15,6 +16,7 @@ import "./sidebar-profile.css";
 import "./workspace-background.css";
 import "./accent-theme.css";
 import "./night-theme.css";
+import "./mobile-workspace.css";
 
 export const metadata: Metadata = { title: "studio.", description: "Le tue slide, spiegate. Uno spazio locale per studiare PDF, capire i concetti e tradurre le parole." };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
