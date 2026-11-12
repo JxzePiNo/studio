@@ -65,6 +65,9 @@ test("generated maps appear in chat, save edits and survive reopening", async ({
     await expect(dialog).toHaveCount(0);
     const map = page.getByRole("region", { name: "Mappa mentale: Il cuore umano", exact: true });
     await expect(map).toBeVisible();
+    const rootLabel = map.locator('.react-flow__node[data-id="heart"] strong');
+    await expect(rootLabel).toHaveCSS("color", "rgb(23, 32, 51)");
+    await expect(rootLabel).toHaveCSS("font-size", "13px");
     await map.getByRole("button", { name: "Modifica", exact: true }).click();
     await map.getByLabel("Nome", { exact: true }).fill("Cuore modificato");
     await map.getByRole("button", { name: "Salva modifiche", exact: true }).click();
@@ -73,6 +76,7 @@ test("generated maps appear in chat, save edits and survive reopening", async ({
     await expect(map.locator(".react-flow__node").filter({ hasText: "Cuore modificato" })).toHaveCount(1);
     await map.getByRole("button", { name: "Apri a schermo intero", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Il cuore umano", exact: true }).locator(".react-flow__node")).toHaveCount(10);
+    await expect(page.getByRole("dialog", { name: "Il cuore umano", exact: true }).locator('.react-flow__node[data-id="heart"] strong')).toHaveCSS("color", "rgb(23, 32, 51)");
     await page.getByRole("dialog", { name: "Il cuore umano", exact: true }).getByRole("button", { name: "Atrio destro", exact: true }).click();
     await expect(page.getByRole("spinbutton", { name: "Numero della slide", exact: true })).toHaveValue("2");
     await expect(page.getByRole("dialog", { name: "Il cuore umano", exact: true })).toHaveCount(0);

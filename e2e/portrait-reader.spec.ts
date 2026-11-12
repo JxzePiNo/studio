@@ -18,6 +18,13 @@ for (const width of [1280, 390]) test(`portrait pages have lateral arrows and co
     const completed = (await complete.boundingBox())!;
     expect(Math.abs(completed.x + completed.width / 2 - back.x - back.width / 2)).toBeLessThan(2);
     await expect(page.locator(".slide-stage")).toHaveCSS("scrollbar-width", "none");
+    const counter = page.locator(".reader-navigation-page");
+    await counter.hover();
+    const dismiss = counter.getByRole("button", { name: "Nascondi frecce per questo PDF", exact: true });
+    await expect(dismiss).toHaveCSS("opacity", "1");
+    const counterBounds = (await counter.boundingBox())!, dismissBounds = (await dismiss.boundingBox())!;
+    expect(Math.abs(dismissBounds.x + dismissBounds.width - counterBounds.x - counterBounds.width - 7)).toBeLessThan(2);
+    expect(Math.abs(dismissBounds.y - counterBounds.y + 7)).toBeLessThan(2);
     await expect(page.getByText("oppure premi Spazio", { exact: true })).toBeVisible();
     await page.screenshot({ path: `test-results/portrait-side-navigation-${width}.png` });
     await complete.click();

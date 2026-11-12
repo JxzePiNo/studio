@@ -18,12 +18,12 @@ test("admin overview sums file fields independently without a composite index", 
   const { auth, db } = services();
   const original = { verify: auth.verifyIdToken, list: auth.listUsers, collection: db.collection };
   auth.verifyIdToken = (async () => ({ uid: "root", email: "paolucciacopo@gmail.com", email_verified: true })) as unknown as typeof auth.verifyIdToken;
-  auth.listUsers = (async () => ({ users: [{ uid: "student", metadata: {}, disabled: false, emailVerified: true }] })) as unknown as typeof auth.listUsers;
+  auth.listUsers = (async () => ({ users: [{ uid: "student", metadata: { lastSignInTime: "2026-11-01T10:00:00.000Z" }, disabled: false, emailVerified: true }] })) as unknown as typeof auth.listUsers;
   let aggregations = 0;
   db.collection = ((name: string) => {
     if (name === "adminAudit") return { orderBy: () => ({ limit: () => ({ get: async () => ({ docs: [] }) }) }) };
     if (name === "appSettings") return { doc: () => ({ get: async () => ({ exists: false }) }) };
-    return { doc: () => ({ collection: (child: string) => child === "metrics" ? { doc: () => ({ get: async () => ({ data: () => undefined }) }) } : {
+    return { doc: () => ({ collection: (child: string) => child === "metrics" ? { doc: (id: string) => ({ get: async () => ({ data: () => id === "activity" ? { lastVisitAt: "2026-11-12T14:15:00.000Z" } : undefined }) }) } : {
       count: () => ({ get: async () => ({ data: () => ({ count: 3 }) }) }),
       aggregate: (fields: Record<string, unknown>) => {
         assert.deepEqual(Object.keys(fields), ["value"]);
@@ -35,7 +35,10 @@ test("admin overview sums file fields independently without a composite index", 
   try {
     const response = await adminGET(new Request("http://127.0.0.1/api/admin", { headers: { authorization: "Bearer test" } }));
     assert.equal(response.status, 200);
-    assert.deepEqual((await response.json()).users[0].files, { count: 3, bytes: 1024, pages: 12 });
+    const user = (await response.json()).users[0];
+    assert.deepEqual(user.files, { count: 3, bytes: 1024, pages: 12 });
+    assert.equal(user.lastVisitAt, "2026-11-12T14:15:00.000Z");
+    assert.equal(user.lastLoginAt, "2026-11-01T10:00:00.000Z");
     assert.equal(aggregations, 2);
   } finally {
     auth.verifyIdToken = original.verify; auth.listUsers = original.list; db.collection = original.collection;

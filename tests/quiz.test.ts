@@ -4,12 +4,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PDFDocument } from "pdf-lib";
-import { quizConfigSchema, validateGeneratedQuiz } from "../lib/quiz";
+import { quickQuizConfig, quizConfigSchema, quizGenerationSchema, validateGeneratedQuiz } from "../lib/quiz";
 import { POST } from "../app/api/documents/[id]/chat/route";
 import { GET, POST as CREATE } from "../app/api/documents/[id]/quiz/route";
 import { listSavedQuizzes } from "../lib/quiz-store";
 import { createDocument, readDocument, updateDocument } from "../lib/store";
 import { createFolder } from "../lib/folders";
+import { generateQuiz } from "../lib/quiz-generation";
 
 const config = quizConfigSchema.parse({ count: 3, openCount: 1, trueFalseCount: 1, topics: ["Entropia"] });
 const generated = { title: "Ripasso di entropia", questions: [
@@ -24,7 +25,56 @@ test("quiz validates requested mix, distinct answers and actual PDF page referen
   assert.equal(validateGeneratedQuiz(generated, config, 2).questions.length, 3);
   assert.throws(() => validateGeneratedQuiz(generated, { ...config, count: 4 }, 2));
   assert.throws(() => validateGeneratedQuiz(generated, config, 1));
+  assert.throws(() => validateGeneratedQuiz(generated, { ...config, throughPage: 1 }, 10));
+  assert.equal(quizConfigSchema.safeParse({ ...config, throughPage: 0 }).success, false);
   assert.throws(() => validateGeneratedQuiz({ ...generated, questions: generated.questions.map((question, index) => index ? question : { ...question, options: ["A", "a", "B", "C"] }) }, config, 2));
+});
+
+test("quick quiz physically excludes later pages and rejects questions beyond the selected page", async t => {
+  const previous = { fetch: globalThis.fetch, key: process.env.OPENAI_API_KEY, cloud: process.env.NEXT_PUBLIC_FIREBASE_ENABLED };
+  process.env.OPENAI_API_KEY = "fake-no-network"; process.env.NEXT_PUBLIC_FIREBASE_ENABLED = "false";
+  t.after(() => { globalThis.fetch = previous.fetch; if (previous.key === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = previous.key; if (previous.cloud === undefined) delete process.env.NEXT_PUBLIC_FIREBASE_ENABLED; else process.env.NEXT_PUBLIC_FIREBASE_ENABLED = previous.cloud; });
+  const pdf = await PDFDocument.create();
+  pdf.addPage([300, 400]); pdf.addPage([400, 500]); pdf.addPage([500, 600]);
+  const bytes = await pdf.save();
+  const document = { id: "doc", name: "Lezione.pdf", pages: 3 } as Awaited<ReturnType<typeof createDocument>>;
+  let calls = 0, badPage = false, recover = false, unauthorized = false;
+  globalThis.fetch = async (_url, init) => {
+    calls++;
+    if (unauthorized) return Response.json({ error: { message: "Invalid key", type: "invalid_request_error" } }, { status: 401 });
+    const body = JSON.parse(String(init?.body)), file = body.input[0].content.find((item: { type: string }) => item.type === "input_file");
+    const attached = await PDFDocument.load(Buffer.from(file.file_data.split(",")[1], "base64"));
+    assert.equal(attached.getPageCount(), 2);
+    assert.equal(attached.getPage(0).getWidth(), 300); assert.equal(attached.getPage(1).getWidth(), 400);
+    assert.ok(body.input[0].content[1].text.includes("da 1 a 2"));
+    if (recover && calls === 6) { assert.match(body.instructions, /generazione precedente/); badPage = false; }
+    const quiz = { title: "Ripasso fino a pagina 2", questions: Array.from({ length: 10 }, (_, index) => ({ ...generated.questions[0], question: `Domanda ${index + 1}`, page: badPage ? 3 : index % 2 + 1 })) };
+    return Response.json({ id: "quick-quiz", object: "response", status: "completed", output: [{ id: "message-quiz", type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: JSON.stringify(quiz), annotations: [] }] }] });
+  };
+  const result = await generateQuiz(document, bytes, quickQuizConfig(2), "Corso di esempio");
+  assert.equal(result.questions.length, 10); assert.ok(result.questions.every(question => question.page <= 2));
+  badPage = true;
+  await assert.rejects(generateQuiz(document, bytes, quickQuizConfig(2), ""), /non.*completo|fuori dall'ambito/);
+  assert.equal(calls, 4, "invalid content is attempted at most three times");
+  recover = true;
+  const recovered = await generateQuiz(document, bytes, quickQuizConfig(2), "");
+  assert.ok(recovered.questions.every(question => question.page <= 2));
+  assert.equal(calls, 6);
+  await assert.rejects(generateQuiz(document, bytes, quickQuizConfig(4), ""), /pagina.*non.*valida/);
+  assert.equal(calls, 6, "invalid page limits are rejected before paid requests");
+  unauthorized = true;
+  await assert.rejects(generateQuiz(document, bytes, quickQuizConfig(2), ""));
+  assert.equal(calls, 7, "provider authentication errors must not be retried");
+});
+
+test("generation schema constrains count, question types, options and physical pages", () => {
+  const schema = quizGenerationSchema({ ...config, count: 1, openCount: 0, trueFalseCount: 0 }, 2);
+  const valid = { title: "Ripasso", questions: [generated.questions[0]] };
+  assert.equal(schema.safeParse(valid).success, true);
+  assert.equal(schema.safeParse({ ...valid, questions: [] }).success, false);
+  assert.equal(schema.safeParse({ ...valid, questions: [generated.questions[1]] }).success, false);
+  assert.equal(schema.safeParse({ ...valid, questions: [{ ...generated.questions[0], page: 3 }] }).success, false);
+  assert.equal(schema.safeParse({ ...valid, questions: [{ ...generated.questions[0], options: ["A", "B"] }] }).success, false);
 });
 
 test("modal and natural chat requests generate the same persisted quiz using the complete PDF", async t => {
@@ -45,6 +95,7 @@ test("modal and natural chat requests generate the same persisted quiz using the
   assert.deepEqual(topics.topics, ["Entropia", "Microstati"]);
   let calls = 0;
   let invalid = false;
+  let wrongMixOnce = false;
   globalThis.fetch = async (url, options) => {
     calls++;
     assert.equal(String(url), "https://api.openai.com/v1/responses");
@@ -55,7 +106,8 @@ test("modal and natural chat requests generate the same persisted quiz using the
     assert.equal((await PDFDocument.load(Buffer.from(file.file_data.split(",")[1], "base64"))).getPageCount(), 2);
     assert.equal(body.text.format.name, "study_quiz");
     assert.ok(body.input[0].content[1].text.includes("Entropia"));
-    const result = invalid ? { ...generated, questions: [] } : generated;
+    const result = wrongMixOnce ? { ...generated, questions: [generated.questions[0], generated.questions[1], generated.questions[1]] } : invalid ? { ...generated, questions: [] } : generated;
+    wrongMixOnce = false;
     return Response.json({ id: "quiz_response", object: "response", status: "completed", output: [{ type: "message", role: "assistant", id: "quiz_message", status: "completed", content: [{ type: "output_text", text: JSON.stringify(result), annotations: [] }] }] });
   };
   async function ask(explicit: boolean) {
@@ -74,8 +126,16 @@ test("modal and natural chat requests generate the same persisted quiz using the
   assert.equal(stored.slides[1].notes, "Conserva gli appunti.");
   assert.equal(stored.slides[1].chat?.length, 2);
   assert.equal((await listSavedQuizzes(stored)).length, 2);
+  wrongMixOnce = true;
+  const beforeRepair = calls;
+  const repaired = await ask(true);
+  assert.equal(repaired.status, 201);
+  assert.equal(calls - beforeRepair, 2, "a wrong mix is regenerated automatically");
+  assert.equal((await listSavedQuizzes(await readDocument(document.id))).length, 3, "only the repaired quiz is persisted");
   invalid = true;
+  const beforeFailure = calls;
   const failed = await ask(true); assert.equal(failed.status, 502);
+  assert.equal(calls - beforeFailure, 3);
   assert.equal((await readDocument(document.id)).slides[1].chat?.length, 2);
-  assert.equal((await listSavedQuizzes(await readDocument(document.id))).length, 2);
+  assert.equal((await listSavedQuizzes(await readDocument(document.id))).length, 3);
 });

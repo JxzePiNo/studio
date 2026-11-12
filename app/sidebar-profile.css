@@ -100,7 +100,7 @@
 }
 .sidebar .folder-icon > svg { width:16px; height:16px; }
 .sidebar .folder-item .folder-icon {
-  color:color-mix(in oklab,var(--course-accent) 65%,#0f172a);
+  color:var(--course-label-color);
   background:color-mix(in oklab,var(--course-accent) 13%,transparent);
   border-radius:5px;
 }
@@ -110,8 +110,14 @@
 }
 .sidebar .sidebar-exams-home { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-height:32px; padding:0 16px; border-radius:6px; color:inherit; font:inherit; text-align:left; }
 .sidebar .sidebar-exams-home:hover { color:var(--primary); text-decoration:underline; text-underline-offset:3px; }
-.sidebar .folder-name { color:inherit; font-size:14px; line-height:16px; }
-.sidebar .folder-item small { color:inherit; font-size:12px; line-height:16px; font-variant-numeric:tabular-nums; }
+.sidebar .folder-item {
+  --course-label-color:color-mix(in oklab,var(--course-accent) 65%,#0f172a);
+  --sidebar-accent:color-mix(in oklab,var(--course-accent) 12%,transparent);
+  color:var(--course-label-color);
+}
+.sidebar .folder-item:hover,.sidebar .folder-item[data-active="true"] { color:var(--course-label-color); }
+.sidebar .folder-name { color:var(--course-label-color); font-size:14px; line-height:16px; }
+.sidebar .folder-item small { color:var(--sidebar-muted); font-size:12px; line-height:16px; font-variant-numeric:tabular-nums; }
 .sidebar .exam-list-empty { margin:4px 0; padding:0 16px; color:var(--sidebar-muted); }
 .sidebar [data-slot="sidebar-footer"] {
   display:flex;

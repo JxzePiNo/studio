@@ -6,6 +6,7 @@ import { LoginScreen } from "./login-screen";
 import { StudyProfileProvider } from "./study-profile-provider";
 import Workspace from "./workspace";
 import { useReferralCapture } from "./use-referral-capture";
+import { usePlatformVisit } from "./use-platform-visit";
 
 export default function AccountGate() {
   const [user, setUser] = useState<User | null>(null);
@@ -13,6 +14,7 @@ export default function AccountGate() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useReferralCapture(user);
+  usePlatformVisit(user?.uid, firebaseEnabled);
   useEffect(() => {
     if (!firebaseEnabled) return;
     try { return onAuthStateChanged(browserAuth(), current => { setUser(current); setReady(true); }, e => { setError(e.message); setReady(true); }); }

@@ -2,6 +2,10 @@
 
 `/admin` usa la sidebar dello spazio Studio, con un menu account condiviso per profilo, tema, ritorno a Studio e uscita. Il server consente l'accesso soltanto all'identità amministrativa Firebase verificata. In modalità locale le API amministrative rimangono disabilitate.
 
+## Ultima visita e ultimo login
+
+La colonna **Ultima visita** indica l'ultima apertura della piattaforma o il ritorno alla scheda, anche con una sessione Firebase già attiva. Studio e la dashboard admin registrano l'ingresso tramite `/api/visits`, usando UID autenticato e orario del server; i passaggi ravvicinati entro 15 secondi vengono accorpati. Le schede nascoste non generano presenze periodiche. Il dato è salvato in `users/{uid}/metrics/activity.lastVisitAt`, senza sostituire i contatori delle domande. Nel dettaglio resta separato **Ultimo login**, proveniente da Firebase Authentication. Le visite precedenti all'attivazione non sono ricostruite dal login: vengono indicate come non ancora registrate.
+
 ## Collegare i costi OpenAI
 
 1. Nelle impostazioni dell'organizzazione OpenAI crea una **Admin API key** con accesso alla Costs API.

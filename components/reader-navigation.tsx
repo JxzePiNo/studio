@@ -23,9 +23,9 @@ export function ReaderNavigation({ page, total, disabled, onNavigate, display, o
   if (!display.navigation && !display.hints) return null;
   return <div className={`reader-navigation-footer${portrait ? " is-portrait" : ""}`}>
     {display.navigation && <nav className="reader-navigation-island" aria-label="Sfoglia le slide">
-      <button className="reader-dismiss" aria-label="Nascondi frecce per questo PDF" title="Nascondi frecce" onClick={() => onVisibilityChange("navigation", false)}><X size={13} /></button>
+      {!portrait && <button className="reader-dismiss" aria-label="Nascondi frecce per questo PDF" title="Nascondi frecce" onClick={() => onVisibilityChange("navigation", false)}><X size={13} /></button>}
       <Button variant="ghost" size="icon" className="reader-previous" aria-label="Pagina precedente" disabled={disabled || page <= 1} onClick={() => onNavigate(page - 1)}><ChevronLeft size={21} /></Button>
-      <span className="reader-navigation-page"><input type="number" inputMode="numeric" enterKeyHint="go" min={1} max={total} value={draft} disabled={disabled} aria-label="Numero della slide" aria-describedby={rangeId} aria-invalid={!!error} title="Inserisci una pagina e premi Invio" style={{ width: `${Math.max(2, String(total).length) + 0.5}ch` }}
+      <span className="reader-navigation-page">{portrait && <button className="reader-dismiss" aria-label="Nascondi frecce per questo PDF" title="Nascondi frecce" onClick={() => onVisibilityChange("navigation", false)}><X size={13} /></button>}<input type="number" inputMode="numeric" enterKeyHint="go" min={1} max={total} value={draft} disabled={disabled} aria-label="Numero della slide" aria-describedby={rangeId} aria-invalid={!!error} title="Inserisci una pagina e premi Invio" style={{ width: `${Math.max(2, String(total).length) + 0.5}ch` }}
         onFocus={event => { cancel.current = false; event.currentTarget.select(); }}
         onChange={event => { setDraft(event.target.value); setError(""); }}
         onBlur={event => jump(event.currentTarget.value)}

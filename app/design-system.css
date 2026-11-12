@@ -193,7 +193,7 @@ button { transition: background .15s, border-color .15s, color .15s; }
 .chat-hint, .chat-pane>small { font-size: 12px; color: var(--muted-foreground); }
 .chat-message { background: var(--sidebar); border: 1px solid var(--border); border-radius: 10px; font-size: 14px; }
 .chat-message.user { background: var(--accent); border-color: transparent; }
-.chat-message strong { font-size: 12px; color: var(--primary); }
+.chat-message > strong { font-size: 12px; color: var(--muted-foreground); }
 .chat-pane textarea { border-color: var(--border); border-radius: var(--radius); font-size: 14px; }
 .error-banner { color: var(--warning-foreground); background: var(--warning); border-color: #f1d68a; font-size: 13px; }
 .danger-button { background: var(--destructive); color: var(--primary-foreground); min-height: 44px; font-size: 13px; }

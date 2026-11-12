@@ -25,6 +25,7 @@ test("quiz returns to course with a pending child and no chat card", async ({ pa
     await expect(page.locator(".slide-stage canvas")).toBeVisible();
     await page.getByRole("button", { name: "Crea quiz", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Crea un quiz", exact: true });
+    await dialog.getByRole("button", { name: /Personalizza/ }).click();
     const all = dialog.getByRole("button", { name: "Tutto il PDF", exact: true });
     await expect(all).toHaveAttribute("aria-pressed", "true");
     await dialog.getByRole("checkbox", { name: "Reti", exact: true }).check();
@@ -40,6 +41,7 @@ test("quiz returns to course with a pending child and no chat card", async ({ pa
     release();
     await expect(page.getByRole("list", { name: `Quiz di ${document.name}` })).toContainText(quiz.title);
     await expect(page.getByText("Quiz in creazione", { exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: /^Mostra notifiche/ }).click();
     await page.getByRole("button", { name: /Il quiz è pronto/ }).click();
     const player = page.getByRole("region", { name: `Quiz: ${quiz.title}`, exact: true });
     await expect(player).toBeVisible();

@@ -23,7 +23,7 @@ test("empty notifications open a useful state and account footer stays on one ro
 });
 
 test("admin dashboard handles user detail, platform settings and nickname management", async ({ page }) => {
-  const uid = "user-test", at = "2026-11-11T12:00:00.000Z", user = { uid, name: "Utente esempio", email: "utente@example.com", disabled: false, verified: true, createdAt: at, lastLoginAt: at };
+  const uid = "user-test", at = "2026-11-11T12:00:00.000Z", user = { uid, name: "Utente esempio", email: "utente@example.com", disabled: false, verified: true, createdAt: at, lastLoginAt: at, lastVisitAt: "2026-11-12T14:15:00.000Z" };
   const usage = { models: { mini: { model: "gpt-4.1-mini", input: 1000, cached: 200, output: 300, total: 1300, calls: 1, unknown: 0 } }, calls: 1, errors: 0, firstRecordedAt: at, lastRecordedAt: at };
   let config = structuredClone(defaultPlatform), savedControls = false;
   await page.route("**/api/admin", async route => {
@@ -48,6 +48,9 @@ test("admin dashboard handles user detail, platform settings and nickname manage
   await expect(page.getByRole("button", { name: "Apri menu account", exact: true })).toBeInViewport();
   await expect(page.locator('main > div').first()).toHaveCSS("background-color", "rgb(255, 255, 255)");
   await page.screenshot({ path: "test-results/admin-users.png" });
+  await expect(page.getByRole("columnheader", { name: "Ultima visita", exact: true })).toBeVisible();
+  const expectedVisit = await page.evaluate(value => new Date(value).toLocaleString("it-IT"), user.lastVisitAt);
+  await expect(page.getByRole("row").filter({ hasText: user.email }).getByRole("cell").nth(2)).toHaveText(expectedVisit);
   await page.getByRole("button", { name: "Gestisci", exact: true }).click();
   const detail = page.getByRole("region", { name: "Dettaglio utente" });
   await expect(detail).toContainText("Medicina"); await expect(detail).toContainText("Tariffa non configurata");

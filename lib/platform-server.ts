@@ -16,7 +16,7 @@ export async function requireFeature(feature: Feature) {
 export async function platformDenial(request: Request, user: { uid: string; email?: string; email_verified?: boolean }) {
   if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return;
   const path = new URL(request.url).pathname;
-  if (path.startsWith("/api/admin") || path === "/api/nicknames") return;
+  if (path.startsWith("/api/admin") || path === "/api/nicknames" || path === "/api/visits") return;
   const config = await platformConfig();
   if (config.maintenance && !isAdminIdentity(user)) return NextResponse.json({ error: config.message || "Piattaforma in manutenzione." }, { status: 503 });
   let feature: Feature | undefined;
