@@ -11,31 +11,13 @@ import { authHeaders } from "@/lib/firebase-client";
 import type { QuizSummary, StudyQuiz } from "@/lib/quiz";
 import { QuizCard } from "./quiz-card";
 import { TonyMascot } from "./mascot/tony-mascot";
+import { BaristaLoading } from "./barista-loading";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import styles from "./document-quizzes.module.css";
 
-const baristaPhrases = ["Sto lucidando il bancone…", "Ti preparo un caffè…", "Sistemo i bicchieri…", "Una shakerata alle domande…", "Il tuo quiz arriva al tavolo…"];
-
 function QuizOpening() {
-  const [phrase, setPhrase] = useState(0);
-  useEffect(() => {
-    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let timer: number | undefined;
-    const update = () => {
-      window.clearInterval(timer);
-      if (!preference.matches) timer = window.setInterval(() => setPhrase(value => (value + 1) % baristaPhrases.length), 2600);
-    };
-    update();
-    preference.addEventListener("change", update);
-    return () => { window.clearInterval(timer); preference.removeEventListener("change", update); };
-  }, []);
-  return <div className={styles.loading} aria-busy="true">
-    <div className={styles.loadingMascot} aria-hidden="true"><TonyMascot size="100%" /></div>
-    <p key={phrase} className={styles.loadingPhrase} aria-hidden="true">{baristaPhrases[phrase]}</p>
-    <p className={styles.loadingHint}>Tony sta preparando il tuo quiz.</p>
-    <span className="sr-only" role="status">Caricamento quiz in corso.</span>
-  </div>;
+  return <BaristaLoading name="Il tuo quiz" statusText="Caricamento quiz in corso." hint="Tony sta preparando il tuo quiz." />;
 }
 
 export type PendingQuiz = { key: string; status: "pending" | "error"; error?: string; onRetry: () => void };

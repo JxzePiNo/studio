@@ -68,3 +68,37 @@
 .requestList .personCopy { min-width:0; }
 .requestList .personActions { margin:0; justify-content:flex-end; }
 @media(max-width:700px) { .requestToggle{padding:16px}.requestPreview{padding:0 16px 16px}.requestList{padding:0 16px}.requestList .person{grid-template-columns:44px minmax(0,1fr)}.requestList .personActions{grid-column:2;justify-content:flex-start;gap:6px}.requestList .personActions button{padding:7px 12px;height:auto} }
+.shareProfile { margin-top:24px; }
+.shareProfile [role="tablist"] { display:flex; width:100%; gap:8px; }
+.shareProfile [role="tab"] { flex:1; gap:8px; }
+.shareProfile [role="tabpanel"] { padding-top:20px; }
+.shareProfile label,.shareProfile p { font-size:13px; line-height:1.6; }
+.shareLink { display:flex; gap:8px; margin:8px 0 18px; }
+.shareLink input { min-width:0; flex:1; }
+.profileQr { display:flex; justify-content:center; }
+.profileQr svg { max-width:100%; height:auto; background:white; border-radius:12px; }
+@media(max-width:420px) { .shareLink { flex-direction:column; } }
+.settingRow { display:flex; align-items:center; gap:12px; }
+.settingIcon { display:grid; place-items:center; width:34px; height:34px; flex-shrink:0; border-radius:10px; background:var(--accent); color:var(--primary); }
+.settingCopy { display:flex; flex-direction:column; flex:1; min-width:0; gap:3px; }
+.socialSettings .settingCopy label { display:block; font-size:13px; font-weight:550; line-height:1.4; cursor:pointer; }
+.settingCopy small { font-size:11px; line-height:1.5; color:var(--muted-foreground); }
+.settingSwitch { display:inline-flex; align-items:center; width:42px; height:24px; padding:3px; flex-shrink:0; border:1px solid var(--border); border-radius:999px; background:var(--muted); cursor:pointer; transition:background .15s; }
+.settingSwitch>span { width:16px; height:16px; border-radius:50%; background:var(--muted-foreground); transition:transform .15s,background .15s; }
+.settingSwitch[aria-checked="true"] { background:var(--primary); border-color:var(--primary); }
+.settingSwitch[aria-checked="true"]>span { transform:translateX(18px); background:var(--primary-foreground); }
+.settingSwitch:focus-visible { outline:2px solid var(--primary); outline-offset:3px; }
+.settingSwitch:disabled { opacity:.5; cursor:default; }
+@media(prefers-reduced-motion:reduce) { .settingSwitch,.settingSwitch>span { transition:none; } }
+.profileIdentity { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.profileIdentity h1 { margin:3px 0 0; line-height:1.2; overflow-wrap:anywhere; }
+.profileEducation { display:flex; flex-direction:column; gap:2px; }
+.profileFriendCount { display:flex; flex-direction:column; align-items:center; gap:2px; margin:7px 0; }
+.profileFriendCount strong { font-size:36px; font-weight:550; line-height:1; letter-spacing:-1px; }
+.profileFriendCount>span { font-size:12px; line-height:1.4; color:var(--muted-foreground); }
+.profilePhotoControl { position:relative; width:96px; height:96px; align-self:center; }
+.photoPencil { position:absolute; top:0; right:0; display:grid; place-items:center; width:30px; height:30px; border:3px solid var(--background); border-radius:50%; background:var(--primary); color:var(--primary-foreground); cursor:pointer; }
+.photoPencil:hover { filter:brightness(.95); }
+.photoPencil:focus-visible,.photoPencil:focus-within { outline:2px solid var(--primary); outline-offset:3px; }
+.photoPencil[aria-disabled="true"] { opacity:.5; cursor:wait; }
+.profileForm .photoPencil .photoFileInput { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }

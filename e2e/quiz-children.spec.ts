@@ -54,6 +54,19 @@ test("quiz children open, rename and delete from the parent PDF", async ({ page,
     await expect(player.getByRole("tab", { name: "Risposta", exact: true })).toHaveAttribute("aria-selected", "true");
     await expect(player.getByRole("region", { name: "Risposta corretta", exact: true })).toContainText("4");
     await expect(player.getByRole("region", { name: "La tua risposta errata", exact: true })).toContainText("5");
+    await page.evaluate(() => document.documentElement.dataset.theme = "dark");
+    for (const name of ["Risposta corretta", "La tua risposta errata"]) {
+      const answer = player.getByRole("region", { name, exact: true });
+      const contrast = await answer.evaluate(element => {
+        const luminance = (color: string) => {
+          const channels = color.match(/[\d.]+/g)!.slice(0, 3).map(Number).map(value => { const channel = value / 255; return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4; });
+          return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+        };
+        const background = luminance(getComputedStyle(element).backgroundColor);
+        return Math.min(...Array.from(element.querySelectorAll("h3, p")).map(text => { const foreground = luminance(getComputedStyle(text).color); return (Math.max(background, foreground) + .05) / (Math.min(background, foreground) + .05); }));
+      });
+      expect(contrast, `Night mode contrast for ${name}`).toBeGreaterThanOrEqual(4.5);
+    }
     await expect(player.getByText("Tony sta preparando la spiegazione…", { exact: true })).toBeVisible();
     await player.getByRole("tab", { name: "Domanda", exact: true }).click();
     await expect(player.getByRole("radio", { name: "5", exact: true })).toBeChecked();

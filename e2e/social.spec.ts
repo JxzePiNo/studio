@@ -5,20 +5,38 @@ import type { SharingOverview } from "../lib/sharing-types";
 
 test("friends profile edits photo and identity, with Tony first and privacy in settings", async ({ page, request }) => {
   const old = await (await request.get("/api/profile")).json();
+  const preferences = { discoverable: true, shareActivity: true };
   await page.route("**/api/friends**", route => {
-    if (route.request().method() === "POST") return route.fulfill({ json: { ok: true } });
+    if (route.request().method() === "POST") {
+      const input = route.request().postDataJSON();
+      if (input.action === "settings") Object.assign(preferences, { discoverable: input.discoverable, shareActivity: input.shareActivity });
+      return route.fulfill({ json: { ok: true } });
+    }
     if (new URL(route.request().url()).searchParams.has("search")) return route.fulfill({ json: { people: [], truncated: false } });
-    return route.fulfill({ json: { available: true, self: { enabled: true, discoverable: true, shareActivity: true, name: "Alice" }, friends: [], incoming: [], outgoing: [], leaderboard: [], period: "day" } });
+    return route.fulfill({ json: { available: true, self: { enabled: true, ...preferences, name: "Alice" }, friends: [], incoming: [], outgoing: [], leaderboard: [], period: "day" } });
   });
   try {
     await page.goto("/amici", { waitUntil: "domcontentloaded" });
     const tabs = page.getByRole("tablist", { name: "Sezioni amici", exact: true });
     await expect(tabs.getByRole("tab")).toHaveCount(2);
     await expect(page.getByText("Non ti preoccupare, saremo per sempre amici.", { exact: true })).toBeVisible();
+    const hero = page.getByRole("region", { name: "Il tuo profilo amici", exact: true });
+    await hero.getByRole("button", { name: "Modifica profilo", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Modifica profilo", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Chiudi modifica profilo", exact: true }).click();
     await page.getByRole("button", { name: "Impostazioni amici", exact: true }).click();
-    await expect(page.getByRole("switch", { name: "Compari nella ricerca e nei suggerimenti", exact: true })).toBeVisible();
+    await expect(page.locator('[data-radix-popper-content-wrapper]').getByRole("button", { name: "Modifica profilo", exact: true })).toHaveCount(0);
+    for (const name of ["Visibilità del profilo", "Stato e statistiche"]) {
+      const toggle = page.getByRole("switch", { name, exact: true });
+      await expect(toggle).toHaveAttribute("aria-checked", "true");
+      await toggle.click();
+      await expect(toggle).toHaveAttribute("aria-checked", "false");
+      await expect(toggle).toBeEnabled();
+      await toggle.focus(); await toggle.press("Space");
+      await expect(toggle).toHaveAttribute("aria-checked", "true");
+    }
     await page.getByRole("button", { name: "Chiudi impostazioni amici", exact: true }).click();
-    await page.getByRole("button", { name: "Modifica foto e profilo", exact: true }).click();
+    await hero.getByRole("button", { name: "Modifica profilo", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Modifica profilo", exact: true });
     const image = await page.evaluate(() => { const canvas = document.createElement("canvas"); canvas.width = canvas.height = 10; const context = canvas.getContext("2d")!; context.fillStyle = "red"; context.fillRect(0, 0, 10, 10); return canvas.toDataURL("image/png").split(",")[1]; });
     await dialog.getByLabel("Cambia foto profilo", { exact: true }).setInputFiles({ name: "profilo.png", mimeType: "image/png", buffer: Buffer.from(image, "base64") });

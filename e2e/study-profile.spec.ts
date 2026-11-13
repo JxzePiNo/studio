@@ -20,7 +20,7 @@ test("an existing profile asks only for missing social information and keeps it 
     expect(await (await request.get("/api/profile")).json()).toMatchObject({ nickname: "existing_user", university: "Universit\u00e0 degli Studi di Milano" });
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(onboarding).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Ci si ritrova qui.", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Il tuo profilo amici", exact: true })).toBeVisible();
   } finally { await request.patch("/api/profile", { data: { ...defaultProfile, nickname: "studio_test" } }); }
 });
 

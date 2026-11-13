@@ -25,6 +25,7 @@ export async function GET(request: Request) {
     if (!period.success) return NextResponse.json({ error: "Periodo non valido." }, { status: 400, headers });
     if (!cloudEnabled()) return NextResponse.json({ available: false, self: null, friends: [], incoming: [], outgoing: [], leaderboard: [], period: period.data }, { headers });
     const { service } = await context();
+    if (url.searchParams.has("profile")) return NextResponse.json(await service.sharedProfile(url.searchParams.get("profile") || ""), { headers });
     if (url.searchParams.has("activity")) return NextResponse.json(await service.activity(), { headers });
     if (url.searchParams.has("search")) {
       const name = url.searchParams.get("search") || "";

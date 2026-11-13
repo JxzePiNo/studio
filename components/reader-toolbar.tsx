@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, FileText, Maximize, Minimize, Minus, Plus, Scan, Settings2, Sparkles } from "lucide-react";
+import { Check, FileText, Maximize, Minimize, Minus, MoveDiagonal, Plus, Scan, Settings2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { ReaderNavigation } from "./reader-navigation";
 
@@ -20,7 +20,7 @@ export function ReaderToolbar({ name, page, total, zoom, autoFit, portrait, pdfO
     <div className="reader-toolbar-views">
       <Button variant="ghost" size="icon" aria-label="Completata" title="Completa la slide e vai avanti" disabled={disabled} onClick={onComplete}><Check size={17} /></Button>
       <Button variant="ghost" size="icon" aria-label={pdfOnly ? "Mostra PDF e chat" : "Ingrandisci PDF"} title={pdfOnly ? "Mostra PDF e chat" : "Ingrandisci PDF"} aria-pressed={pdfOnly} onClick={onPdfOnly}>{pdfOnly ? <Minimize size={17} /> : <Maximize size={17} />}</Button>
-      <Button variant="ghost" size="icon" aria-label="Pulisci schermata" title="Pulisci schermata: PDF e chat senza controlli" onClick={onClean}><Sparkles size={17} /></Button>
+      <Button variant="ghost" size="icon" aria-label="Pulisci schermata" title="Espandi la lettura: PDF e chat senza controlli" onClick={onClean}><MoveDiagonal size={17} /></Button>
       <Button variant="ghost" size="icon" aria-label="Impostazioni della lettura" title="Impostazioni della lettura" onClick={onSettings}><Settings2 size={17} /></Button>
     </div>
   </div>;

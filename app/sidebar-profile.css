@@ -197,3 +197,9 @@
 @media(max-width:420px) { .nickname-catalogue { grid-template-columns:1fr; } }
 
 .account-profile-dialog{width:min(620px,calc(100vw - 32px));max-width:620px}.account-profile-actions{display:flex;gap:10px;width:100%;margin-top:8px}.account-profile-actions>.ui-button:first-child{flex:0 0 auto;width:auto}.account-profile-actions>.ui-button:last-child{flex:1;min-width:0}
+.theme-submenu { min-width:215px; }
+.theme-submenu-arrow,.theme-option-check { margin-left:auto; }
+.theme-option-copy { display:flex; flex-direction:column; gap:2px; }
+.theme-option-copy small { font-size:11px; color:var(--muted-foreground); }
+.theme-option-check { display:flex; color:var(--primary); }
+.profile-menu-item[data-state="open"] { background:var(--accent); color:var(--foreground); }

@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Check, ChevronDown, Search, Settings2, UserPlus, Users, X } from "lucide-react";
+import { Activity, Check, ChevronDown, Eye, Search, Settings2, UserPlus, Users, X } from "lucide-react";
 import { friendsChanged, friendsRequest } from "@/lib/friends-client";
 import type { FriendPerson, FriendsOverview, FriendsPeriod, SocialSettings } from "@/lib/friends-types";
 import { useStudyProfile } from "./study-profile-provider";
@@ -8,7 +8,7 @@ import { ReferralsSection } from "./referrals-section";
 import * as Popover from "@radix-ui/react-popover";
 import { FriendActions } from "./friend-actions";
 import { BaristaLoading } from "./barista-loading";
-import { FriendsProfile } from "./friends-profile";
+import { FriendsProfile, FriendsProfileEditor } from "./friends-profile";
 import { FriendAvatar } from "./friend-avatar";
 import { TonyMascot } from "./mascot/tony-mascot";
 import { SharedMaterials } from "./shared-materials";
@@ -34,6 +34,9 @@ function FriendRequests({ title, people, actions }: { title: string; people: Fri
 }
 export function FriendsSection({ initialTab = "friends", onTabChange }: { initialTab?: string; onTabChange?: (tab: string) => void }) {
   const [tab, setTab] = useState(initialTab);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const settingsId = useId();
   useEffect(() => { setTab(initialTab); }, [initialTab]);
   function changeTab(value: string) {
     setTab(value);
@@ -42,6 +45,15 @@ export function FriendsSection({ initialTab = "friends", onTabChange }: { initia
   }
   const { profile } = useStudyProfile();
   const [data, setData] = useState<FriendsOverview | null>(null);
+  const [sharedId, setSharedId] = useState("");
+  const [shared, setShared] = useState<{ person: FriendPerson | null; self?: boolean } | null>(null);
+  const [sharedError, setSharedError] = useState("");
+  const [sharedRetry, setSharedRetry] = useState(0);
+  useEffect(() => {
+    const sync = () => { setSharedId(new URLSearchParams(window.location.search).get("profilo") || ""); };
+    sync(); window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
   const period: FriendsPeriod = "day";
   const [term, setTerm] = useState("");
   const [query, setQuery] = useState("");
@@ -53,6 +65,14 @@ export function FriendsSection({ initialTab = "friends", onTabChange }: { initia
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
   const lock = useRef(false), sequence = useRef(0);
+  useEffect(() => {
+    if (!sharedId || !data?.available) return;
+    const controller = new AbortController(); setShared(null); setSharedError("");
+    void friendsRequest<{ person: FriendPerson | null; self?: boolean }>(`?profile=${encodeURIComponent(sharedId)}`, undefined, controller.signal)
+      .then(value => { if (!controller.signal.aborted) setShared(value); })
+      .catch(cause => { if (!controller.signal.aborted) setSharedError((cause as Error).message); });
+    return () => controller.abort();
+  }, [sharedId, data?.available, revision, sharedRetry]);
   const load = useCallback(async (signal?: AbortSignal) => {
     const ticket = ++sequence.current;
     try {
@@ -91,20 +111,35 @@ export function FriendsSection({ initialTab = "friends", onTabChange }: { initia
   }
   const requestActions = (person: FriendPerson) => <><Button size="sm" disabled={busy} onClick={() => relationship(person, "accept")} aria-label={`Accetta richiesta di ${person.name}`}><Check size={15} /> Accetta</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => relationship(person, "reject")} aria-label={`Rifiuta richiesta di ${person.name}`}><X size={15} /> Rifiuta</Button></>;
   return <section className={styles.section} aria-label="Amici">
-    <header className={styles.friendsHeader}><h2>Amici</h2><Popover.Root><Popover.Trigger asChild><button className={styles.settingsTrigger} aria-label="Impostazioni amici"><Settings2 size={21} /></button></Popover.Trigger><Popover.Portal><Popover.Content className={styles.activity} align="end" sideOffset={8} collisionPadding={12}>
+    <header className={styles.friendsHeader}><h2>Amici</h2><Popover.Root open={settingsOpen} onOpenChange={setSettingsOpen}><Popover.Trigger asChild><button className={styles.settingsTrigger} aria-label="Impostazioni amici"><Settings2 size={21} /></button></Popover.Trigger><Popover.Portal><Popover.Content className={styles.activity} align="end" sideOffset={8} collisionPadding={12} onCloseAutoFocus={event => { if (editingProfile) event.preventDefault(); }}>
       <div className={styles.activityHeading}><h2>Impostazioni amici</h2><Popover.Close aria-label="Chiudi impostazioni amici"><X size={18} /></Popover.Close></div>
-      <div className={styles.socialSettings}><label><input type="checkbox" role="switch" checked={data?.self?.discoverable ?? true} disabled={busy || !data?.available} onChange={event => settings({ discoverable: event.target.checked })} /> Compari nella ricerca e nei suggerimenti</label><label><input type="checkbox" role="switch" checked={data?.self?.shareActivity ?? true} disabled={busy || !data?.available} onChange={event => settings({ shareActivity: event.target.checked })} /> Condividi stato e statistiche con gli amici</label></div>
+      <div className={styles.socialSettings}>
+        <div className={styles.settingRow}>
+          <span className={styles.settingIcon}><Eye size={18} aria-hidden="true" /></span>
+          <div className={styles.settingCopy}><label id={`${settingsId}-visibility-title`} htmlFor={`${settingsId}-visibility`}>Visibilità del profilo</label><small id={`${settingsId}-visibility-description`}>Compari nella ricerca e nei suggerimenti.</small></div>
+          <button id={`${settingsId}-visibility`} type="button" role="switch" aria-labelledby={`${settingsId}-visibility-title`} aria-describedby={`${settingsId}-visibility-description`} aria-checked={data?.self?.discoverable ?? true} className={styles.settingSwitch} disabled={busy || !data?.available} onClick={() => settings({ discoverable: !(data?.self?.discoverable ?? true) })}><span /></button>
+        </div>
+        <div className={styles.settingRow}>
+          <span className={styles.settingIcon}><Activity size={18} aria-hidden="true" /></span>
+          <div className={styles.settingCopy}><label id={`${settingsId}-activity-title`} htmlFor={`${settingsId}-activity`}>Stato e statistiche</label><small id={`${settingsId}-activity-description`}>Mostra agli amici quando studi e i tuoi progressi.</small></div>
+          <button id={`${settingsId}-activity`} type="button" role="switch" aria-labelledby={`${settingsId}-activity-title`} aria-describedby={`${settingsId}-activity-description`} aria-checked={data?.self?.shareActivity ?? true} className={styles.settingSwitch} disabled={busy || !data?.available} onClick={() => settings({ shareActivity: !(data?.self?.shareActivity ?? true) })}><span /></button>
+        </div>
+      </div>
       {!!data?.blocked?.length && <div className={styles.blockedUsers}><h3>Utenti bloccati</h3>{data.blocked.map(person => <div key={person.id}><span>{person.name}</span><Button size="sm" variant="outline" disabled={busy} onClick={() => void mutate({ action: "block", targetId: person.id, blocked: false }, "Utente sbloccato.")}>Sblocca</Button></div>)}</div>}
     </Popover.Content></Popover.Portal></Popover.Root></header>
+    {editingProfile && <FriendsProfileEditor name={data?.self?.name} onClose={() => setEditingProfile(false)} />}
     <Tabs value={tab === "invites" ? "invites" : "friends"} onValueChange={changeTab} className={styles.tabs}>
       <TabsList aria-label="Sezioni amici"><TabsTrigger value="friends"><Users size={15} /> Amici</TabsTrigger><TabsTrigger value="invites"><UserPlus size={15} /> Inviti</TabsTrigger></TabsList>
       {error && <p className={styles.feedback} role="alert">{error} <Button variant="ghost" size="sm" onClick={() => void load()}>Riprova</Button></p>}
       {notice && <p className={styles.feedback} role="status">{notice}</p>}
       <TabsContent value="friends">
-        {(data || error) && <FriendsProfile count={data?.friends.length || 0} name={data?.self?.name} />}
+        {(data || error) && <FriendsProfile count={data?.friends.length || 0} name={data?.self?.name} discoverable={data?.self?.discoverable ?? true} onEdit={() => setEditingProfile(true)} />}
         {!data && !error && <BaristaLoading name="I tuoi amici" statusText="Caricamento amici." hint="Tony sta radunando il tuo gruppo di studio." />}
         {data && !data.available && <div className={styles.card}><p>Accedi con il tuo account Google nello spazio online per trovare i tuoi amici.</p></div>}
         {data?.available && <>
+          {sharedId && <div className={styles.card} aria-label="Profilo condiviso"><h2>Profilo condiviso</h2>
+            {sharedError ? <p role="alert">{sharedError} <Button variant="ghost" size="sm" onClick={() => setSharedRetry(value => value + 1)}>Riprova</Button></p> : !shared ? <p role="status">Caricamento profilo…</p> : shared.self ? <p>Questo è il tuo profilo. Condividi il link con un amico!</p> : !shared.person ? <p>Questo profilo non è disponibile.</p> : <ul className={styles.list}><Person person={shared.person}>{shared.person.relationship === "friend" ? <span className={styles.pill}><Check size={13} /> Amici</span> : shared.person.relationship === "incoming" ? requestActions(shared.person) : shared.person.relationship === "outgoing" ? <span className={styles.pill}>Richiesta inviata</span> : <Button size="sm" disabled={busy} onClick={() => relationship(shared.person!, "request")}><UserPlus size={15} /> Aggiungi agli amici</Button>}</Person></ul>}
+          </div>}
           <FriendRequests title="Richieste ricevute" people={data.incoming} actions={requestActions} />
           <form className={styles.search} role="search" onSubmit={event => { event.preventDefault(); setQuery(term.trim()); setRevision(value => value + 1); }}><label className="sr-only" htmlFor="friend-search">Nome o username</label><Input id="friend-search" value={term} onChange={event => setTerm(event.target.value)} maxLength={80} placeholder="Cerca per nome o @username" /><Button type="submit"><Search size={16} /> Cerca</Button></form>
           <div className={styles.card}><h2>I tuoi amici</h2><ul className={styles.list}><li className={`${styles.person} ${styles.tonyFriend}`}><TonyMascot size={data.friends.length ? 64 : 96} animated showName={false} /><div className={styles.personCopy}><strong>Tony del bar</strong><span>{data.friends.length ? "Sempre qui a studiare con te." : "Non ti preoccupare, saremo per sempre amici."}</span></div></li>{data.friends.map(person => <Person key={person.id} person={person}><FriendActions person={person} friend busy={busy} onAction={mutate} /></Person>)}</ul></div>

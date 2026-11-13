@@ -222,6 +222,14 @@ export class FriendsService {
     result.leaderboard.sort((a, b) => b.durationMs - a.durationMs || b.pages - a.pages || a.name.localeCompare(b.name, "it"));
     return result;
   }
+  async sharedProfile(targetId: string): Promise<{ person: FriendPerson | null; self?: boolean }> {
+    if (!uidSchema.safeParse(targetId).success) throw fail("Link del profilo non valido.");
+    if (targetId === this.uid) return { person: null, self: true };
+    const [target, blocked, edgeDoc] = await Promise.all([this.profile(targetId), this.blockedIds(), this.edges().doc(pairId(this.uid, targetId)).get()]);
+    if (!target?.enabled || !target.discoverable || blocked.has(targetId)) return { person: null };
+    const edge = edgeDoc.data() as Edge | undefined;
+    return { person: { ...this.person(targetId, target), relationship: !edge ? "none" : edge.status === "accepted" ? "friend" : edge.requester === this.uid ? "outgoing" : "incoming" } };
+  }
   async search(name: string) {
     const me = await this.profile();
     const blocked = await this.blockedIds();

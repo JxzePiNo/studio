@@ -3,12 +3,15 @@
 .ui-button:disabled { pointer-events:none; opacity:.5; }
 .ui-button:focus-visible, .ui-input:focus-visible, .ui-textarea:focus-visible, .ui-select-trigger:focus-visible, .ui-tabs-trigger:focus-visible { outline:2px solid var(--ring); outline-offset:3px; }
 .ui-button-default { background:var(--primary); color:var(--primary-foreground); }
-.ui-button-default:hover { background:var(--green-dark); }
+.ui-button-default:hover:where(:not(:disabled):not([aria-disabled="true"])) { background:color-mix(in srgb,var(--primary) 90%,transparent); }
 .ui-button-outline { background:var(--card); border-color:var(--border); color:var(--foreground); }
-.ui-button-outline:hover, .ui-button-ghost:hover { background:var(--muted); }
+.ui-button.ui-button-outline:hover:where(:not(:disabled):not([aria-disabled="true"])), .ui-button.ui-button-ghost:hover:where(:not(:disabled):not([aria-disabled="true"])) { background:var(--accent); color:var(--foreground); }
 .ui-button-ghost { background:transparent; color:inherit; }
 .ui-button-secondary { background:var(--muted); color:var(--foreground); }
+.ui-button-secondary:hover:where(:not(:disabled):not([aria-disabled="true"])) { background:color-mix(in srgb,var(--muted) 80%,transparent); }
 .ui-button-destructive { background:var(--destructive); color:white; }
+.ui-button-destructive:hover:where(:not(:disabled):not([aria-disabled="true"])) { background:color-mix(in srgb,var(--destructive) 90%,transparent); }
+@media(prefers-reduced-motion:reduce) { .ui-button { transition:none; } }
 .ui-button-size-sm { font-size:12px; padding:8px 12px; }
 .ui-button-size-icon { padding:0; width:44px; height:44px; flex-shrink:0; }
 .ui-input, .ui-textarea { display:block; width:100%; min-width:0; border:1px solid var(--border); border-radius:10px; background:var(--background); color:var(--foreground); padding:10px 12px; font:inherit; font-size:14px; line-height:22px; min-height:44px; }
@@ -330,3 +333,6 @@
 
 .select-field-control { position:relative; display:block; }
 .select-field-control>svg { position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--muted-foreground); }
+.ui-skeleton { flex-shrink:0; border-radius:6px; background:var(--border); animation:ui-skeleton-pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
+@keyframes ui-skeleton-pulse { 0%,100% { opacity:1; } 50% { opacity:.5; } }
+@media(prefers-reduced-motion:reduce) { .ui-skeleton { animation:none; } }

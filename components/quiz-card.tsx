@@ -12,6 +12,7 @@ import { quizOptionOrder } from "@/lib/quiz-options";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { MarkdownContent } from "./markdown-content";
 import { TonyMascot } from "./mascot/tony-mascot";
+import { BaristaLoading } from "./barista-loading";
 import styles from "./quiz.module.css";
 import { useQuizAttempt } from "./use-quiz-attempt";
 import { useQuizResult } from "./use-quiz-result";
@@ -92,7 +93,7 @@ export function QuizCard({ quiz, onClose }: { quiz: StudyQuiz; onClose: () => vo
         <section className={styles.answerSolution} aria-label="Risposta corretta"><h3>{open ? "Risposta di riferimento" : "La risposta corretta è:"}</h3><MarkdownContent>{open ? question.modelAnswer : question.options[question.correctIndex!]}</MarkdownContent></section>
         <section aria-label="Spiegazione della risposta" aria-busy={explanationLoading}>
           <h3>Perché?</h3>
-          {explanationLoading ? <div className={styles.explanationLoading} role="status"><TonyMascot size={86} showName={false} /><p>Tony sta preparando la spiegazione…</p></div> : <MarkdownContent>{!open && expanded[explanationKey] || question.explanation}</MarkdownContent>}
+          {explanationLoading ? <BaristaLoading name="La spiegazione del quiz" statusText="Caricamento della spiegazione." hint="Tony sta preparando la spiegazione…" /> : <MarkdownContent>{!open && expanded[explanationKey] || question.explanation}</MarkdownContent>}
           {explanationError && <p className={styles.explanationHint}>L’approfondimento non è disponibile. Puoi leggere la spiegazione del quiz o <button type="button" className={styles.retryExplanation} onClick={() => { setExplanationState({ key: explanationKey, status: "loading" }); setRetry(value => value + 1); }}>riprova</button>.</p>}
         </section>
       </TabsContent>}

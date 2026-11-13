@@ -6,6 +6,28 @@ import { memoryFirestore } from "./helpers/memory-firestore";
 const now = Date.parse("2026-11-12T12:00:00Z");
 const identity = (name: string, university = "Università di Bologna") => ({ name, university, nickname: name.toLowerCase(), studyProgram: "Informatica" });
 
+test("shared profile respects privacy and blocks and reports relationship without exposing study data", async () => {
+  const db = memoryFirestore(), alice = new FriendsService(db, "alice", now), bob = new FriendsService(db, "bob", now);
+  await alice.ensureProfile(identity("Alice")); await bob.ensureProfile(identity("Bob"));
+  assert.equal((await alice.sharedProfile("bob")).person?.relationship, "none");
+  assert.equal((await alice.sharedProfile("missing")).person, null);
+  assert.equal((await alice.sharedProfile("alice")).self, true);
+  await assert.rejects(alice.sharedProfile("bad/id"), { status: 400 });
+  await alice.relationship("bob", "request");
+  assert.equal((await alice.sharedProfile("bob")).person?.relationship, "outgoing");
+  assert.equal((await bob.sharedProfile("alice")).person?.relationship, "incoming");
+  await bob.relationship("alice", "accept");
+  const shared = (await alice.sharedProfile("bob")).person!;
+  assert.equal(shared.relationship, "friend"); assert.equal(shared.status, undefined);
+  assert.equal("durationMs" in shared, false);
+  await bob.saveSettings({ action: "settings", discoverable: false, shareActivity: true }, identity("Bob"));
+  assert.equal((await alice.sharedProfile("bob")).person, null);
+  await bob.saveSettings({ action: "settings", discoverable: true, shareActivity: true }, identity("Bob"));
+  await alice.block("bob", true);
+  assert.equal((await alice.sharedProfile("bob")).person, null);
+  assert.equal((await bob.sharedProfile("alice")).person, null);
+});
+
 test("blocking removes relationships and hides both users until all blocks are removed", async () => {
   const db = memoryFirestore(), alice = new FriendsService(db, "alice", now), bob = new FriendsService(db, "bob", now);
   await alice.ensureProfile(identity("Alice")); await bob.ensureProfile(identity("Bob"));

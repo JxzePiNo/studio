@@ -40,10 +40,12 @@ test("admin dashboard handles user detail, platform settings and nickname manage
   await expect(page.getByRole("heading", { name: "Amministrazione", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Apri menu account", exact: true }).click();
   await expect(page.getByRole("menuitem", { name: "Torna a Studio", exact: true })).toHaveAttribute("href", "/");
-  await page.getByRole("menuitemcheckbox", { name: /Modalità notte/ }).click();
+  await page.getByRole("menuitem", { name: "Modalità notte", exact: true }).hover();
+  await page.getByRole("menuitemradio", { name: "Scuro", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("button", { name: "Apri menu account", exact: true }).click();
-  await page.getByRole("menuitemcheckbox", { name: /Modalità notte/ }).click();
+  await page.getByRole("menuitem", { name: "Modalità notte", exact: true }).hover();
+  await page.getByRole("menuitemradio", { name: "Chiaro", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expect(page.getByRole("button", { name: "Apri menu account", exact: true })).toBeInViewport();
   await expect(page.locator('main > div').first()).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");

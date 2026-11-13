@@ -8,13 +8,15 @@ export const referralActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("claim"), code: referralCodeSchema }).strict(),
   z.object({ action: z.literal("greet"), recipientId: z.string().min(1).max(128).regex(/^[^/]+$/), text: z.string().trim().min(1).max(280) }).strict(),
   z.object({ action: z.literal("read"), greetingId: z.string().uuid() }).strict(),
+  z.object({ action: z.literal("welcome-complete"), greetingId: z.string().uuid().optional() }).strict(),
 ]);
 export interface ReferralLink { code: string; label: string; createdAt: string; count: number }
 export interface ReferralInvitee { id: string; name: string; linkLabel: string; joinedAt: string; greeting?: { text: string; sentAt: string; readAt?: string } }
 export interface ReferralOverview { available: boolean; links: ReferralLink[]; invitees: ReferralInvitee[] }
 export interface ReferralGreeting { id: string; text: string; fromName: string; sentAt: string; readAt?: string }
+export interface ReferralWelcome { welcome: boolean; greeting: ReferralGreeting | null }
 interface Link { ownerId: string; label: string; createdAt: string }
-interface Join { inviterId: string; name: string; code: string; linkLabel: string; joinedAt: string; greeting?: ReferralGreeting }
+interface Join { inviterId: string; name: string; code: string; linkLabel: string; joinedAt: string; greeting?: ReferralGreeting; welcomedAt?: string }
 const fail = (message: string, status: number) => Object.assign(new Error(message), { status });
 
 /** All identities come from the verified session, never from the request body. */
@@ -67,6 +69,24 @@ export class ReferralService {
     const snapshot = await this.joins().doc(this.uid).get();
     const greeting = snapshot.get("greeting") as ReferralGreeting | undefined;
     return greeting && !greeting.readAt ? greeting : null;
+  }
+  async welcome(): Promise<ReferralWelcome> {
+    const snapshot = await this.joins().doc(this.uid).get();
+    const join = snapshot.data() as Join | undefined;
+    return { welcome: !!join && !join.welcomedAt, greeting: join?.greeting && !join.greeting.readAt ? join.greeting : null };
+  }
+  async completeWelcome(greetingId?: string) {
+    const ref = this.joins().doc(this.uid);
+    await this.db.runTransaction(async tx => {
+      const snapshot = await tx.get(ref);
+      if (!snapshot.exists) throw fail("Invito non trovato.", 404);
+      const greeting = snapshot.get("greeting") as ReferralGreeting | undefined;
+      if (greetingId && greeting?.id !== greetingId) throw fail("Saluto non trovato.", 404);
+      const now = new Date().toISOString();
+      const change = { ...(!snapshot.get("welcomedAt") ? { welcomedAt: now } : {}), ...(greetingId && !greeting?.readAt ? { "greeting.readAt": now } : {}) };
+      if (Object.keys(change).length) tx.update(ref, change);
+    });
+    return { completed: true };
   }
   async read(greetingId: string) {
     const ref = this.joins().doc(this.uid);

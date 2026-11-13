@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { ChevronsUpDown, House, LogOut, Moon, Pencil, Shield, UserRound, X } from "lucide-react";
+import { Check, ChevronRight, ChevronsUpDown, Clock, House, LogOut, Monitor, Moon, Pencil, Shield, Sun, UserRound, X } from "lucide-react";
+import { themePreference } from "@/lib/theme";
 import { useTheme } from "./theme-provider";
 import { browserAuth, firebaseEnabled } from "@/lib/firebase-client";
 import { useStudyProfile } from "./study-profile-provider";
@@ -29,7 +30,7 @@ function ProfileAvatar({ user, displayName, photoURL, large = false }: { user: U
 }
 
 export function SidebarProfile({ mobile = false, admin = false, onSignOut }: { mobile?: boolean; admin?: boolean; onSignOut?: () => void }) {
-  const { theme, setTheme } = useTheme();
+  const { preference, setTheme } = useTheme();
   const [user, setUser] = useState<User | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const { profile, loading, saveProfile } = useStudyProfile();
@@ -100,7 +101,14 @@ export function SidebarProfile({ mobile = false, admin = false, onSignOut }: { m
             <DropdownMenu.Item className="profile-menu-item" onSelect={() => { openingAccount.current = true; changeAccountOpen(true); }}><UserRound size={16} aria-hidden="true" /> Account</DropdownMenu.Item>
             {admin ? <DropdownMenu.Item className="profile-menu-item" asChild><a href="/"><House size={16} aria-hidden="true" /> Torna a Studio</a></DropdownMenu.Item> : user?.emailVerified && user.email?.toLowerCase() === "paolucciacopo@gmail.com" && <DropdownMenu.Item className="profile-menu-item" asChild><a href="/admin"><Shield size={16} aria-hidden="true" /> Dashboard admin</a></DropdownMenu.Item>}
             {!admin && <DropdownMenu.Item className="profile-menu-item" onSelect={() => window.dispatchEvent(new Event("studio-help"))}><img className="help-lifebuoy" src="/lifebuoy.png" width={20} height={20} alt="" /> Aiuto e guide</DropdownMenu.Item>}
-            <DropdownMenu.CheckboxItem className="profile-menu-item" checked={theme === "dark"} onCheckedChange={checked => setTheme(checked ? "dark" : "light")}><Moon size={16} aria-hidden="true" /> Modalità notte <span className="theme-toggle-state" aria-hidden="true">{theme === "dark" ? "Attiva" : "Spenta"}</span></DropdownMenu.CheckboxItem>
+            <DropdownMenu.Sub>
+              <DropdownMenu.SubTrigger className="profile-menu-item"><Moon size={16} aria-hidden="true" /> Modalità notte <ChevronRight className="theme-submenu-arrow" size={15} aria-hidden="true" /></DropdownMenu.SubTrigger>
+              <DropdownMenu.Portal><DropdownMenu.SubContent className="profile-menu-content theme-submenu" sideOffset={mobile ? -232 : 6} collisionPadding={12} aria-label="Modalità notte">
+                <DropdownMenu.RadioGroup value={preference} onValueChange={value => setTheme(themePreference(value))}>
+                  {([{ value: "system", label: "Sistema", Icon: Monitor }, { value: "light", label: "Chiaro", Icon: Sun }, { value: "dark", label: "Scuro", Icon: Moon }, { value: "adaptive", label: "Adattivo", Icon: Clock }] as const).map(({ value, label, Icon }) => <DropdownMenu.RadioItem key={value} value={value} className="profile-menu-item"><Icon size={16} aria-hidden="true" /><span className="theme-option-copy">{label}{value === "adaptive" && <small>Scuro dalle 20:00 alle 08:00</small>}</span><DropdownMenu.ItemIndicator className="theme-option-check"><Check size={15} /></DropdownMenu.ItemIndicator></DropdownMenu.RadioItem>)}
+                </DropdownMenu.RadioGroup>
+              </DropdownMenu.SubContent></DropdownMenu.Portal>
+            </DropdownMenu.Sub>
             {firebaseEnabled && user && <>
               <DropdownMenu.Separator className="profile-menu-separator" />
               <DropdownMenu.Item className="profile-menu-item profile-menu-signout" onSelect={() => onSignOut ? onSignOut() : window.dispatchEvent(new Event("margine-signout"))}><LogOut size={16} aria-hidden="true" /> Esci</DropdownMenu.Item>

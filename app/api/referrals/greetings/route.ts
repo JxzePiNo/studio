@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   const denied = await requestGuard(request); if (denied) return denied;
   try {
-    const greeting = cloudEnabled() ? await new ReferralService(services().db, await userId()).pending() : null;
-    return NextResponse.json({ greeting }, { headers: { "Cache-Control": "private, no-store" } });
+    const result = cloudEnabled() ? await new ReferralService(services().db, await userId()).welcome() : { welcome: false, greeting: null };
+    return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return apiError(error); }
 }

@@ -4,7 +4,7 @@ import { cachedApi } from "@/lib/browser-data-cache";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { LoaderCircle, LogOut } from "lucide-react";
+import { LoaderCircle, LogOut, X } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
 import { needsProfileOnboarding } from "@/lib/profile-onboarding";
 import type { StudyProfile } from "@/lib/types";
@@ -16,6 +16,8 @@ import pickerStyles from "./study-program-picker.module.css";
 import { NicknamesProvider } from "./nicknames-provider";
 import { BaristaLoading } from "./barista-loading";
 import { TonyMascot } from "./mascot/tony-mascot";
+import { ReferralWelcome } from "./referral-welcome";
+import loginStyles from "./login-screen.module.css";
 
 type StudyProfileContextValue = {
   profile: StudyProfile | null;
@@ -88,15 +90,15 @@ export function StudyProfileProvider({ children, onSignOut, requireProfile = tru
   }
 
   return <StudyProfileContext.Provider value={{ profile, loading, error, saveProfile, reload }}>
-    {!profile && requireProfile ? <main className="study-profile-loading" aria-busy={loading}>
-      {loading ? <BaristaLoading name="Il tuo profilo di studio" statusText="Caricamento del profilo di studio." hint="Un momento e possiamo iniziare." /> : <>
+    {!profile && requireProfile ? <main className={loading ? undefined : "study-profile-loading"} aria-busy={loading}>
+      {loading ? <BaristaLoading fullScreen name="Il tuo profilo di studio" statusText="Caricamento del profilo di studio." hint="Un momento e possiamo iniziare." /> : <>
         <p role="alert">{error || "Il profilo di studio non è disponibile."}</p>
         <div className="profile-recovery-actions">
           <Button disabled={signingOut} onClick={() => void reload()}>Riprova</Button>
           {onSignOut && <Button variant="outline" disabled={signingOut} onClick={() => void leaveSession()}>{signingOut ? <LoaderCircle size={16} className="spin" /> : <LogOut size={16} />} {signingOut ? "Uscita in corso..." : "Esci e torna al login"}</Button>}
         </div>
       </>}
-    </main> : <NicknamesProvider>{children}{profile && requireProfile && <StudyOnboarding key={profile.studyProgram} profile={profile} saveProfile={saveProfile} />}</NicknamesProvider>}
+    </main> : <NicknamesProvider><ReferralWelcome>{children}{profile && requireProfile && <StudyOnboarding key={profile.studyProgram} profile={profile} saveProfile={saveProfile} />}</ReferralWelcome></NicknamesProvider>}
   </StudyProfileContext.Provider>;
 }
 
@@ -106,7 +108,7 @@ export function useStudyProfile() {
   return value;
 }
 
-function StudyOnboarding({ profile, saveProfile }: Pick<StudyProfileContextValue, "saveProfile"> & { profile: StudyProfile }) {
+export function StudyOnboarding({ profile, saveProfile, onPreviewClose }: Pick<StudyProfileContextValue, "saveProfile"> & { profile: StudyProfile; onPreviewClose?: () => void }) {
   const [studyProgram, setStudyProgram] = useState(profile.studyProgram || "");
   const [university, setUniversity] = useState(profile.university || "");
   const [nickname, setNickname] = useState(profile.nickname || "");
@@ -125,10 +127,14 @@ function StudyOnboarding({ profile, saveProfile }: Pick<StudyProfileContextValue
   return <Dialog.Root open={needsProfileOnboarding(profile)}>
     <Dialog.Portal>
       <Dialog.Overlay className="account-profile-overlay study-onboarding-overlay" />
-      <Dialog.Content className={`account-profile-dialog study-onboarding-dialog ${pickerStyles.dialog}`} onEscapeKeyDown={event => event.preventDefault()} onPointerDownOutside={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}>
-        <div className={pickerStyles.heading}><TonyMascot size={80} /><Dialog.Title>{profile.studyProgram.trim() ? "Completa il tuo profilo" : "Cosa studi?"}</Dialog.Title></div>
-        <Dialog.Description>Scegli il tuo username e indicaci dove studi.</Dialog.Description>
-        <form className={pickerStyles.form} onSubmit={event => { event.preventDefault(); void complete(); }}>
+      <Dialog.Content className={`${loginStyles.screen} ${loginStyles.onboardingScreen}`} onEscapeKeyDown={event => event.preventDefault()} onPointerDownOutside={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}>
+        <span className={loginStyles.brand}>studio<span>.</span></span>
+        {onPreviewClose && <button type="button" className={loginStyles.previewExit} onClick={onPreviewClose}><X size={16} aria-hidden="true" /> Esci dall’anteprima</button>}
+        <div className={`${loginStyles.content} ${loginStyles.onboardingContent}`}>
+        <div className={loginStyles.onboardingMascot} aria-hidden="true"><TonyMascot size="100%" /></div>
+        <div className={loginStyles.greeting}><Dialog.Title asChild><h1>{profile.studyProgram.trim() ? "Completa il tuo profilo" : "Cosa studi?"}</h1></Dialog.Title></div>
+        <Dialog.Description className={loginStyles.onboardingDescription}>Scegli il tuo username e indicaci dove studi.</Dialog.Description>
+        <form className={`${pickerStyles.form} ${loginStyles.onboardingForm}`} onSubmit={event => { event.preventDefault(); void complete(); }}>
           <StudyProgramPicker id="onboarding-study-program" value={studyProgram} onChange={setStudyProgram} disabled={saving} autoFocus={!profile.studyProgram.trim()} />
           <div className="form-field"><label className="form-field-label" htmlFor="onboarding-university">Università</label><UniversityPicker id="onboarding-university" value={university} onChange={setUniversity} disabled={saving} /><small>Ti suggeriremo persone del tuo ateneo.</small></div>
           <div className="form-field"><label className="form-field-label" htmlFor="onboarding-nickname">Username</label><UsernameInput id="onboarding-nickname" value={nickname} onChange={setNickname} name={profile.displayName} disabled={saving} autoSuggest={!profile.nickname} /><small>Da 3 a 24 lettere, numeri, punti o underscore, per farti trovare dagli amici.</small></div>
@@ -137,6 +143,7 @@ function StudyOnboarding({ profile, saveProfile }: Pick<StudyProfileContextValue
             <Button type="submit" disabled={saving || !studyProgram.trim() || !nickname.trim() || !university.trim()}>{saving ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : null} Continua</Button>
           </div>
         </form>
+        </div>
       </Dialog.Content>
     </Dialog.Portal>
   </Dialog.Root>;

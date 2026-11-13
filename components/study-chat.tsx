@@ -5,6 +5,7 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { browserAuth, firebaseEnabled } from "@/lib/firebase-client";
 import { useStudyProfile } from "./study-profile-provider";
 import { ChatMessageAuthor } from "./chat-message-author";
+import { ChatLoadingSkeleton } from "./chat-loading-skeleton";
 import { ClipboardList, ArrowUp, FileText, LoaderCircle, Settings2, Sparkles } from "lucide-react";
 import type { ChatMessage, Explanation } from "@/lib/types";
 import { Button } from "./ui/button";
@@ -168,7 +169,7 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
           {pendingQuestion && <article className="chat-message user is-pending"><ChatMessageAuthor role="user" name={authorName} photoURL={user?.photoURL} /><p>{pendingQuestion}</p></article>}
           {session?.streamingText && session.kind !== "quiz" && <article className="chat-message assistant is-streaming"><ChatMessageAuthor /><MarkdownContent>{session.streamingText}</MarkdownContent></article>}
           {busy && session?.kind === "visualization" && <div className="chat-generation-skeleton" role="status" aria-label="Generazione del materiale in corso"><Sparkles size={28} /><span>{session.materialKind === "image" || session.request?.artifactKind === "image" ? "Sto generando l'immagine..." : "Sto creando il materiale..."}</span></div>}
-          {busy && session?.kind !== "visualization" && !session?.streamingText && <p className="chat-thinking" role="status"><LoaderCircle className="spin" size={15} aria-hidden="true" /> Sto approfondendo il materiale...</p>}
+          {busy && session?.kind !== "visualization" && !session?.streamingText && <ChatLoadingSkeleton response label="Sto approfondendo il materiale..." />}
         </div>
       </div></SelectionNotes>
     </div>

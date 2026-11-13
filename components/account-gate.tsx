@@ -14,7 +14,7 @@ export default function AccountGate() {
   const [ready, setReady] = useState(!firebaseEnabled);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  useReferralCapture(user);
+  const referralsReady = useReferralCapture(user);
   usePlatformVisit(user?.uid, firebaseEnabled);
   useEffect(() => {
     if (!firebaseEnabled) return;
@@ -28,7 +28,8 @@ export default function AccountGate() {
       // Start directly from the user's tap, without an async preflight or a
       // redirect fallback: both can break sign-in on mobile browsers.
       await signInWithPopup(browserAuth(), new GoogleAuthProvider());
-      window.location.replace("/");
+      const current = new URL(window.location.href);
+      window.location.replace(current.pathname === "/amici" && current.searchParams.has("profilo") ? `${current.pathname}${current.search}` : "/");
     }
     catch (error) {
       const code = (error as { code?: string }).code;
@@ -49,8 +50,9 @@ export default function AccountGate() {
     setUser(null); setError("");
   }
   if (!firebaseEnabled) return <StudyProfileProvider><Workspace /></StudyProfileProvider>;
-  if (!ready) return <main className="account-gate"><BaristaLoading name="Il tuo spazio" statusText="Caricamento del tuo spazio." hint="Tony sta preparando il tuo tavolo." /></main>;
+  if (!ready) return <main><BaristaLoading fullScreen name="Il tuo spazio" statusText="Caricamento del tuo spazio." hint="Tony sta preparando il tuo tavolo." /></main>;
   if (!user) return <LoginScreen busy={busy} error={error} onLogin={() => void login()} />;
+  if (!referralsReady) return <main><BaristaLoading fullScreen name="Il tuo benvenuto" statusText="Preparazione del benvenuto." hint="Tony sta arrivando." /></main>;
   return <StudyProfileProvider key={user.uid} onSignOut={logout}><Workspace /><LogoutHandler /></StudyProfileProvider>;
 }
 function LogoutHandler() {

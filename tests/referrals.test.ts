@@ -100,3 +100,22 @@ test("the first referral survives sign-in navigation, expires and rejects invali
   data.delete(referralStorageKey);
   assert.equal(captureReferral(new URL("https://studio.test/?ref=invalid"), storage), undefined);
 });
+
+test("welcome is recipient-scoped, acknowledged explicitly and preserves later greetings", async () => {
+  const db = database(), alice = new ReferralService(db, "alice"), bob = new ReferralService(db, "bob"), carol = new ReferralService(db, "carol");
+  assert.deepEqual(await bob.welcome(), { welcome: false, greeting: null });
+  const { code } = await alice.createLink("Amici"); await bob.claim(code, "Bob");
+  assert.deepEqual(await bob.welcome(), { welcome: true, greeting: null });
+  assert.deepEqual(await carol.welcome(), { welcome: false, greeting: null });
+  await assert.rejects(carol.completeWelcome(), { status: 404 });
+  await bob.completeWelcome(); await bob.completeWelcome();
+  assert.equal((await bob.welcome()).welcome, false);
+  await alice.greet("bob", "Buono studio!", "Alice Rossi");
+  const greeting = (await bob.welcome()).greeting!;
+  assert.equal(greeting.text, "Buono studio!");
+  await assert.rejects(bob.completeWelcome("00000000-0000-4000-8000-000000000000"), { status: 404 });
+  assert.ok((await bob.welcome()).greeting);
+  await bob.completeWelcome(greeting.id); await bob.completeWelcome(greeting.id);
+  assert.deepEqual(await bob.welcome(), { welcome: false, greeting: null });
+  assert.ok((await alice.overview()).invitees[0].greeting?.readAt);
+});

@@ -11,9 +11,10 @@ import { invalidateApiCache } from "@/lib/browser-data-cache";
 import type { ChatMessage } from "@/lib/types";
 import { ArtifactImage } from "./artifact-image";
 import { Button } from "./ui/button";
+import { BaristaLoading } from "./barista-loading";
 import styles from "./study-artifact.module.css";
 
-const ArtifactGraph = dynamic(() => import("./artifact-graph").then(module => module.ArtifactGraph), { ssr: false, loading: () => <p>Preparo la mappa…</p> });
+const ArtifactGraph = dynamic(() => import("./artifact-graph").then(module => module.ArtifactGraph), { ssr: false, loading: () => <BaristaLoading name="La tua mappa" statusText="Preparo la mappa…" hint="Tony sta organizzando i concetti." /> });
 
 export function StudyArtifactView({ artifact, documentId, page, onSaved, preview = false, onNavigatePage, standalone = false, onClose, headerActions }: { artifact: StudyArtifact; documentId: string; page: number; onSaved?: (messages: ChatMessage[]) => void; preview?: boolean; onNavigatePage?: (page: number) => void; standalone?: boolean; onClose?: () => void; headerActions?: ReactNode }) {
   const [draft, setDraft] = useState(artifact);

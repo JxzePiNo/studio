@@ -1,0 +1,38 @@
+import { expect, test } from "@playwright/test";
+import { defaultPlatform } from "../lib/platform-config";
+
+test("admin can preview the complete welcome repeatedly without saving profile or referral data", async ({ page }) => {
+  const writes: string[] = [];
+  page.on("request", request => { if (["POST", "PATCH", "PUT", "DELETE"].includes(request.method()) && /\/api\/(profile|referrals)(\/|$)/.test(new URL(request.url()).pathname)) writes.push(request.url()); });
+  await page.route("**/api/admin", route => route.fulfill({ json: { users: [], cursor: null, config: defaultPlatform, audit: [], generatedAt: new Date().toISOString() } }));
+  await page.route("**/api/nicknames", route => route.fulfill({ json: { iacopo: "Pino" } }));
+  await page.goto("/admin");
+  await page.getByRole("button", { name: "Anteprima benvenuto", exact: true }).click();
+  await page.getByRole("textbox", { name: "Nome dell’amico", exact: true }).fill("Iacopo Rossi");
+  await page.getByRole("textbox", { name: "Saluto di prova", exact: true }).fill("Ciao, questo è un saluto di prova!");
+  await page.getByRole("button", { name: "Prova con saluto", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Benvenuto su studio." })).toBeVisible();
+  await page.getByRole("button", { name: "Continua", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Un saluto da Pino." })).toBeVisible();
+  await expect(page.getByText("Ciao, questo è un saluto di prova!", { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "test-results/admin-welcome-preview-mobile.png", animations: "disabled" });
+  await page.getByRole("button", { name: "Continua", exact: true }).click();
+  const questions = page.getByRole("dialog", { name: "Cosa studi?", exact: true });
+  await expect(questions).toBeVisible();
+  await questions.getByRole("combobox", { name: "Corso di laurea o ambito di studio", exact: true }).fill("Informatica");
+  await questions.getByRole("combobox", { name: "Università", exact: true }).fill("Università di Bologna");
+  await questions.getByRole("textbox", { name: "Username", exact: true }).fill("anteprima_test");
+  await questions.getByRole("button", { name: "Continua", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Prova il benvenuto di Tony", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Prova senza saluto", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Benvenuto su studio." })).toBeVisible();
+  await page.getByRole("button", { name: "Continua", exact: true }).click();
+  await expect(questions).toBeVisible();
+  await questions.getByRole("button", { name: "Esci dall’anteprima", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Prova il benvenuto di Tony", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Prova con saluto", exact: true }).click();
+  await page.getByRole("button", { name: "Esci dall’anteprima", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Prova il benvenuto di Tony", exact: true })).toBeVisible();
+  expect(writes).toEqual([]);
+});

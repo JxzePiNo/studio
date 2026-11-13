@@ -17,7 +17,6 @@ import { SharedMaterials } from "./shared-materials";
 import type { ShareTarget } from "@/lib/sharing-types";
 import { FriendsSection } from "./friends-section";
 import { FriendsActivity } from "./friends-activity";
-import { TonyGreeting } from "./tony-greeting";
 import { MobileNavigation } from "./mobile-navigation";
 import { SidebarProfile } from "./sidebar-profile";
 import { StudySessionsView } from "./study-sessions-view";
@@ -50,7 +49,7 @@ import { ReaderSettingsDialog } from "./reader-settings-dialog";
 import { ReaderToolbar } from "./reader-toolbar";
 import { BottomPanel } from "./bottom-panel";
 import { BaristaLoading } from "./barista-loading";
-import baristaStyles from "./barista-loading.module.css";
+import { ChatLoadingSkeleton } from "./chat-loading-skeleton";
 import { ReaderSplit } from "./reader-split";
 import type { DocumentSummary, SlideData, StudyDocument } from "@/lib/types";
 
@@ -602,7 +601,6 @@ export default function Workspace() {
 
       {section === "study" && !doc && !opening && <ExamOverview dialogOnly={!!folderId} requestedCourseAction={requestedCourseAction} onCourseActionHandled={() => setRequestedCourseAction(undefined)} onDeleted={id => { setFolders(items => items.filter(item => item.id !== id)); setLibrary(items => items.filter(item => item.folderId !== id)); if (folderId === id) openFolder(""); void refresh(); }} isCourseBusy={id => uploads.jobs.some(job => job.folderId === id && ["queued", "preparing", "uploading", "processing"].includes(job.status)) || pendingWrites.current > 0 || courseAnalysis.jobs.some(job => job.folderId === id && ["checking", "running", "stopping"].includes(job.status)) || (!!readerJobDocument.current && analysisLock.current && library.some(item => item.id === readerJobDocument.current && item.folderId === id)) || Object.entries(chatController.sessions).some(([key, value]) => value.status === "pending" && library.some(item => item.folderId === id && key.startsWith(`${item.id}:`)))} onActivityDaySelect={openSessions} activity={studySession.activity} today={studySession.todayDate} folders={folders} documents={library} onOpen={openFolder} onCreate={() => { setSidebar(false); setCreatingFolder(true); }} onUpdated={folder => { setFolders(current => current.map(f => f.id === folder.id ? folder : f)); if (folder.archived && folderId === folder.id) openFolder(""); }} />}
       {section === "study" && !folderId && !doc && !opening && <SharedMaterials home />}
-      <TonyGreeting key={`${section}:${selectedStudyDay}:${folderId}:${doc?.id || opening?.id || ""}:${page}`} />
       {section === "friends" && !doc && !opening && <FriendsSection initialTab={friendsTab} onTabChange={setFriendsTab} />}
       {section === "sessions" && !doc && !opening && <StudySessionsView sessions={studySession.sessions} activity={studySession.activity} today={studySession.todayDate} loading={studySession.loadingHistory} error={studySession.errorHistory} onRetry={() => void studySession.reloadHistory()} selectedDay={selectedStudyDay || null} onSelectDay={day => openSessions(day || "")} />}
       {section === "study" && folderId && <div className={`welcome ${homeStyles.courseWorkspace}`} hidden={!!doc || !!opening}>
@@ -617,7 +615,7 @@ export default function Workspace() {
 
       </div>}
       {opening && <>
-        <ReaderSplit><section className={`slide-panel${portrait ? " portrait-pdf" : ""}`}><div className="slide-stage"><BaristaLoading key={opening.id} name={opening.name} error={opening.error} onRetry={() => void openDocument(opening.id)} /></div></section><aside className="explanation-panel reader-chat-panel" aria-label="Tutor della slide"><div className={baristaStyles.chat}><strong>Tony sta preparando il tuo spazio.</strong><p>Il PDF e le tue conversazioni arrivano tra un momento.</p></div></aside></ReaderSplit>
+        <ReaderSplit><section className={`slide-panel${portrait ? " portrait-pdf" : ""}`}><div className="slide-stage"><BaristaLoading key={opening.id} name={opening.name} error={opening.error} onRetry={() => void openDocument(opening.id)} /></div></section><aside className="explanation-panel reader-chat-panel" aria-label="Tutor della slide"><ChatLoadingSkeleton /></aside></ReaderSplit>
       </>}
       {doc && <>{readerClean && <Button variant="outline" size="icon" className="reader-clean-toggle" aria-label="Mostra tutti i controlli" title="Mostra tutti i controlli" onClick={() => setReaderClean(false)}><Minimize size={19} /></Button>}
         <ReaderSplit clean={readerClean}><section className={`slide-panel${portrait ? " portrait-pdf" : ""}`} style={{ position: "relative" }}><div className={`slide-stage ${activeSlide?.read ? "is-read" : ""}`} ref={viewer}>{pdf && <PdfCanvas pdf={pdf} page={page} zoom={zoom} fitHeight={!(autoFit ? portrait : fitWidth)} onOrientationChange={setPortrait} />}{busy && <div className="viewer-busy"><LoaderCircle className="spin" /> Apertura documento…</div>}</div><BottomPanel key={doc.id}>

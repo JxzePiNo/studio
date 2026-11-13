@@ -26,7 +26,7 @@ test("home reveals calendar with ranking and restores friends from cache before 
   bob.durationMs = 1200000;
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(ranking).toBeVisible(); await expect(calendar).toBeVisible();
-  await expect(ranking).toContainText("Bob Rossi");
+  await expect(ranking.getByText("bob", { exact: true })).toBeVisible();
   await expect(ranking).toContainText("0 h 10 min");
   release();
   await page.waitForFunction(() => document.querySelector('[aria-label="Classifica degli amici"]')?.getAnimations().length);

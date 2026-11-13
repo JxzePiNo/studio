@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
-import { Download, House, RefreshCw, Users, Settings2, Tags, ScrollText, Wallet } from "lucide-react";
+import { Download, House, Play, RefreshCw, Users, Settings2, Tags, ScrollText, Wallet } from "lucide-react";
+import type { ReferralWelcome as Welcome } from "@/lib/referrals";
+import { AdminWelcomePreview, AdminWelcomeTools } from "./admin-welcome-preview";
 import { authHeaders, browserAuth, firebaseEnabled } from "@/lib/firebase-client";
 import { readApiResponse } from "@/lib/api-response";
 import { featureLabels, type Feature, type PlatformConfig } from "@/lib/platform-config";
@@ -29,6 +31,7 @@ function exportJson(value: unknown, name: string) { const url = URL.createObject
 
 export default function AdminDashboard() {
   const [sidebar, setSidebar] = useState(false);
+  const [welcomePreview, setWelcomePreview] = useState<Welcome | null>(null);
   const [ready, setReady] = useState(!firebaseEnabled), [signedIn, setSignedIn] = useState(!firebaseEnabled);
   const [sessionId, setSessionId] = useState("");
   usePlatformVisit(sessionId || undefined, firebaseEnabled);
@@ -71,8 +74,8 @@ export default function AdminDashboard() {
     const url = URL.createObjectURL(await response.blob()), link = window.document.createElement("a"); link.href = url; link.download = `${id}.pdf`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   const visibleUsers = data?.users.filter(user => search.includes("@") || `${user.name} ${user.email} ${user.uid}`.toLowerCase().includes(search.toLowerCase())) || [];
-  const sections = [{ key: "users", label: "Utenti", icon: Users }, { key: "costs", label: "Costi", icon: Wallet }, { key: "platform", label: "Piattaforma", icon: Settings2 }, { key: "nicknames", label: "Soprannomi", icon: Tags }, { key: "audit", label: "Registro admin", icon: ScrollText }];
-  const content = <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell admin-shell ${styles.shell}`}>
+  const sections = [{ key: "users", label: "Utenti", icon: Users }, { key: "costs", label: "Costi", icon: Wallet }, { key: "platform", label: "Piattaforma", icon: Settings2 }, { key: "nicknames", label: "Soprannomi", icon: Tags }, { key: "welcome", label: "Anteprima benvenuto", icon: Play }, { key: "audit", label: "Registro admin", icon: ScrollText }];
+  const content = welcomePreview && data && signedIn ? <AdminWelcomePreview data={welcomePreview} onClose={() => setWelcomePreview(null)} /> : <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell admin-shell ${styles.shell}`}>
     <Sidebar>
       <SidebarHeader><a className="studio-brand" href="/" aria-label="Studio, pagina iniziale">studio<span>.</span></a></SidebarHeader>
       <SidebarContent><nav className="sidebar-study-nav" aria-label="Sezioni amministrazione"><SidebarMenu><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" asChild><a href="/"><House size={18} /><span>Home</span></a></SidebarMenuButton></SidebarMenuItem>{sections.map(({ key, label, icon: Icon }) => <SidebarMenuItem key={key}><SidebarMenuButton className="sidebar-session-link" isActive={tab === key} aria-current={tab === key ? "page" : undefined} onClick={() => { setTab(key); setSidebar(false); }}><Icon size={18} /><span>{label}</span></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu></nav></SidebarContent>
@@ -107,6 +110,7 @@ export default function AdminDashboard() {
       </>}
       {tab === "platform" && <section className={styles.detail}><h2>Controllo della piattaforma</h2><label className={styles.toggle}><input type="checkbox" checked={config.maintenance} onChange={event => setConfig({ ...config, maintenance: event.target.checked })} />Modalità manutenzione</label><label className={styles.field}>Messaggio agli utenti<input value={config.message} maxLength={300} onChange={event => setConfig({ ...config, message: event.target.value })} /></label><h3>Funzionalità globali</h3><div className={styles.flags}>{Object.entries(featureLabels).map(([key, label]) => <label key={key}><input type="checkbox" checked={config.features[key as Feature]} onChange={event => setConfig({ ...config, features: { ...config.features, [key]: event.target.checked } })} />{label}</label>)}</div><h3>Tariffe stimate · USD per milione di token</h3><p className={styles.hint}>Inserisci le tariffe del tuo contratto OpenAI. La stima usa le tariffe attuali configurate e non include tasse o costi di storage. Per modelli immagine con prezzi diversi per modalità, lascia la tariffa non configurata: i token sono comunque registrati.</p>{Object.entries(config.rates).map(([model, rate]) => <div className={styles.rates} key={model}><strong>{model}</strong>{(["input", "cached", "output"] as const).map(key => <label key={key}>{key}<input type="number" step="any" min="0" max="10000" value={rate[key]} onChange={event => setConfig({ ...config, rates: { ...config.rates, [model]: { ...rate, [key]: Number(event.target.value) } } })} /></label>)}<Button variant="ghost" onClick={() => { const rates = { ...config.rates }; delete rates[model]; setConfig({ ...config, rates }); }}>Rimuovi</Button></div>)}<div className={styles.controls}><input aria-label="Modello da aggiungere" placeholder="Es. gpt-4.1-mini" value={modelName} onChange={event => setModelName(event.target.value)} maxLength={80} /><Button variant="outline" disabled={!/^[a-zA-Z0-9._-]{1,80}$/.test(modelName)} onClick={() => { setConfig({ ...config, rates: { ...config.rates, [modelName]: config.rates[modelName] || { input: 0, cached: 0, output: 0 } } }); setModelName(""); }}>Aggiungi tariffa</Button></div><Button disabled={busy} onClick={() => void run(async () => { const value = await api<PlatformConfig>("/api/admin", config); setConfig(value); setStatus("Impostazioni salvate."); })}>Salva impostazioni piattaforma</Button></section>}
       {tab === "nicknames" && <section className={styles.detail}><NicknamesProvider><NicknameSettings /></NicknamesProvider></section>}
+      {tab === "welcome" && <AdminWelcomeTools onStart={setWelcomePreview} />}
       {tab === "audit" && <section className={styles.detail}><h2>Registro operazioni admin</h2><p className={styles.hint}>Ultime 50 operazioni. Le richieste e i completamenti vengono registrati separatamente.</p><div className={styles.tableScroll}><table><thead><tr><th>Data</th><th>Operazione</th><th>Destinatario</th><th>Amministratore</th></tr></thead><tbody>{data.audit.map(event => <tr key={event.id}><td>{date(event.at)}</td><td>{event.action}</td><td>{event.target}</td><td>{event.actor}</td></tr>)}</tbody></table></div></section>}
     </>}
   </div></main>{ready && signedIn && <MobileNavigation admin home={() => window.location.assign("/")} sessions={() => window.location.assign("/sessioni")} friends={() => window.location.assign("/amici")} onSignOut={() => void run(async () => { await signOut(browserAuth()); })} />}</div></SidebarProvider>;

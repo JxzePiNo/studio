@@ -117,6 +117,8 @@ html[data-theme="dark"] [class*="_topics"] label { background: var(--card); colo
 html[data-theme="dark"] [class*="_playerFooter"] { background: var(--sidebar); }
 html[data-theme="dark"] [class*="_choices"] label:hover { background: var(--muted); }
 html[data-theme="dark"] :is([class*="_player"], [class*="_card"], [class*="_dialog"]) label:is([data-selected="true"], :has(input:checked):not([data-correct]):not([data-wrong])) { background: var(--accent); border-color: var(--ring); }
+html[data-theme="dark"] [class*="_answerSolution"] { background: var(--success); color: var(--success-foreground); border-color: #4c8c65; }
+html[data-theme="dark"] [class*="_answerWrong"] { background: #44292e; color: #ffb2ad; border-color: #aa626b; }
 html[data-theme="dark"] [class*="_solution"],
 html[data-theme="dark"] :is([class*="_player"], [class*="_card"], [class*="_dialog"]) label[data-correct="true"],
 html[data-theme="dark"] :is([class*="_player"], [class*="_card"], [class*="_dialog"])[data-feedback="correct"] { background: var(--success); border-color: #4c8c65; }

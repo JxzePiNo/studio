@@ -23,6 +23,7 @@ export async function POST(request: Request) {
     const action = parsed.data;
     if (action.action === "create") return NextResponse.json(await service.createLink(action.label));
     if (action.action === "read") return NextResponse.json(await service.read(action.greetingId));
+    if (action.action === "welcome-complete") return NextResponse.json(await service.completeWelcome(action.greetingId));
     const profile = await getStudyProfile();
     const name = profile.displayName?.trim() || (await services().auth.getUser(uid)).displayName?.slice(0, 80) || "Un amico";
     return NextResponse.json(action.action === "claim" ? await service.claim(action.code, name) : await service.greet(action.recipientId, action.text, name));

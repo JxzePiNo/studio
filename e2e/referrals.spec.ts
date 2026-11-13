@@ -25,51 +25,66 @@ test("the invitations section creates links and sends a greeting to an invited p
   await expect(page.getByText("Letto", { exact: true })).toBeVisible();
 });
 
-test("changing screen cancels the greeting read timer and Tony presents the unread greeting again", async ({ page }) => {
-  await page.clock.install();
+test("Tony welcomes invitees before their friend's message and profile questions", async ({ page }) => {
   let reads = 0;
-  const greeting = { id: "00000000-0000-4000-8000-000000000001", fromName: "Alice", text: "Ciao!", sentAt: new Date().toISOString() };
-  await page.route("**/api/referrals/greetings", route => route.fulfill({ json: { greeting: reads ? null : greeting } }));
-  await page.route("**/api/referrals", route => { reads++; return route.fulfill({ json: { read: true } }); });
+  const greeting = { id: "00000000-0000-4000-8000-000000000001", fromName: "Iacopo Rossi", text: "Ciao, buon esame!", sentAt: new Date().toISOString() };
+  await page.route("**/api/nicknames", route => route.fulfill({ json: { iacopo: "Pino" } }));
+  await page.route("**/api/profile", route => route.fulfill({ json: { studyProgram: "", university: "", nickname: "", onboardingCompleted: false, updatedAt: "" } }));
+  await page.route("**/api/referrals/greetings", route => route.fulfill({ json: { welcome: !reads, greeting: reads ? null : greeting } }));
+  await page.route("**/api/referrals", route => { expect(route.request().postDataJSON()).toEqual({ action: "welcome-complete", greetingId: greeting.id }); reads++; return route.fulfill({ json: { completed: true } }); });
   await page.goto("/");
-  await page.bringToFront();
-  const chat = page.getByRole("region", { name: "Un saluto da Tony", exact: true });
-  await expect(chat).toContainText("Alice");
-  await page.clock.runFor(100);
-  await page.clock.fastForward(6000);
+  await expect(page.getByRole("heading", { name: "Benvenuto su studio." })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Cosa studi?" })).toHaveCount(0);
+  await expect(page.getByText(greeting.text, { exact: true })).toHaveCount(0);
   expect(reads).toBe(0);
-  await page.getByRole("button", { name: "Sessioni di studio", exact: true }).click();
-  await expect(chat).toBeVisible();
-  await page.clock.runFor(100);
-  await page.clock.fastForward(3000);
+  await page.getByRole("button", { name: "Continua", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Un saluto da Pino." })).toBeVisible();
+  await expect(page.getByText(greeting.text, { exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Cosa studi?" })).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: "test-results/referral-welcome-mobile.png", animations: "disabled" });
   expect(reads).toBe(0);
-  await page.clock.fastForward(6000);
+  await page.getByRole("button", { name: "Continua", exact: true }).click();
   await expect.poll(() => reads).toBe(1);
-  await expect(chat).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "Cosa studi?" })).toBeVisible();
+  await page.screenshot({ path: "test-results/referral-onboarding-mobile.png", animations: "disabled" });
   await page.reload();
-  await expect(chat).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "Cosa studi?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Benvenuto su studio." })).toHaveCount(0);
   expect(reads).toBe(1);
 });
 
-test("a deferred or background greeting remains unread until the recipient confirms reading", async ({ page }) => {
-  await page.clock.install();
+test("a greeting uses a first name and stays unread after a failed confirmation", async ({ page }) => {
   let reads = 0;
-  const greeting = { id: "00000000-0000-4000-8000-000000000002", fromName: "Alice", text: "Benvenuto!", sentAt: new Date().toISOString() };
-  await page.route("**/api/referrals/greetings", route => route.fulfill({ json: { greeting: reads ? null : greeting } }));
-  await page.route("**/api/referrals", route => { reads++; return route.fulfill({ json: { read: true } }); });
+  let attempts = 0;
+  const greeting = { id: "00000000-0000-4000-8000-000000000002", fromName: "Alice Rossi", text: "Benvenuto!", sentAt: new Date().toISOString() };
+  await page.route("**/api/referrals/greetings", route => route.fulfill({ json: { welcome: false, greeting: reads ? null : greeting } }));
+  await page.route("**/api/referrals", route => {
+    if (++attempts === 1) return route.fulfill({ status: 503, json: { error: "Riprova" } });
+    reads++; return route.fulfill({ json: { completed: true } });
+  });
   await page.goto("/");
-  const chat = page.getByRole("region", { name: "Un saluto da Tony", exact: true });
-  await expect(chat).toBeVisible();
-  await chat.getByRole("button", { name: "Leggi più tardi", exact: true }).click();
-  await page.clock.fastForward(20000);
+  await page.getByRole("button", { name: "Continua", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Un saluto da Alice." })).toBeVisible();
+  await page.getByRole("button", { name: "Continua", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Non riesco a salvare il benvenuto");
   expect(reads).toBe(0);
-  await page.getByRole("button", { name: "Sessioni di studio", exact: true }).click();
-  await expect(chat).toBeVisible();
-  await page.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" }); document.dispatchEvent(new Event("visibilitychange")); });
-  await page.clock.fastForward(20000);
-  expect(reads).toBe(0);
-  await page.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" }); document.dispatchEvent(new Event("visibilitychange")); });
-  await chat.getByRole("button", { name: "Ho letto", exact: true }).click();
+  await page.reload();
+  await page.getByRole("button", { name: "Continua", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Un saluto da Alice." })).toBeVisible();
+  await page.getByRole("button", { name: "Continua", exact: true }).click();
   await expect.poll(() => reads).toBe(1);
-  await expect(chat).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Un saluto da Alice." })).toHaveCount(0);
+});
+
+test("an invite without a personal greeting continues directly from Tony to the profile", async ({ page }) => {
+  let completed = false;
+  await page.route("**/api/profile", route => route.fulfill({ json: { studyProgram: "", university: "", nickname: "", onboardingCompleted: false, updatedAt: "" } }));
+  await page.route("**/api/referrals/greetings", route => route.fulfill({ json: { welcome: !completed, greeting: null } }));
+  await page.route("**/api/referrals", route => { expect(route.request().postDataJSON()).toEqual({ action: "welcome-complete" }); completed = true; return route.fulfill({ json: { completed: true } }); });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Benvenuto su studio." })).toBeVisible();
+  await page.getByRole("button", { name: "Continua", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Cosa studi?" })).toBeVisible();
 });

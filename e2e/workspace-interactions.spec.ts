@@ -38,7 +38,8 @@ test("creation/upload stay in place; course/file menus and night mode persist", 
     await expect(page.getByRole("dialog", { name: `Impostazioni ${formatCourseName(renamed)}`, exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Chiudi pianificazione" }).click();
     await page.getByRole("button", { name: "Apri menu account" }).click();
-    await page.getByRole("menuitemcheckbox", { name: /Modalità notte/ }).click();
+    await page.getByRole("menuitem", { name: "Modalità notte", exact: true }).hover();
+    await page.getByRole("menuitemradio", { name: "Scuro", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
