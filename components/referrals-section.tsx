@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Copy, Send, UserPlus } from "lucide-react";
 import { referralRequest } from "@/lib/referral-client";
 import type { ReferralOverview } from "@/lib/referrals";
+import { BaristaLoading } from "./barista-loading";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -47,7 +48,7 @@ export function ReferralsSection({ embedded = false }: { embedded?: boolean }) {
     <header className={styles.header}><span><UserPlus size={23} /></span><div><Heading>Inviti e saluti</Heading><p>Porta i tuoi amici su Studio. Al benvenuto ci pensa Tony.</p></div></header>
     {error && <p role="alert">{error} <Button variant="ghost" size="sm" onClick={() => void load()}>Riprova</Button></p>}
     {notice && <p role="status">{notice}</p>}
-    {!data && !error && <p role="status">Carico i tuoi inviti…</p>}
+    {!data && !error && <BaristaLoading name="I tuoi inviti" statusText="Caricamento inviti." hint="Tony sta preparando i tuoi inviti." />}
     {data && !data.available && <div className={styles.card}><h2>Invita con il tuo account</h2><p>I link personali e i saluti sono disponibili nello spazio online con accesso Google. Nello spazio locale non vengono registrate altre persone.</p></div>}
     {data?.available && <>
       <div className={styles.card}><h2>I tuoi link</h2><p>Chi apre un link e accede comparirà qui. Vengono mostrati nome e data di ingresso.</p>

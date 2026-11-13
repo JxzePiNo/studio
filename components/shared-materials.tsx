@@ -5,6 +5,7 @@ import { sharingChanged, sharingRequest } from "@/lib/sharing-client";
 import { invalidateApiCache } from "@/lib/browser-data-cache";
 import type { ShareSummary, SharingOverview } from "@/lib/sharing-types";
 import { useStudyProfile } from "./study-profile-provider";
+import { BaristaLoading } from "./barista-loading";
 import { Button } from "./ui/button";
 import styles from "./sharing.module.css";
 
@@ -42,7 +43,7 @@ export function SharedMaterials({ home = false }: { home?: boolean }) {
   return <section className={`${styles.collection} ${home ? styles.home : ""}`} aria-label={home ? "Corsi pubblici" : "Materiali condivisi"}>
     <header><span>{home ? <Globe2 size={21} /> : <Share2 size={21} />}</span><div><h2>{home ? "Dal tuo corso di laurea." : "Il sapere fa un giro in più."}</h2><p>{home ? "Corsi messi a disposizione da altri studenti. Crea il tuo spazio, con le analisi già pronte." : "Corsi, PDF e quiz condivisi tra amici."}</p></div></header>
     {error && <p role="alert">{error} <Button variant="ghost" size="sm" onClick={() => void load()}>Riprova</Button></p>}
-    {!data && !error && <p role="status">Carico i materiali condivisi…</p>}
+    {!data && !error && <BaristaLoading name="Materiali condivisi" statusText="Caricamento dei materiali condivisi." hint="Tony sta raccogliendo i materiali del gruppo." />}
     {data?.available && (home ? data.publicCourses.length ? cards(data.publicCourses) : <p className={styles.empty}>Non ci sono ancora corsi pubblici per {profile?.studyProgram || "il tuo percorso"}. I primi appunti condivisi potrebbero essere i tuoi.</p> : <><h3>Condivisi con te</h3>{data.received.length ? cards(data.received) : <p className={styles.empty}>Qui troverai gli inviti dei tuoi amici. Per condividere, apri il menu di un corso, di un PDF o di un quiz.</p>}<h3>Le tue condivisioni</h3>{data.sent.length ? cards(data.sent, true) : <p className={styles.empty}>Non hai ancora condiviso materiali.</p>}</>)}
     {data && !data.available && !home && <p>La condivisione tra persone è disponibile nello spazio online con account Google.</p>}
   </section>;

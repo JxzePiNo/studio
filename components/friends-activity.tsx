@@ -4,6 +4,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { createPortal } from "react-dom";
 import { Users, X } from "lucide-react";
 import { cachedFriends, friendsRequest } from "@/lib/friends-client";
+import { BaristaLoading } from "./barista-loading";
 import { FriendsLeaderboard } from "./friends-leaderboard";
 import type { FriendsOverview, FriendsPeriod } from "@/lib/friends-types";
 import type { FriendPerson } from "@/lib/friends-types";
@@ -75,6 +76,6 @@ export function FriendsActivity({ running, onOpen }: { running: boolean; onOpen:
     <section className={styles.activityTony} aria-label="Tony e gli amici online"><TonyMascot size={86} animated showName={false} /><div className={styles.activitySpeech}><strong>Tony del bar</strong><p aria-live="polite">{friendsPresenceMessage(online, data.studying)}</p></div></section>
     {online.length > 0 && <ul aria-label="Amici presenti">{online.map(person => <li key={person.id}><span className={styles.liveDot} /><span><strong>{person.nickname || person.name}</strong><small>{person.status === "studying" || data.studying.some(friend => friend.id === person.id) ? "Sta studiando" : "Online"}</small></span></li>)}</ul>}
     {!!data.incoming && <p>{data.incoming} {data.incoming === 1 ? "richiesta di amicizia ricevuta" : "richieste di amicizia ricevute"}.</p>}
-    {rankingError ? <p role="alert">{rankingError} <button onClick={() => setRetry(value => value + 1)}>Riprova</button></p> : ranking?.available ? <FriendsLeaderboard data={ranking} period={period} onPeriodChange={setPeriod} compact /> : <p role="status">Carico la classifica?</p>}
+    {rankingError ? <p role="alert">{rankingError} <button onClick={() => setRetry(value => value + 1)}>Riprova</button></p> : ranking?.available ? <FriendsLeaderboard data={ranking} period={period} onPeriodChange={setPeriod} compact /> : <BaristaLoading name="Classifica amici" statusText="Caricamento della classifica amici." hint="Tony sta facendo i conti." />}
   </Popover.Content></Popover.Portal></Popover.Root></>;
 }

@@ -6,7 +6,7 @@ import { retryAnalysis } from "@/lib/analysis-retry";
 import { documentPageOrder, runDocumentPages } from "@/lib/parallel-analysis";
 import { cachedApi, cachedPdf, invalidateApiCache } from "@/lib/browser-data-cache";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { House, Clock3, Users, ArrowLeft, ArrowRight, FileText, FolderOpen, Languages, LoaderCircle, Plus, Search, Upload, X } from "lucide-react";
 import { authHeaders, firebaseEnabled } from "@/lib/firebase-client";
@@ -62,6 +62,10 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 }
 const json = (method: string, data: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
 const size = (bytes: number) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+function resetMobilePageScroll() {
+  if (!window.matchMedia("(max-width: 700px)").matches) return;
+  window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+}
 type BatchProgress = { id: string; startedAt: number; total: number; completed: number; current: number | null; active: number[]; status: "running" | "stopping" | "stopped" | "completed" | "error" };
 
 export default function Workspace() {
@@ -83,6 +87,16 @@ export default function Workspace() {
   const historyPending = useRef(false);
   historyPending.current = studySession.savingHistory;
   const [opening, setOpening] = useState<{ id: string; name: string; error?: string } | null>(null);
+  useLayoutEffect(() => {
+    const media = window.matchMedia("(max-width: 700px)");
+    const previous = history.scrollRestoration;
+    const update = () => { history.scrollRestoration = media.matches ? "manual" : previous; };
+    update(); media.addEventListener("change", update);
+    return () => { history.scrollRestoration = previous; media.removeEventListener("change", update); };
+  }, []);
+  useLayoutEffect(() => {
+    resetMobilePageScroll();
+  }, [section, folderId, friendsTab, selectedStudyDay, doc?.id, opening?.id]);
   const openingRequest = useRef<AbortController | null>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1);
@@ -288,10 +302,12 @@ export default function Workspace() {
   }
   function openFolder(id: string) {
     if (busy) return;
+    resetMobilePageScroll();
     setSection("study"); setSelectedStudyDay(""); changeLocation(id); setFolderId(id); setQuery(""); setSidebar(false);
   }
   function openSessions(day = "") {
     if (busy) return;
+    resetMobilePageScroll();
     const path = `/sessioni${day ? `?giorno=${encodeURIComponent(day)}` : ""}`;
     if (`${window.location.pathname}${window.location.search}` !== path) window.history.pushState(null, "", path);
     setSection("sessions"); setSelectedStudyDay(day); setFolderId(""); setSidebar(false);
@@ -299,6 +315,7 @@ export default function Workspace() {
   }
   function openFriends() {
     if (busy) return;
+    resetMobilePageScroll();
     if (docRef.current) { void closeDocument().then(() => openFriends()); return; }
     if (window.location.pathname !== "/amici" || window.location.search) window.history.pushState(null, "", "/amici");
     setFriendsTab("friends"); setSection("friends"); setFolderId(""); setSidebar(false);

@@ -7,6 +7,7 @@ import { useStudyProfile } from "./study-profile-provider";
 import { ReferralsSection } from "./referrals-section";
 import * as Popover from "@radix-ui/react-popover";
 import { FriendActions } from "./friend-actions";
+import { BaristaLoading } from "./barista-loading";
 import { FriendsProfile } from "./friends-profile";
 import { FriendAvatar } from "./friend-avatar";
 import { TonyMascot } from "./mascot/tony-mascot";
@@ -100,15 +101,15 @@ export function FriendsSection({ initialTab = "friends", onTabChange }: { initia
       {error && <p className={styles.feedback} role="alert">{error} <Button variant="ghost" size="sm" onClick={() => void load()}>Riprova</Button></p>}
       {notice && <p className={styles.feedback} role="status">{notice}</p>}
       <TabsContent value="friends">
-        <FriendsProfile count={data?.friends.length || 0} name={data?.self?.name} />
-        {!data && !error && <p role="status">Carico i tuoi amici…</p>}
+        {(data || error) && <FriendsProfile count={data?.friends.length || 0} name={data?.self?.name} />}
+        {!data && !error && <BaristaLoading name="I tuoi amici" statusText="Caricamento amici." hint="Tony sta radunando il tuo gruppo di studio." />}
         {data && !data.available && <div className={styles.card}><p>Accedi con il tuo account Google nello spazio online per trovare i tuoi amici.</p></div>}
         {data?.available && <>
           <FriendRequests title="Richieste ricevute" people={data.incoming} actions={requestActions} />
           <form className={styles.search} role="search" onSubmit={event => { event.preventDefault(); setQuery(term.trim()); setRevision(value => value + 1); }}><label className="sr-only" htmlFor="friend-search">Nome o username</label><Input id="friend-search" value={term} onChange={event => setTerm(event.target.value)} maxLength={80} placeholder="Cerca per nome o @username" /><Button type="submit"><Search size={16} /> Cerca</Button></form>
           <div className={styles.card}><h2>I tuoi amici</h2><ul className={styles.list}><li className={`${styles.person} ${styles.tonyFriend}`}><TonyMascot size={data.friends.length ? 64 : 96} animated showName={false} /><div className={styles.personCopy}><strong>Tony del bar</strong><span>{data.friends.length ? "Sempre qui a studiare con te." : "Non ti preoccupare, saremo per sempre amici."}</span></div></li>{data.friends.map(person => <Person key={person.id} person={person}><FriendActions person={person} friend busy={busy} onAction={mutate} /></Person>)}</ul></div>
           <div className={styles.card}><div className={styles.searchHeading}><h2>{query ? `Risultati per “${query}”` : "Dal tuo ateneo"}</h2>{query && <Button variant="ghost" size="sm" onClick={() => { setQuery(""); setTerm(""); }}>Mostra suggeriti</Button>}</div>
-            {searching && <p role="status">Cerco persone…</p>}{searchError && <p role="alert">{searchError} <Button variant="ghost" size="sm" onClick={() => setRevision(value => value + 1)}>Riprova</Button></p>}
+            {searching && <BaristaLoading name="Cerchiamo i tuoi amici" statusText="Ricerca persone in corso." hint="Tony sta cercando nel tuo ateneo." />}{searchError && <p role="alert">{searchError} <Button variant="ghost" size="sm" onClick={() => setRevision(value => value + 1)}>Riprova</Button></p>}
             {!searching && !searchError && results && <>{!results.people.length ? <p>{query ? "Nessuna persona trovata. Prova un altro nome o username." : "Qui troverai altre persone del tuo ateneo."}</p> : <ul className={styles.list}>{results.people.map(person => <Person key={person.id} person={person} menu={<FriendActions person={person} friend={person.relationship === "friend"} busy={busy} onAction={mutate} />}>{person.relationship === "friend" ? <span className={styles.pill}><Check size={13} /> Amici</span> : person.relationship === "outgoing" ? <span className={styles.pill}>Richiesta inviata</span> : person.relationship === "incoming" ? requestActions(person) : <Button size="sm" variant="outline" disabled={busy} onClick={() => relationship(person, "request")} aria-label={`Invia richiesta a ${person.name}`}><UserPlus size={15} /> Aggiungi</Button>}</Person>)}</ul>}{results.truncated && <p>Scrivi un nome più preciso per vedere altri risultati.</p>}</>}
           </div>
           <FriendRequests title="Richieste inviate" people={data.outgoing} actions={person => <Button size="sm" variant="outline" disabled={busy} onClick={() => relationship(person, "cancel")} aria-label={`Annulla richiesta a ${person.name}`}>Annulla richiesta</Button>} />

@@ -6,6 +6,8 @@ import type { ReadingActivity } from "@/lib/study-session";
 import { FriendsLeaderboard } from "./friends-leaderboard";
 import { ReadingHeatmap } from "./reading-heatmap";
 import { Button } from "./ui/button";
+import { BaristaLoading } from "./barista-loading";
+import { TonyMascot } from "./mascot/tony-mascot";
 import styles from "./home-study-activity.module.css";
 
 export function HomeStudyActivity({ activity, today, onDaySelect }: { activity: ReadingActivity; today: string; onDaySelect?: (day: string) => void }) {
@@ -36,12 +38,12 @@ export function HomeStudyActivity({ activity, today, onDaySelect }: { activity: 
     return () => { controller.abort(); clearInterval(timer); window.removeEventListener("studio-friends-changed", refresh); document.removeEventListener("visibilitychange", refresh); };
   }, [load]);
   const calendar = <ReadingHeatmap activity={activity} today={today} onDaySelect={onDaySelect} />;
-  if (!ready) return <div className={styles.row} role="status" aria-label="Caricamento attività e classifica" aria-busy="true"><div className={styles.placeholder} /><div className={styles.placeholder} /></div>;
+  if (!ready) return <div className={styles.loading} role="status" aria-label="Caricamento attività e classifica" aria-busy="true"><BaristaLoading name="La tua attività e gli amici" statusText="Caricamento attività e classifica." hint="Tony sta preparando il tuo gruppo di studio." /></div>;
   if (!data?.available || !data.friends.length) return calendar;
   return <div className={styles.row} aria-label="Classifica amici e attività di lettura">
     <section className={styles.leaderboard} aria-label="Classifica amici nella home">
       <FriendsLeaderboard data={data} period={period} onPeriodChange={setPeriod} home />
-      {refreshing && <span className={styles.refreshing} role="status">Aggiornamento in corso…</span>}
+      {refreshing && <span className={styles.refreshing} role="status"><TonyMascot size={24} showName={false} /> Aggiornamento in corso…</span>}
       {error && <p className={styles.error} role="alert">{error} <Button variant="ghost" size="sm" onClick={() => void load()}>Riprova</Button></p>}
     </section>
     <div className={styles.calendar}>{calendar}</div>

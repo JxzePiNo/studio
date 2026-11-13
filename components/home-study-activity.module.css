@@ -1,8 +1,8 @@
 .row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; align-items:stretch; margin:28px 0; }
 .leaderboard,.calendar { min-width:0; }
 .leaderboard { position:relative; }
-.refreshing { position:absolute; right:20px; bottom:8px; font-size:10px; color:var(--muted-foreground); pointer-events:none; }
-.placeholder { min-height:270px; border:1px solid var(--border); border-radius:18px; background:var(--muted); }
+.refreshing { position:absolute; right:20px; bottom:4px; display:flex; align-items:center; gap:6px; font-size:10px; color:var(--muted-foreground); pointer-events:none; }
+.loading { min-height:270px; margin:28px 0; border:1px solid var(--border); border-radius:18px; background:var(--card); }
 .leaderboard>div,.calendar>section { margin:0; height:100%; box-sizing:border-box; }
 .leaderboard>div { padding:22px 24px 18px; }
 .leaderboard h2 { font-size:18px; }
