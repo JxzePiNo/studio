@@ -1,5 +1,7 @@
 .row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; align-items:stretch; margin:28px 0; }
 .leaderboard,.calendar { min-width:0; }
+.leaderboard { position:relative; }
+.refreshing { position:absolute; right:20px; bottom:8px; font-size:10px; color:var(--muted-foreground); pointer-events:none; }
 .placeholder { min-height:270px; border:1px solid var(--border); border-radius:18px; background:var(--muted); }
 .leaderboard>div,.calendar>section { margin:0; height:100%; box-sizing:border-box; }
 .leaderboard>div { padding:22px 24px 18px; }

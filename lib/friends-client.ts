@@ -12,8 +12,7 @@ export function cachedFriends(period: FriendsPeriod): FriendsOverview | null {
   const key = keyFor(uid, period);
   try {
     const cached = snapshots.get(key) || JSON.parse(localStorage.getItem(key) || "null");
-    const day = (at: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(at);
-    if (!cached || Date.now() - cached.at > 5 * 60000 || day(cached.at) !== day(Date.now()) || cached.value.period !== period || !Array.isArray(cached.value.friends)) return null;
+    if (!cached || Date.now() - cached.at > 30 * 86400000 || cached.value.period !== period || !Array.isArray(cached.value.friends) || !Array.isArray(cached.value.leaderboard)) return null;
     return structuredClone(cached.value);
   } catch { return null; }
 }
@@ -27,14 +26,18 @@ function invalidate(uid: string) {
 
 export async function friendsRequest<T>(query = "", body?: unknown, signal?: AbortSignal): Promise<T> {
   const uid = owner();
-  if (uid && body && (body as { action?: string }).action !== "presence") invalidate(uid);
   const generation = uid ? generations.get(uid) || 0 : 0;
   const value = await readApiResponse<T>(await fetch(`/api/friends${query}`, { method: body ? "POST" : "GET", headers: { ...await authHeaders(), ...(body ? { "Content-Type": "application/json" } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), signal, cache: "no-store" }));
+  if (uid && uid === owner() && body && (body as { action?: string }).action !== "presence") invalidate(uid);
   if (uid && uid === owner() && !signal?.aborted && !body && /^\?period=(day|month|all)$/.test(query) && generation === (generations.get(uid) || 0)) {
     const overview = value as FriendsOverview;
     const key = keyFor(uid, overview.period);
     const entry = { at: Date.now(), value: overview }; snapshots.set(key, entry);
-    try { const json = JSON.stringify(entry); if (json.length < 1000000) localStorage.setItem(key, json); } catch { /* Keep the memory cache if storage is full. */ }
+    try {
+      // Ranking snapshots do not need the large profile image payloads.
+      const json = JSON.stringify(entry, (field, content) => field === "photoURL" ? undefined : content);
+      localStorage.setItem(key, json);
+    } catch { /* Keep the memory cache if storage is full. */ }
   }
   return value;
 }

@@ -1,4 +1,5 @@
 "use client";
+import { useLayoutEffect, useRef } from "react";
 import { Trophy } from "lucide-react";
 import type { FriendsOverview, FriendsPeriod } from "@/lib/friends-types";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
@@ -10,5 +11,15 @@ export function FriendsLeaderboard({ data, period, onPeriodChange, home = false,
   const selfIndex = ranked.findIndex(person => person.self);
   const podium = compact && selfIndex >= 0 && selfIndex < 3;
   const visible = compact ? (selfIndex >= 3 ? ranked.slice(selfIndex - 1, selfIndex + 2) : ranked.slice(0, 3)) : ranked;
-  return <div className={compact ? styles.compactRanking : styles.card}><div className={styles.rankingHeading}><div><h2>Classifica amici</h2><p>Il tempo di studio, al tuo ritmo.</p></div><Trophy size={27} /></div><Tabs className={styles.tabs} value={period} onValueChange={value => onPeriodChange(value as FriendsPeriod)}><TabsList aria-label="Periodo della classifica"><TabsTrigger value="day">Oggi</TabsTrigger><TabsTrigger value="month">Mese</TabsTrigger><TabsTrigger value="all">Sempre</TabsTrigger></TabsList></Tabs>{data.period !== period ? <p role="status">Aggiorno la classifica…</p> : ranked.length ? <ol className={`${styles.ranking} ${podium ? styles.podium : ""}`} aria-label="Classifica degli amici">{visible.map((person) => <li key={person.id} data-self={!!person.self} data-place={ranked.indexOf(person) + 1}><span className={styles.place}>{ranked.indexOf(person) + 1}</span><div><strong>{person.name}{person.self && <small> Tu</small>}</strong>{person.nickname && <span>@{person.nickname}</span>}</div><div className={styles.score}><strong>{duration(person.durationMs)}</strong></div></li>)}</ol> : <p>La classifica apparirà quando tu o i tuoi amici condividerete le statistiche.</p>}{!compact && <small className={styles.footnote}>Il tempo conta le sessioni concluse e salvate. Oggi e Mese seguono il fuso orario italiano. Chi disattiva la condivisione non compare in classifica.</small>}</div>;
+  const list = useRef<HTMLOListElement>(null);
+  const signature = JSON.stringify(visible.map(person => [person.id, person.name, person.nickname, !!person.self, Math.floor(person.durationMs / 60000)]));
+  const previous = useRef(signature);
+  useLayoutEffect(() => {
+    const changed = previous.current !== signature;
+    previous.current = signature;
+    if (!changed || !list.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const animation = list.current.animate([{ opacity: .35 }, { opacity: 1 }], { duration: 240, easing: "ease-out" });
+    return () => animation.cancel();
+  }, [signature]);
+  return <div className={compact ? styles.compactRanking : styles.card}><div className={styles.rankingHeading}><div><h2>Classifica amici</h2><p>Il tempo di studio, al tuo ritmo.</p></div><Trophy size={27} /></div><Tabs className={styles.tabs} value={period} onValueChange={value => onPeriodChange(value as FriendsPeriod)}><TabsList aria-label="Periodo della classifica"><TabsTrigger value="day">Oggi</TabsTrigger><TabsTrigger value="month">Mese</TabsTrigger><TabsTrigger value="all">Sempre</TabsTrigger></TabsList></Tabs>{data.period !== period ? <p role="status">Aggiorno la classifica…</p> : ranked.length ? <ol ref={list} className={`${styles.ranking} ${podium ? styles.podium : ""}`} aria-label="Classifica degli amici">{visible.map((person) => <li key={person.id} data-self={!!person.self} data-place={ranked.indexOf(person) + 1}><span className={styles.place}>{ranked.indexOf(person) + 1}</span><div><strong>{person.name}{person.self && <small> Tu</small>}</strong>{person.nickname && <span>@{person.nickname}</span>}</div><div className={styles.score}><strong>{duration(person.durationMs)}</strong></div></li>)}</ol> : <p>La classifica apparirà quando tu o i tuoi amici condividerete le statistiche.</p>}{!compact && <small className={styles.footnote}>Il tempo conta le sessioni concluse e salvate. Oggi e Mese seguono il fuso orario italiano. Chi disattiva la condivisione non compare in classifica.</small>}</div>;
 }

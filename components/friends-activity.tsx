@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { createPortal } from "react-dom";
 import { Users, X } from "lucide-react";
-import { friendsRequest } from "@/lib/friends-client";
+import { cachedFriends, friendsRequest } from "@/lib/friends-client";
 import { FriendsLeaderboard } from "./friends-leaderboard";
 import type { FriendsOverview, FriendsPeriod } from "@/lib/friends-types";
 import type { FriendPerson } from "@/lib/friends-types";
@@ -20,6 +20,7 @@ export function FriendsActivity({ running, onOpen }: { running: boolean; onOpen:
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     if (!open) return;
+    const cached = cachedFriends(period); if (cached) setRanking(cached);
     const controller = new AbortController(); setRankingError("");
     void friendsRequest<FriendsOverview>(`?period=${period}`, undefined, controller.signal).then(result => { if (!controller.signal.aborted) setRanking(result); }).catch(cause => { if (!controller.signal.aborted) setRankingError((cause as Error).message); });
     return () => controller.abort();

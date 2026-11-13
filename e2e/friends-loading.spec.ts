@@ -17,8 +17,20 @@ test("home reveals calendar with ranking and restores friends from cache before 
   await expect(calendar).toHaveCount(0); await expect(ranking).toHaveCount(0);
   release(); await expect(ranking).toBeVisible(); await expect(calendar).toBeVisible();
   responseGate = new Promise<void>(resolve => { release = resolve; });
+  await page.evaluate(() => {
+    const key = "studio-friends-v1:local:day";
+    const cached = JSON.parse(localStorage.getItem(key)!);
+    cached.at = Date.now() - 2 * 86400000;
+    localStorage.setItem(key, JSON.stringify(cached));
+  });
+  bob.durationMs = 1200000;
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(ranking).toBeVisible(); await expect(calendar).toBeVisible();
   await expect(ranking).toContainText("Bob Rossi");
+  await expect(ranking).toContainText("0 h 10 min");
   release();
+  await page.waitForFunction(() => document.querySelector('[aria-label="Classifica degli amici"]')?.getAnimations().length);
+  await expect(ranking).toContainText("0 h 20 min");
+  await expect.poll(() => ranking.getByRole("list").evaluate(element => element.getAnimations().length)).toBe(0);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("studio-friends-v1:local:day")!).value.leaderboard[0].durationMs)).toBe(1200000);
 });

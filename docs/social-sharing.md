@@ -31,8 +31,10 @@ stale tab records are cleaned on a subsequent heartbeat. Only accepted friends
 can read presence and study totals, subject to the sharing preference.
 
 The home loads the calendar and friends ranking together. User-scoped snapshots
-persist locally for up to five minutes, with background refresh and invalidation
-on social mutations. A change of day in Europe/Rome expires the snapshot too.
+persist locally for up to thirty days as a stale preview, with background refresh
+on every visit and invalidation on successful social mutations. Cached rankings
+remain visible during refresh or network failure. Changed visible names, order
+or study minutes fade in for 240 ms; reduced-motion preferences disable the fade.
 User menus support removing friends, reporting and blocking. Reports are stored
 in server-only `socialReports` with the authenticated reporter identity. Pairwise
 `socialBlocks` retain each person's independent block, atomically remove pending
