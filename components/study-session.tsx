@@ -13,7 +13,8 @@ import styles from "./study-session.module.css";
 
 type PendingAction = { type: "read"; documentId: string; page: number; day: string; read: boolean } | { type: "session"; session: SavedSessionInput } | { type: "import-activity"; activity: Record<string, number> };
 
-export function useStudySession({ documents = [] }: { documents?: DocumentSummary[] } = {}) {
+export function useStudySession({ documents = [], reader }: { documents?: DocumentSummary[]; reader?: { id: string; name: string; page: number } } = {}) {
+  const [owner, setOwner] = useState("");
   const [session, setSession] = useState<StudySession>(() => freshSession());
   const [now, setNow] = useState(Date.now());
   const [hidden, setHidden] = useState(false);
@@ -78,6 +79,7 @@ export function useStudySession({ documents = [] }: { documents?: DocumentSummar
     function initialize(uid: string) {
       revision.current++;
       key.current = `studio-session:${uid}`;
+      setOwner(key.current);
       optimistic.current.clear();
       try {
         save(restoreSession(localStorage.getItem(key.current)));
@@ -94,7 +96,7 @@ export function useStudySession({ documents = [] }: { documents?: DocumentSummar
       setSessions(queue.current.filter((action): action is Extract<PendingAction, { type: "session" }> => action.type === "session").map(action => buildSavedSession(action.session)));
       void reloadHistory(); void flush();
     }
-    const unsubscribe = firebaseEnabled ? onAuthStateChanged(browserAuth(), user => { if (user) initialize(user.uid); else { key.current = ""; queue.current = []; optimistic.current.clear(); save(freshSession()); setSessions([]); setLoadingHistory(false); } }) : undefined;
+    const unsubscribe = firebaseEnabled ? onAuthStateChanged(browserAuth(), user => { if (user) initialize(user.uid); else { key.current = ""; setOwner(""); queue.current = []; optimistic.current.clear(); save(freshSession()); setSessions([]); setLoadingHistory(false); } }) : undefined;
     if (!firebaseEnabled) initialize("local");
     const timer = window.setInterval(() => {
       const time = Date.now(); setNow(time);
@@ -104,6 +106,45 @@ export function useStudySession({ documents = [] }: { documents?: DocumentSummar
     window.addEventListener("online", retry);
     return () => { unsubscribe?.(); clearInterval(timer); window.removeEventListener("online", retry); };
   }, [flush, persistQueue, reloadHistory, save]);
+  const readerRef = useRef(reader); readerRef.current = reader;
+  useEffect(() => {
+    if (!reader || !owner || session.startedAt !== null) return;
+    const document = window.document;
+    let startedAt: number | null = null;
+    let pages = new Map<number, NonNullable<typeof reader>>();
+    const rememberPage = () => { const value = readerRef.current; if (value?.id === reader.id && current.current.pages.includes(`${value.id}:${value.page}`)) pages.set(value.page, value); };
+    const checkpoint = () => {
+      const time = Date.now();
+      if (startedAt !== null && time > startedAt && key.current === owner) {
+        rememberPage();
+        const saved: SavedSessionInput = { id: crypto.randomUUID(), startedAt: new Date(startedAt).toISOString(), endedAt: new Date(time).toISOString(), day: studyDay(new Date(startedAt)), durationMs: Math.min(time - startedAt, 7 * 86400000), pages: [...pages.values()].map(value => ({ documentId: value.id, name: value.name, page: value.page })) };
+        setSessions(previous => [buildSavedSession(saved), ...previous]);
+        enqueue({ type: "session", session: saved });
+      }
+      pages = new Map();
+      startedAt = null;
+    };
+    const visibility = () => {
+      checkpoint();
+      if (document.visibilityState === "visible") { startedAt = Date.now(); rememberPage(); }
+    };
+    visibility();
+    const timer = window.setInterval(() => {
+      rememberPage();
+      if (startedAt !== null && Date.now() - startedAt >= 60000) visibility();
+    }, 1000);
+    const leave = () => checkpoint();
+    document.addEventListener("visibilitychange", visibility);
+    window.addEventListener("pagehide", leave);
+    window.addEventListener("pageshow", visibility);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", visibility);
+      window.removeEventListener("pagehide", leave);
+      window.removeEventListener("pageshow", visibility);
+      checkpoint();
+    };
+  }, [reader?.id, owner, session.startedAt, enqueue]);
   const recordRead = useCallback((id: string, page: number, read: boolean) => {
     revision.current++;
     optimistic.current.set(`${id}:${page}`, read);
@@ -130,11 +171,11 @@ export function useStudySession({ documents = [] }: { documents?: DocumentSummar
   return { today: session.pages.length, todayDate: session.day, activity: session.activity, hasReadToday, elapsed: sessionElapsed(session, now), running: session.startedAt !== null, hasActiveSession: !!session.activeId || session.startedAt !== null, recordRead, commitRead, toggleTimer, endSession, resetTimer: endSession, hidden, toggleVisibility, sessions, loadingHistory, errorHistory, savingHistory, reloadHistory: async () => { await flush(); await reloadHistory(); } };
 }
 
-export function StudySessionBar({ session, document, portrait = false }: { portrait?: boolean; session: ReturnType<typeof useStudySession>; document?: { name: string; read: number; total: number } }) {
+export function StudySessionBar({ session, document, portrait = false, suppressed = false }: { suppressed?: boolean; portrait?: boolean; session: ReturnType<typeof useStudySession>; document?: { name: string; read: number; total: number } }) {
   const [mounted, setMounted] = useState(false);
   const [mobile, setMobile] = useState(false);
   useEffect(() => { setMounted(true); const media = window.matchMedia("(max-width:700px)"); const update = () => setMobile(media.matches); update(); media.addEventListener("change", update); return () => media.removeEventListener("change", update); }, []);
-  if (!mounted) return null;
+  if (!mounted || suppressed) return null;
   const visibility = <button className={styles.restore} aria-label={session.hidden ? "Mostra riepilogo studio" : "Nascondi riepilogo studio"} aria-expanded={!session.hidden} title={session.hidden ? "Mostra riepilogo studio" : "Nascondi riepilogo studio"}>{session.hidden ? <Eye size={18} /> : <EyeOff size={18} />}</button>;
   const seconds = Math.floor(session.elapsed / 1000);
   const time = `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;

@@ -8,7 +8,7 @@ import { cachedApi, cachedPdf, invalidateApiCache } from "@/lib/browser-data-cac
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { House, Clock3, Users, ArrowLeft, ArrowRight, FileText, FolderOpen, Languages, LoaderCircle, Plus, Search, Upload, X } from "lucide-react";
+import { House, Clock3, Users, ArrowLeft, ArrowRight, FileText, FolderOpen, Languages, LoaderCircle, Plus, Search, Upload, X, Minimize, Maximize } from "lucide-react";
 import { authHeaders, firebaseEnabled } from "@/lib/firebase-client";
 import { formatCourseName } from "@/lib/course-name";
 import { examColor, examAccentColor } from "@/lib/exam-colors";
@@ -83,9 +83,8 @@ export default function Workspace() {
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [library, setLibrary] = useState<DocumentSummary[]>([]);
   const [doc, setDoc] = useState<StudyDocument | null>(null);
-  const studySession = useStudySession({ documents: library });
-  const historyPending = useRef(false);
-  historyPending.current = studySession.savingHistory;
+  const [readerClean, setReaderClean] = useState(false);
+  useEffect(() => { setReaderClean(false); }, [doc?.id]);
   const [opening, setOpening] = useState<{ id: string; name: string; error?: string } | null>(null);
   useLayoutEffect(() => {
     const media = window.matchMedia("(max-width: 700px)");
@@ -100,6 +99,9 @@ export default function Workspace() {
   const openingRequest = useRef<AbortController | null>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1);
+  const studySession = useStudySession({ documents: library, reader: doc && pdf ? { id: doc.id, name: doc.name, page } : undefined });
+  const historyPending = useRef(false);
+  historyPending.current = studySession.savingHistory;
   const [mapReturn, setMapReturn] = useState<{ documentId: string; page: number } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [fitWidth, setFitWidth] = useState(false);
@@ -548,7 +550,7 @@ export default function Workspace() {
     void saves.catch(e => setError((e as Error).message));
   }
 
-  return <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell ${doc || opening ? "reader-active" : ""}`} onDragOver={e => { e.preventDefault(); if (folderId && !busy && e.dataTransfer.types.includes("Files")) setDragging(true); }} onDrop={e => { e.preventDefault(); if (!folderId && e.dataTransfer.files.length) setError("Apri un esame prima di caricare un file."); }}>
+  return <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell ${doc || opening ? "reader-active" : ""} ${readerClean && doc ? "reader-clean" : ""}`} onDragOver={e => { e.preventDefault(); if (folderId && !busy && e.dataTransfer.types.includes("Files")) setDragging(true); }} onDrop={e => { e.preventDefault(); if (!folderId && e.dataTransfer.files.length) setError("Apri un esame prima di caricare un file."); }}>
     {folderId && <Input ref={input} type="file" accept={UPLOAD_ACCEPT} multiple className="sr-only" onChange={e => void uploadFiles(e.target.files)} aria-label="Carica PDF o immagini" />}
     {!doc && !opening && <Sidebar>
       <SidebarHeader><a className="studio-brand" href="/" onClick={event => { event.preventDefault(); openFolder(""); }} aria-label="Studio, pagina iniziale">studio<span>.</span></a></SidebarHeader>
@@ -563,7 +565,7 @@ export default function Workspace() {
     </Sidebar>}
 
     <div className={sessionStyles.dock}>
-      <StudySessionBar portrait={!!doc && portrait} session={studySession} document={doc ? { name: doc.name, read: Object.values(doc.slides).filter(slide => slide.read).length, total: doc.pages } : undefined} />
+      <StudySessionBar suppressed={readerClean && !!doc} portrait={!!doc && portrait} session={studySession} document={doc ? { name: doc.name, read: Object.values(doc.slides).filter(slide => slide.read).length, total: doc.pages } : undefined} />
       <FriendsActivity running={studySession.running} onOpen={openFriends} />
       <NotificationCenter events={[...islandJobs.map(job => `analysis:${job.id}:${job.status}`), ...chatController.notifications.map(item => `chat:${item.key}`), ...uploads.jobs.map(job => `upload:${job.id}:${job.status}`)]}>{hideNotifications => <>
       {islandJobs.length > 0 && <AnalysisIsland jobs={islandJobs} embedded onHide={hideNotifications} />}
@@ -611,7 +613,7 @@ export default function Workspace() {
       {opening && <>
         <ReaderSplit><section className={`slide-panel${portrait ? " portrait-pdf" : ""}`}><div className="slide-stage"><BaristaLoading key={opening.id} name={opening.name} error={opening.error} onRetry={() => void openDocument(opening.id)} /></div></section><aside className="explanation-panel reader-chat-panel" aria-label="Tutor della slide"><div className={baristaStyles.chat}><strong>Tony sta preparando il tuo spazio.</strong><p>Il PDF e le tue conversazioni arrivano tra un momento.</p></div></aside></ReaderSplit>
       </>}
-      {doc && <>
+      {doc && <><Button variant="outline" size="icon" className="reader-clean-toggle" aria-label={readerClean ? "Mostra tutti i controlli" : "Mostra solo il PDF"} title={readerClean ? "Mostra tutti i controlli" : "Mostra solo il PDF"} aria-pressed={readerClean} onClick={() => setReaderClean(value => !value)}>{readerClean ? <Minimize size={19} /> : <Maximize size={19} />}</Button>
         <ReaderSplit><section className={`slide-panel${portrait ? " portrait-pdf" : ""}`} style={{ position: "relative" }}><ReaderZoom zoom={zoom} fitWidth={fitWidth} onZoomChange={changeZoom} onFitWidth={() => changeZoom(1, true)} /><div className={`slide-stage ${activeSlide?.read ? "is-read" : ""}`} ref={viewer}>{pdf && <PdfCanvas pdf={pdf} page={page} zoom={zoom} fitHeight={!fitWidth} onOrientationChange={setPortrait} />}{busy && <div className="viewer-busy"><LoaderCircle className="spin" /> Apertura documento…</div>}</div><ReaderNavigation portrait={portrait} display={readerDisplay.display} onVisibilityChange={readerDisplay.setVisible} page={page} total={doc.pages} disabled={busy} onNavigate={navigate} /><BottomPanel key={doc.id}>
           <div className="glossary"><div className="glossary-heading"><span><Languages size={17} /> Le parole della slide</span><span className="language-tag">EN <ArrowRight size={10} /> IT</span></div>{explanation?.glossary.length ? <div className="glossary-words">{explanation.glossary.map(g => <div key={g.word} className="glossary-word" title={g.context}><strong>{g.word}</strong><span>{g.translation}</span><small>{g.context}</small></div>)}</div> : <p>{explanation ? explanation.language === "en" ? "Nessun termine da tradurre individuato in questa slide." : "Questa slide non è in inglese. Puoi concentrarti sui concetti." : "Quando spieghi una slide in inglese, trovi qui i termini importanti con la traduzione italiana."}</p>}</div>
           </BottomPanel>

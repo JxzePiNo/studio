@@ -1,0 +1,47 @@
+.reader-clean-toggle.ui-button {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  z-index: 80;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 11px;
+  background: var(--background, #fff);
+  box-shadow: 0 2px 12px #00000012;
+}
+body:has(.reader-clean) .mobile-reader-tony,
+.reader-clean > :not(.main-shell),
+.reader-clean .main-shell > :not(.reader-split):not(.reader-clean-toggle),
+.reader-clean .reader-split > :not(.slide-panel),
+.reader-clean .slide-panel > :not(.slide-stage) {
+  display: none !important;
+}
+.reader-active.reader-clean .main-shell {
+  margin: 0;
+  padding: 0;
+}
+.reader-active.reader-clean .reader-split {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.reader-active.reader-clean .slide-panel {
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+}
+.reader-active.reader-clean .slide-stage {
+  height: 100%;
+  min-height: 0;
+  padding: 8px;
+}

@@ -17,6 +17,7 @@ import "./workspace-background.css";
 import "./accent-theme.css";
 import "./night-theme.css";
 import "./mobile-workspace.css";
+import "./reader-focus.css";
 
 export const metadata: Metadata = { title: "studio.", description: "Le tue slide, spiegate. Uno spazio locale per studiare PDF, capire i concetti e tradurre le parole." };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

@@ -3,6 +3,60 @@ import { readFile } from "node:fs/promises";
 import { createExam } from "./exam-helpers";
 import { studyDay } from "../lib/study-session";
 
+test("PDF study saves automatically and clean view restores the controls", async ({ page, request }) => {
+  await page.clock.install();
+  await page.goto("/");
+  const exam = await createExam(page, "Lettura automatica");
+  const uploaded = page.waitForResponse(r => r.url().endsWith("/api/documents") && r.request().method() === "POST");
+  await page.getByLabel("Carica PDF o immagini", { exact: true }).setInputFiles({ name: "Automatico.pdf", mimeType: "application/pdf", buffer: await readFile("public/esempio.pdf") });
+  const document = await (await uploaded).json();
+  const saved: { durationMs: number }[] = [];
+  page.on("request", request => {
+    if (request.url().includes("/api/study-sessions") && request.method() === "POST") {
+      const action = request.postDataJSON();
+      if (action.type === "session") saved.push(action.session);
+    }
+  });
+  try {
+    await page.getByRole("button", { name: "Apri Automatico", exact: true }).click();
+    await expect(page.locator(".slide-stage canvas")).toBeVisible();
+    await page.getByRole("button", { name: "Mostra solo il PDF", exact: true }).click();
+    await expect(page.locator(".slide-stage canvas")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Torna alla biblioteca", exact: true })).toBeHidden();
+    await expect(page.getByRole("region", { name: "Riepilogo studio", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("separator", { name: "Ridimensiona chat" })).toBeHidden();
+    await page.clock.runFor(61000);
+    await expect.poll(() => saved.length).toBeGreaterThan(0);
+    expect(saved[0].durationMs).toBeGreaterThanOrEqual(60000);
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await expect.poll(() => saved.length).toBeGreaterThan(1);
+    const hiddenCount = saved.length;
+    await page.clock.runFor(61000);
+    expect(saved).toHaveLength(hiddenCount);
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator(".slide-stage canvas")).toBeVisible();
+    const toggle = await page.getByRole("button", { name: "Mostra tutti i controlli", exact: true }).boundingBox();
+    expect(toggle!.width).toBe(toggle!.height);
+    expect(toggle!.x + toggle!.width).toBeLessThanOrEqual(390);
+    await page.clock.runFor(2100);
+    await page.getByRole("button", { name: "Mostra tutti i controlli", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Torna alla biblioteca", exact: true })).toBeVisible();
+    const beforeClose = saved.length;
+    await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
+    await expect.poll(() => saved.length).toBeGreaterThan(beforeClose);
+    const count = saved.length;
+    await page.clock.runFor(61000);
+    expect(saved).toHaveLength(count);
+  } finally { await request.delete(`/api/documents/${document.id}`); await request.delete(`/api/folders/${exam.id}`); }
+});
+
 test("study summary counts saved reads and keeps the timer while navigating and hiding", async ({ page, request }) => {
   await page.clock.install();
   await page.goto("/");
