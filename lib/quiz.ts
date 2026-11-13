@@ -27,8 +27,8 @@ export const generatedQuizSchema = z.object({
     explanation: z.string().min(1).max(2500),
   })).min(1).max(30),
 });
-export type SavedQuizResult = { correct: number; total: number; percentage: number | null; grade: number | null; passed: boolean; completedAt: string };
-export type StudyQuiz = z.infer<typeof generatedQuizSchema> & { id: string; documentId: string; documentName: string; createdAt: string; topics: string[]; timing?: QuizTiming; difficulty?: QuizConfig["difficulty"]; latestResult?: SavedQuizResult };
+export type SavedQuizResult = { answers?: Record<string, string>; correct: number; total: number; percentage: number | null; grade: number | null; passed: boolean; completedAt: string };
+export type StudyQuiz = z.infer<typeof generatedQuizSchema> & { id: string; documentId: string; documentName: string; createdAt: string; topics: string[]; timing?: QuizTiming; difficulty?: QuizConfig["difficulty"]; latestResult?: SavedQuizResult; sharedGroupId?: string; groupIds?: string[] };
 export type QuizSummary = Pick<StudyQuiz, "id" | "title" | "documentId" | "createdAt" | "timing" | "latestResult"> & { questionCount: number };
 
 export function quizGenerationSchema(config: QuizConfig, pages: number) {

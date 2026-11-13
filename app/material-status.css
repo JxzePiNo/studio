@@ -34,3 +34,4 @@
   .materials-card .card-heading { gap:16px; }
   .materials-card .card-heading .materials-search-field { flex:1 1 100%; min-width:0; }
 }
+.material-provenance { display:block; font-size:10px; line-height:1.6; color:var(--muted-foreground); margin:3px 0; }

@@ -2,7 +2,8 @@
 
 import { useRef, type ReactElement } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { Archive, ArchiveRestore, FolderOpen, Pencil, Settings2, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, FolderOpen, Pencil, Settings2, Trash2, Share2 } from "lucide-react";
+import { openShare } from "@/lib/sharing-client";
 import type { ExamFolder } from "@/lib/types";
 
 export type CourseAction = "open" | "settings" | "rename" | "archive" | "delete";
@@ -26,11 +27,12 @@ export function CourseContextMenu({ folder, onAction, children, disabled = false
       openingDialog.current = false;
     }}>
       <ContextMenu.Item className="material-menu-item" onSelect={() => choose("open")}><FolderOpen size={15} /> Apri corso</ContextMenu.Item>
+      <ContextMenu.Item className="material-menu-item" onSelect={() => { openingDialog.current = true; openShare({ kind: "course", id: folder.id, name: folder.name }); }}><Share2 size={15} /> Condividi corso</ContextMenu.Item>
       <ContextMenu.Item className="material-menu-item" onSelect={() => choose("settings")}><Settings2 size={15} /> Impostazioni</ContextMenu.Item>
       <ContextMenu.Item className="material-menu-item" onSelect={() => choose("rename")}><Pencil size={15} /> Rinomina</ContextMenu.Item>
       <ContextMenu.Separator className="material-menu-separator" />
       <ContextMenu.Item className="material-menu-item" onSelect={() => choose("archive")}>{folder.archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}{folder.archived ? "Ripristina" : "Archivia"}</ContextMenu.Item>
-      <ContextMenu.Item className="material-menu-item" disabled={deleteDisabled} onSelect={() => choose("delete")}><Trash2 size={15} /> Elimina corso</ContextMenu.Item>
+      <ContextMenu.Item className="material-menu-item" disabled={deleteDisabled || folder.sharedRole === "coauthor"} onSelect={() => choose("delete")}><Trash2 size={15} /> Elimina corso</ContextMenu.Item>
     </ContextMenu.Content></ContextMenu.Portal>
   </ContextMenu.Root>;
 }

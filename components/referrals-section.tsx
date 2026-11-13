@@ -8,7 +8,8 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import styles from "./referrals.module.css";
 
-export function ReferralsSection() {
+export function ReferralsSection({ embedded = false }: { embedded?: boolean }) {
+  const Heading = embedded ? "h2" : "h1";
   const [data, setData] = useState<ReferralOverview | null>(null);
   const [origin, setOrigin] = useState("");
   const [label, setLabel] = useState("");
@@ -42,8 +43,8 @@ export function ReferralsSection() {
     } catch (cause) { setError((cause as Error).message); }
     finally { lock.current = false; setBusy(false); }
   }
-  return <section className={styles.section} aria-label="Inviti e saluti">
-    <header className={styles.header}><span><UserPlus size={23} /></span><div><h1>Inviti e saluti</h1><p>Porta i tuoi amici su Studio. Al benvenuto ci pensa Tony.</p></div></header>
+  return <section className={`${styles.section}${embedded ? ` ${styles.embedded}` : ""}`} aria-label="Inviti e saluti">
+    <header className={styles.header}><span><UserPlus size={23} /></span><div><Heading>Inviti e saluti</Heading><p>Porta i tuoi amici su Studio. Al benvenuto ci pensa Tony.</p></div></header>
     {error && <p role="alert">{error} <Button variant="ghost" size="sm" onClick={() => void load()}>Riprova</Button></p>}
     {notice && <p role="status">{notice}</p>}
     {!data && !error && <p role="status">Carico i tuoi inviti…</p>}

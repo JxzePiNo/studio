@@ -7,6 +7,9 @@ import { cloudEnabled, userRoot } from "./firebase-server";
 import { dataRoot } from "./store";
 import type { StudyProfile } from "./types";
 import { MemoryCache } from "./memory-cache";
+import { makeSocialProfile } from "./friends";
+import { canonicalUniversity } from "./universities";
+import { normalizeUsername, validUsername } from "./username";
 
 const profileCache = new MemoryCache<StudyProfile>({ maxEntries: 128, maxBytes: 1024 * 1024, ttlMs: 30_000 });
 
@@ -15,7 +18,11 @@ export const defaultStudyProfile: Readonly<StudyProfile> = Object.freeze({ study
 export const studyProfileInputSchema = z.object({
   studyProgram: z.string().trim().max(300),
   onboardingCompleted: z.boolean(),
+  photoURL: z.string().max(150000).regex(/^$|^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/).optional(),
   displayName: z.string().trim().max(80).optional(),
+  university: z.string().trim().max(160).transform(canonicalUniversity).optional(),
+  city: z.string().trim().max(120).refine(value => !value || value.length >= 2, "Indica una città valida.").optional(),
+  nickname: z.string().transform(normalizeUsername).refine(value => !value || validUsername(value), "Lo username deve avere 3–24 lettere, numeri, punti o underscore.").optional(),
 }).strict();
 
 const storedProfileSchema = studyProfileInputSchema.extend({ updatedAt: z.string().datetime().optional() });
@@ -39,12 +46,36 @@ export async function getStudyProfile(): Promise<StudyProfile> {
   }
 }
 
-export async function saveStudyProfile(input: { studyProgram: string; onboardingCompleted: boolean; displayName?: string }): Promise<StudyProfile> {
+export async function saveCloudStudyProfile(reference: import("@google-cloud/firestore").DocumentReference, input: StudyProfile) {
+    const db = reference.firestore;
+    await db.runTransaction(async tx => {
+      const [current, social] = await Promise.all([tx.get(reference), tx.get(db.collection("socialProfiles").doc(reference.parent.parent!.id))]);
+      const previous = current.data() as StudyProfile | undefined;
+      const profile = { ...previous, ...input, updatedAt: new Date().toISOString() };
+      const uid = reference.parent.parent!.id;
+      const claim = profile.nickname ? db.collection("socialNicknames").doc(profile.nickname) : undefined;
+      if (claim) {
+        const reserved = await tx.get(claim);
+        if (reserved.exists && reserved.get("uid") !== uid) throw Object.assign(new Error("Questo username è già in uso. Scegline un altro."), { status: 409 });
+      }
+      if (previous?.nickname && previous.nickname !== profile.nickname) tx.delete(db.collection("socialNicknames").doc(previous.nickname));
+      if (claim) tx.set(claim, { uid });
+      tx.set(reference, profile);
+      const name = profile.displayName || social.get("name") || profile.nickname || "Studente";
+      const socialProfile = makeSocialProfile({ name, photoURL: profile.photoURL || social.get("photoURL") || "", nickname: profile.nickname || "", city: profile.city || "", university: profile.university || "", studyProgram: profile.studyProgram }, social.data());
+      tx.set(social.ref, socialProfile);
+      const directory = db.collection("socialDirectory").doc(uid);
+      if (socialProfile.discoverable) tx.set(directory, socialProfile);
+      else tx.delete(directory);
+    });
+}
+
+export async function saveStudyProfile(input: { studyProgram: string; onboardingCompleted: boolean; displayName?: string; photoURL?: string; university?: string; nickname?: string; city?: string }): Promise<StudyProfile> {
   const parsed = studyProfileInputSchema.safeParse(input);
   if (!parsed.success) throw Object.assign(new Error("Profilo di studio non valido."), { status: 400 });
   if (cloudEnabled()) {
     const reference = (await userRoot()).collection("settings").doc("profile");
-    await reference.set({ ...parsed.data, updatedAt: new Date().toISOString() }, { merge: true });
+    await saveCloudStudyProfile(reference, parsed.data);
     profileCache.delete(reference.path);
     return getStudyProfile();
   }

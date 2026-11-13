@@ -18,7 +18,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const total = quiz.questions.filter(question => question.type !== "open").length;
     const correct = quiz.questions.filter((question, index) => question.type !== "open" && parsed.data.answers[index] === String(question.correctIndex)).length;
-    const result = { correct, total, ...quizResult(correct, total), completedAt: new Date().toISOString() };
+    const result = { answers: parsed.data.answers, correct, total, ...quizResult(correct, total), completedAt: new Date().toISOString() };
     await saveQuizResult(id, quizId, result);
     return NextResponse.json(result);
   } catch (error) { return apiError(error); }

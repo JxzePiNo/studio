@@ -10,17 +10,20 @@ import { browserAuth, firebaseEnabled } from "@/lib/firebase-client";
 import { useStudyProfile } from "./study-profile-provider";
 import { Button } from "./ui/button";
 import { NicknameSettings } from "./nickname-settings";
+import { StudyProgramPicker } from "./study-program-picker";
+import { UniversityPicker } from "./university-picker";
+import { UsernameInput } from "./username-input";
 import { Input } from "./ui/input";
 
-function ProfileAvatar({ user, displayName, large = false }: { user: User | null; displayName?: string; large?: boolean }) {
+function ProfileAvatar({ user, displayName, photoURL, large = false }: { user: User | null; displayName?: string; photoURL?: string; large?: boolean }) {
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [user?.photoURL]);
+  useEffect(() => setFailed(false), [photoURL, user?.photoURL]);
   const initials = user || displayName
     ? (displayName || user?.displayName || user?.email || "IO").trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase()
     : "IO";
   return <span className={`sidebar-profile-avatar${large ? " is-large" : ""}`} aria-hidden="true">
-    {user?.photoURL && !failed
-      ? <img src={user.photoURL} alt="" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+    {(photoURL || user?.photoURL) && !failed
+      ? <img src={photoURL || user?.photoURL || ""} alt="" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
       : initials}
   </span>;
 }
@@ -32,6 +35,8 @@ export function SidebarProfile({ mobile = false, admin = false, onSignOut }: { m
   const { profile, loading, saveProfile } = useStudyProfile();
   const [studyProgram, setStudyProgram] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [university, setUniversity] = useState("");
+  const [nickname, setNickname] = useState("");
   const [saving, setSaving] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
@@ -43,6 +48,7 @@ export function SidebarProfile({ mobile = false, admin = false, onSignOut }: { m
   function changeAccountOpen(open: boolean) {
     if (open) {
       setStudyProgram(profile?.studyProgram || "");
+      setUniversity(profile?.university || ""); setNickname(profile?.nickname || "");
       setDisplayName(profile?.displayName ?? user?.displayName ?? "");
       setSaveStatus("");
       setSaveError(false);
@@ -51,10 +57,16 @@ export function SidebarProfile({ mobile = false, admin = false, onSignOut }: { m
     setAccountOpen(open);
   }
 
+  useEffect(() => {
+    const open = () => { if (window.matchMedia("(max-width:700px)").matches === mobile) changeAccountOpen(true); };
+    window.addEventListener("studio-edit-profile", open);
+    return () => window.removeEventListener("studio-edit-profile", open);
+  }, [mobile, profile, user]);
+
   async function saveStudyProgram() {
     if (saveLock.current || loading) return;
     saveLock.current = true; setSaving(true); setSaveStatus(""); setSaveError(false);
-    try { await saveProfile(studyProgram, undefined, displayName); setSaveStatus("Profilo salvato."); setEditingName(false); if (!studyProgram.trim()) setAccountOpen(false); }
+    try { await saveProfile(studyProgram, undefined, displayName, { university, nickname }); setSaveStatus("Profilo salvato."); setEditingName(false); if (!studyProgram.trim()) setAccountOpen(false); }
     catch (cause) { setSaveError(true); setSaveStatus(cause instanceof Error ? cause.message : "Salvataggio non riuscito. Riprova."); }
     finally { saveLock.current = false; setSaving(false); }
   }
@@ -73,7 +85,7 @@ export function SidebarProfile({ mobile = false, admin = false, onSignOut }: { m
         <DropdownMenu.Trigger asChild>
           <button ref={trigger} className={mobile ? "mobile-account-trigger" : "sidebar-profile-trigger"} aria-label={mobile ? "Account" : "Apri menu account"}>
             {mobile ? <><UserRound size={20} aria-hidden="true" /><span>Account</span></> : <>
-            <ProfileAvatar user={user} displayName={profile?.displayName} />
+            <ProfileAvatar photoURL={profile?.photoURL} user={user} displayName={profile?.displayName} />
             <span className="sidebar-profile-copy"><strong>{name}</strong><small>{detail}</small></span>
             <ChevronsUpDown size={16} aria-hidden="true" />
             </>}
@@ -109,7 +121,7 @@ export function SidebarProfile({ mobile = false, admin = false, onSignOut }: { m
         <Dialog.Description className="account-profile-a11y">Modifica il tuo nome e il percorso di studio.</Dialog.Description>
         <form className="study-profile-form account-profile-form" onSubmit={event => { event.preventDefault(); void saveStudyProgram(); }}>
           <div className="account-profile-header">
-            <ProfileAvatar user={user} displayName={displayName} large />
+            <ProfileAvatar photoURL={profile?.photoURL} user={user} displayName={displayName} large />
             <div className="account-profile-identity">
               <p className="account-profile-email">{detail}</p>
               <div className="account-profile-name-row">
@@ -121,8 +133,10 @@ export function SidebarProfile({ mobile = false, admin = false, onSignOut }: { m
             </div>
           </div>
           <div className="form-field"><label className="form-field-label" htmlFor="account-study-program">Titolo o percorso di studio</label>
-          <Input id="account-study-program" aria-label="Titolo o percorso di studio" value={studyProgram} onChange={event => { setStudyProgram(event.target.value); setSaveStatus(""); }} maxLength={300} placeholder="Es. Laurea magistrale in Ingegneria informatica" disabled={loading || saving} />
+          <StudyProgramPicker id="account-study-program" ariaLabel="Titolo o percorso di studio" value={studyProgram} onChange={value => { setStudyProgram(value); setSaveStatus(""); }} disabled={loading || saving} />
           <p className="study-profile-form-hint">Il tutor usa questa informazione per adattare spiegazioni e risposte al tuo percorso. Puoi anche lasciare il campo vuoto.</p></div>
+          <div className="form-field"><label className="form-field-label" htmlFor="account-university">Università</label><UniversityPicker id="account-university" value={university} onChange={value => { setUniversity(value); setSaveStatus(""); }} disabled={loading || saving} /><p className="study-profile-form-hint">Per suggerirti persone dello stesso ateneo nella sezione Amici.</p></div>
+          <div className="form-field"><label className="form-field-label" htmlFor="account-nickname">Username</label><UsernameInput id="account-nickname" value={nickname} onChange={value => { setNickname(value); setSaveStatus(""); }} name={displayName} disabled={loading || saving} /><p className="study-profile-form-hint">Da 3 a 24 lettere, numeri, punti o underscore. Gli amici possono cercarti con questo nome.</p></div>
           <div className="account-profile-actions"><Dialog.Close asChild><Button variant="outline">Chiudi</Button></Dialog.Close><Button type="submit" disabled={loading || saving}>{saving ? "Salvataggio…" : "Salva profilo"}</Button></div>
           {saveStatus && <p className="profile-save-status" role={saveError ? "alert" : "status"}>{saveStatus}</p>}
         </form>

@@ -22,7 +22,7 @@ export function recordsPlatformActivity(request: Request) {
   if (path === "/api/study-sessions" && request.method === "POST") return false;
   if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return request.method === "GET" && (path === "/api/profile" || /^\/api\/documents\/[^/]+\/pdf$/.test(path));
   // Automatic greeting polls/acknowledgements are not a deliberate visit.
-  return !path.startsWith("/api/referrals");
+  return !path.startsWith("/api/referrals") && path !== "/api/friends";
 }
 
 const observed = new WeakMap<Firestore, { recent: MemoryCache<boolean>; pending: Map<string, Promise<void>> }>();

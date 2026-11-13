@@ -1,0 +1,5 @@
+.field { position:relative; }
+.field>span { position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--muted-foreground); pointer-events:none; font-size:14px; }
+.field input { width:100%; padding-left:31px; }
+.suggestion { display:block; margin-top:7px; padding:0; text-align:left; font-size:12px; color:var(--primary); overflow-wrap:anywhere; }
+.suggestion:hover { text-decoration:underline; }

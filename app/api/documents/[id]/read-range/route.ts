@@ -4,6 +4,9 @@ import { readDocument, updateDocument } from "@/lib/store";
 import { readRangeInput, planReadRange } from "@/lib/read-range";
 import { getStudyHistory, recordReadingBatch } from "@/lib/study-history-store";
 import { studyDay } from "@/lib/study-session";
+import { cloudEnabled, services, userId } from "@/lib/firebase-server";
+import { documentReference } from "@/lib/shared-access";
+import { markPersonalRange } from "@/lib/shared-progress";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +21,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     let planned;
     try { planned = planReadRange(parsed.data, current.pages); }
     catch (error) { return NextResponse.json({ error: (error as Error).message }, { status: 400 }); }
-    const document = await updateDocument(id, doc => {
+    const shared = cloudEnabled() && current.folderId && (await services().db.collection("sharedWorkspaces").doc(current.folderId).get()).exists;
+    const document = shared ? await (async () => {
+      await markPersonalRange(services().db, await userId(), await documentReference(id), planned.map(item => item.page));
+      return readDocument(id);
+    })() : await updateDocument(id, doc => {
       for (const { page } of planned) doc.slides[page] = { ...doc.slides[page], notes: doc.slides[page]?.notes || "", read: true };
     });
     // Both writes are idempotent: retrying after an interrupted history write repairs it.

@@ -1,3 +1,6 @@
+import { folderReference, collaborativeWorkspaces, assertCourseOwner } from "./shared-access";
+import { getStudyProfile } from "./study-profile";
+import { publicFeedId } from "./sharing";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -14,7 +17,7 @@ export async function getFolder(id?: string): Promise<ExamFolder | undefined> {
   if (!id) return;
   if (!cloudEnabled()) return (await listFolders()).find(folder => folder.id === id);
   if (!/^[a-zA-Z0-9-]{1,100}$/.test(id)) return;
-  const reference = (await userRoot()).collection("folders").doc(id);
+  const reference = await folderReference(id);
   const cached = courseContextCache.get(reference.path);
   if (cached) return structuredClone(cached);
   const snapshot = await reference.get();
@@ -25,7 +28,12 @@ export async function getFolder(id?: string): Promise<ExamFolder | undefined> {
 }
 
 export async function listFolders(): Promise<ExamFolder[]> {
-  if (cloudEnabled()) return (await (await userRoot()).collection("folders").get()).docs.map(d => d.data() as ExamFolder).sort((a,b) => a.name.localeCompare(b.name));
+  if (cloudEnabled()) {
+    const root = await userRoot();
+    const [own, shared] = await Promise.all([root.collection("folders").get(), collaborativeWorkspaces(true)]);
+    const others = await Promise.all(shared.filter(space => space.ownerId !== root.id).map(async space => ({ ...(await services().db.collection("users").doc(space.ownerId).collection("folders").doc(space.id).get()).data(), collaborative: true, sharedRole: "coauthor", ownerId: space.ownerId })));
+    return [...own.docs.map(doc => ({ ...doc.data(), ...(shared.some(space => space.id === doc.id) ? { collaborative: true, sharedRole: "owner", ownerId: root.id } : {}) })), ...others].map(folder => folder as ExamFolder).filter(folder => folder.id).sort((a, b) => a.name.localeCompare(b.name));
+  }
   await mkdir(dataRoot(), { recursive: true });
   const files = (await readdir(dataRoot())).filter(f => /^folder-[0-9a-f-]+\.json$/.test(f));
   return Promise.all(files.map(async f => JSON.parse(await readFile(path.join(dataRoot(), f), "utf8"))));
@@ -33,7 +41,9 @@ export async function listFolders(): Promise<ExamFolder[]> {
 export async function createFolder(name: string, examDate?: string, availability: StudyAvailability = {}, cfu?: number) {
   if (cfu !== undefined && !validExamCfu(cfu)) throw Object.assign(new Error("Indica CFU tra 0,5 e 120, a incrementi di 0,5."), { status: 400 });
   const existing = await listFolders();
+  const profile = await getStudyProfile();
   const folder: ExamFolder = {
+    provenance: { university: profile.university || "", studyProgram: profile.studyProgram, authorName: profile.displayName || "Studente" },
     id: randomUUID(), name, createdAt: new Date().toISOString(), color: examColors[existing.length % examColors.length],
     ...(examDate ? { examDate } : {}),
     ...(cfu !== undefined ? { cfu } : {}),
@@ -67,7 +77,7 @@ export async function updateFolder(id: string, changes: FolderChanges | ((folder
     return folder;
   };
   if (cloudEnabled()) {
-    const ref = (await userRoot()).collection("folders").doc(id);
+    const ref = await folderReference(id);
     const result = await services().db.runTransaction(async tx => {
       const snapshot = await tx.get(ref);
       if (!snapshot.exists) throw Object.assign(new Error("Esame non trovato."), { status: 404 });
@@ -98,7 +108,7 @@ export async function updateFolder(id: string, changes: FolderChanges | ((folder
 export async function deleteFolder(id: string): Promise<void> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw Object.assign(new Error("Esame non valido."), { status: 400 });
   type DeletingFolder = ExamFolder & { deletionDocumentIds?: string[] };
-  const root = cloudEnabled() ? await userRoot() : null;
+  const root = cloudEnabled() ? (await assertCourseOwner(id)).parent.parent! : null;
   const documents = root
     ? (await root.collection("documents").where("folderId", "==", id).get()).docs.map(doc => ({ id: doc.id }))
     : (await listDocuments()).filter(doc => doc.folderId === id);
@@ -114,6 +124,11 @@ export async function deleteFolder(id: string): Promise<void> {
     try { await deleteDocument(documentId); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
   });
-  if (root) { await root.collection("folders").doc(id).delete(); courseContextCache.delete(`${root.path}/folders/${id}`); }
+  if (root) { await services().db.collection("sharedWorkspaces").doc(id).delete();
+    const imports = await root.collection("materialImports").where("folderId", "==", id).get();
+    await Promise.all(imports.docs.map(doc => doc.ref.delete()));
+    const publications = await services().db.collection("sharedMaterials").where("ownerId", "==", root.id).get();
+    await Promise.all(publications.docs.filter(doc => doc.get("sourceId") === id).map(async doc => { await doc.ref.update({ active: false, visibility: "private" }); await services().db.collection("publicCourseFeeds").doc(publicFeedId(doc.get("provenance").studyProgram)).collection("courses").doc(doc.id).delete(); }));
+    await root.collection("folders").doc(id).delete(); courseContextCache.delete(`${root.path}/folders/${id}`); }
   else await unlink(path.join(dataRoot(), `folder-${id}.json`)).catch(error => { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; });
 }

@@ -14,7 +14,7 @@ test("PDF and explanations survive reload and unchanged content revalidates with
       if (route.request().headers()["if-none-match"] === '"content-v1"') { validations++; return route.fulfill({ status: 304, headers: { ETag: '"content-v1"', "X-Studio-Metadata": encodeURIComponent(JSON.stringify({ name: "Rinominato.pdf", currentPage: 1 })) } }); }
       fullDocuments++; return route.fulfill({ json: document, headers: { ETag: '"content-v1"' } });
     }
-    const data = path === "/api/profile" ? { displayName: "Iacopo", studyProgram: "Informatica", onboardingCompleted: true }
+    const data = path === "/api/profile" ? { displayName: "Iacopo", studyProgram: "Informatica", onboardingCompleted: true, nickname: "studio_test", university: "Roma" }
       : path === "/api/status" ? { configured: true }
       : path === "/api/folders" ? [{ id: "cache-course", name: "Cache", createdAt: document.createdAt, color: "sky" }]
       : path === "/api/documents" ? [{ ...document, slides: undefined, analyzedPages: 1 }]
@@ -44,7 +44,7 @@ test("navigation and hints can be dismissed per PDF and restored from reading se
   await page.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/pdf")) return route.fulfill({ path: "public/esempio.pdf", contentType: "application/pdf" });
-    const data = path === "/api/profile" ? { studyProgram: "Informatica", onboardingCompleted: true }
+    const data = path === "/api/profile" ? { studyProgram: "Informatica", onboardingCompleted: true, nickname: "studio_test", university: "Roma" }
       : path === "/api/status" ? { configured: true }
       : path === "/api/folders" ? [{ id: "prefs-course", name: "Preferenze", createdAt: template.createdAt, color: "sky" }]
       : path === "/api/documents" ? [template, second].map(document => ({ ...document, slides: undefined, analyzedPages: 0 }))
@@ -126,7 +126,7 @@ test("reading updates the cached page without a full document or history reload"
       historyReads++;
       return route.fulfill({ json: { sessions: [], activity: {}, todayPages: [] } });
     }
-    const data = path === "/api/profile" ? { studyProgram: "Informatica", onboardingCompleted: true }
+    const data = path === "/api/profile" ? { studyProgram: "Informatica", onboardingCompleted: true, nickname: "studio_test", university: "Roma" }
       : path === "/api/status" ? { configured: true }
       : path === "/api/folders" ? [{ id: "read-course", name: "Lettura", createdAt: document.createdAt, color: "sky" }]
       : path === "/api/documents" ? [{ ...document, slides: undefined, analyzedPages: 0 }]

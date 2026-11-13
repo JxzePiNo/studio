@@ -109,7 +109,7 @@ export default function AdminDashboard() {
       {tab === "nicknames" && <section className={styles.detail}><NicknamesProvider><NicknameSettings /></NicknamesProvider></section>}
       {tab === "audit" && <section className={styles.detail}><h2>Registro operazioni admin</h2><p className={styles.hint}>Ultime 50 operazioni. Le richieste e i completamenti vengono registrati separatamente.</p><div className={styles.tableScroll}><table><thead><tr><th>Data</th><th>Operazione</th><th>Destinatario</th><th>Amministratore</th></tr></thead><tbody>{data.audit.map(event => <tr key={event.id}><td>{date(event.at)}</td><td>{event.action}</td><td>{event.target}</td><td>{event.actor}</td></tr>)}</tbody></table></div></section>}
     </>}
-  </div></main>{ready && signedIn && <MobileNavigation admin home={() => window.location.assign("/")} sessions={() => window.location.assign("/sessioni")} referrals={() => window.location.assign("/inviti")} onSignOut={() => void run(async () => { await signOut(browserAuth()); })} />}</div></SidebarProvider>;
+  </div></main>{ready && signedIn && <MobileNavigation admin home={() => window.location.assign("/")} sessions={() => window.location.assign("/sessioni")} friends={() => window.location.assign("/amici")} onSignOut={() => void run(async () => { await signOut(browserAuth()); })} />}</div></SidebarProvider>;
   return ready && signedIn ? <StudyProfileProvider key={sessionId} requireProfile={false}>{content}</StudyProfileProvider> : content;
 }
 function UsagePanel({ usage, config }: { usage: UsageSummary | null; config: PlatformConfig }) {

@@ -1,8 +1,8 @@
-.picker { display:grid; gap:10px; min-width:0; }
+.picker { position:relative; display:grid; gap:10px; min-width:0; }
 .search { position:relative; }
 .search > svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--muted-foreground); pointer-events:none; }
 .search input { width:100%; padding-left:36px; }
-.results { overflow:hidden; }
+.results { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:35; overflow:hidden; padding:6px; border:1px solid var(--border); border-radius:12px; background:var(--card); box-shadow:0 10px 30px #1720331c; }
 .list { max-height:min(270px,34dvh); overflow-y:auto; overscroll-behavior:contain; }
 .option { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px; border-radius:7px; font-size:13px; line-height:1.5; cursor:pointer; overflow-wrap:anywhere; }
 .option:hover, .active { background:var(--accent); }

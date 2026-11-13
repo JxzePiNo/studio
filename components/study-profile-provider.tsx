@@ -6,8 +6,11 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import * as Dialog from "@radix-ui/react-dialog";
 import { LoaderCircle, LogOut } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
+import { needsProfileOnboarding } from "@/lib/profile-onboarding";
 import type { StudyProfile } from "@/lib/types";
 import { Button } from "./ui/button";
+import { UniversityPicker } from "./university-picker";
+import { UsernameInput } from "./username-input";
 import { StudyProgramPicker } from "./study-program-picker";
 import pickerStyles from "./study-program-picker.module.css";
 import { NicknamesProvider } from "./nicknames-provider";
@@ -18,7 +21,7 @@ type StudyProfileContextValue = {
   profile: StudyProfile | null;
   loading: boolean;
   error: string;
-  saveProfile: (studyProgram: string, onboardingCompleted?: boolean, displayName?: string) => Promise<void>;
+  saveProfile: (studyProgram: string, onboardingCompleted?: boolean, displayName?: string, social?: { university: string; nickname: string; photoURL?: string }) => Promise<void>;
   reload: () => Promise<void>;
 };
 
@@ -58,14 +61,14 @@ export function StudyProfileProvider({ children, onSignOut, requireProfile = tru
     return () => { requestSequence.current++; };
   }, [reload]);
 
-  const saveProfile = useCallback(async (studyProgram: string, onboardingCompleted?: boolean, displayName?: string) => {
+  const saveProfile = useCallback(async (studyProgram: string, onboardingCompleted?: boolean, displayName?: string, social?: { university: string; nickname: string; photoURL?: string }) => {
     if (saveLock.current) throw new Error("Salvataggio già in corso.");
     saveLock.current = true;
     const sequence = ++requestSequence.current;
     setError("");
     try {
-      const result = await profileRequest({ method: "PATCH", body: JSON.stringify({ studyProgram: studyProgram.trim(), onboardingCompleted: onboardingCompleted ?? profile?.onboardingCompleted ?? true, ...(displayName !== undefined ? { displayName: displayName.trim() } : {}) }) });
-      if (sequence === requestSequence.current) setProfile(result);
+      const result = await profileRequest({ method: "PATCH", body: JSON.stringify({ studyProgram: studyProgram.trim(), onboardingCompleted: onboardingCompleted ?? profile?.onboardingCompleted ?? true, ...(displayName !== undefined ? { displayName: displayName.trim() } : {}), ...social }) });
+      if (sequence === requestSequence.current) { setProfile(result); window.dispatchEvent(new Event("studio-friends-changed")); }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Impossibile salvare il profilo di studio.";
       if (sequence === requestSequence.current) setError(message);
@@ -105,29 +108,33 @@ export function useStudyProfile() {
 
 function StudyOnboarding({ profile, saveProfile }: Pick<StudyProfileContextValue, "saveProfile"> & { profile: StudyProfile }) {
   const [studyProgram, setStudyProgram] = useState(profile.studyProgram || "");
+  const [university, setUniversity] = useState(profile.university || "");
+  const [nickname, setNickname] = useState(profile.nickname || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const lock = useRef(false);
 
   async function complete() {
-    if (lock.current || !studyProgram.trim()) return;
+    if (lock.current || !studyProgram.trim() || !nickname.trim() || !university.trim()) return;
     lock.current = true; setSaving(true); setError("");
-    try { await saveProfile(studyProgram, true); }
+    try { await saveProfile(studyProgram, true, undefined, { university, nickname }); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Salvataggio non riuscito. Riprova."); }
     finally { lock.current = false; setSaving(false); }
   }
 
-  return <Dialog.Root open={!profile.studyProgram.trim()}>
+  return <Dialog.Root open={needsProfileOnboarding(profile)}>
     <Dialog.Portal>
       <Dialog.Overlay className="account-profile-overlay study-onboarding-overlay" />
       <Dialog.Content className={`account-profile-dialog study-onboarding-dialog ${pickerStyles.dialog}`} onEscapeKeyDown={event => event.preventDefault()} onPointerDownOutside={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}>
-        <div className={pickerStyles.heading}><TonyMascot size={80} /><Dialog.Title>Cosa studi?</Dialog.Title></div>
-        <Dialog.Description>Indicaci il tuo corso di laurea</Dialog.Description>
+        <div className={pickerStyles.heading}><TonyMascot size={80} /><Dialog.Title>{profile.studyProgram.trim() ? "Completa il tuo profilo" : "Cosa studi?"}</Dialog.Title></div>
+        <Dialog.Description>Scegli il tuo username e indicaci dove studi.</Dialog.Description>
         <form className={pickerStyles.form} onSubmit={event => { event.preventDefault(); void complete(); }}>
-          <StudyProgramPicker id="onboarding-study-program" value={studyProgram} onChange={setStudyProgram} disabled={saving} autoFocus />
+          <StudyProgramPicker id="onboarding-study-program" value={studyProgram} onChange={setStudyProgram} disabled={saving} autoFocus={!profile.studyProgram.trim()} />
+          <div className="form-field"><label className="form-field-label" htmlFor="onboarding-university">Università</label><UniversityPicker id="onboarding-university" value={university} onChange={setUniversity} disabled={saving} /><small>Ti suggeriremo persone del tuo ateneo.</small></div>
+          <div className="form-field"><label className="form-field-label" htmlFor="onboarding-nickname">Username</label><UsernameInput id="onboarding-nickname" value={nickname} onChange={setNickname} name={profile.displayName} disabled={saving} autoSuggest={!profile.nickname} /><small>Da 3 a 24 lettere, numeri, punti o underscore, per farti trovare dagli amici.</small></div>
           {error && <p className="profile-save-status" role="alert">{error}</p>}
           <div className="study-onboarding-actions">
-            <Button type="submit" disabled={saving || !studyProgram.trim()}>{saving ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : null} Continua</Button>
+            <Button type="submit" disabled={saving || !studyProgram.trim() || !nickname.trim() || !university.trim()}>{saving ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : null} Continua</Button>
           </div>
         </form>
       </Dialog.Content>

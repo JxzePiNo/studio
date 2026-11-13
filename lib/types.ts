@@ -15,7 +15,11 @@ export interface SlideData {
   explanation?: Explanation;
   generatedAt?: string;
 }
+export interface MaterialProvenance { university: string; studyProgram: string; authorName: string }
 export interface StudyDocument {
+  provenance?: MaterialProvenance;
+  sharedBlobId?: string;
+  sharedVisuals?: Record<string, string>;
   originalName?: string;
   folderId?: string;
   id: string;
@@ -36,6 +40,10 @@ export interface StudyAvailability {
 }
 
 export interface ExamFolder extends StudyAvailability {
+  provenance?: MaterialProvenance;
+  collaborative?: boolean;
+  sharedRole?: "owner" | "coauthor";
+  ownerId?: string;
   archived?: boolean;
   /** Missing on existing courses: treated as required. */
   optional?: boolean;
@@ -48,10 +56,14 @@ export interface ExamFolder extends StudyAvailability {
   pagesPerHour?: number;
   documentOrder?: string[];
 }
-export interface ChatMessage { role: "user" | "assistant"; content: string; source?: "analysis"; quiz?: import("./quiz").StudyQuiz; visualization?: import("./concept-model").ConceptModel; artifact?: import("./study-artifact").StudyArtifact }
+export interface ChatMessage { sharedAt?: number; privateOwnerId?: string; role: "user" | "assistant"; content: string; source?: "analysis"; quiz?: import("./quiz").StudyQuiz; visualization?: import("./concept-model").ConceptModel; artifact?: import("./study-artifact").StudyArtifact }
 
 export interface StudyProfile {
+  photoURL?: string;
   displayName?: string;
+  university?: string;
+  city?: string;
+  nickname?: string;
   studyProgram: string;
   onboardingCompleted: boolean;
   updatedAt?: string;

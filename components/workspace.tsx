@@ -8,11 +8,15 @@ import { cachedApi, cachedPdf, invalidateApiCache } from "@/lib/browser-data-cac
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { House, Clock3, UserPlus, ArrowLeft, ArrowRight, FileText, FolderOpen, Languages, LoaderCircle, Plus, Search, Upload, X } from "lucide-react";
+import { House, Clock3, Users, ArrowLeft, ArrowRight, FileText, FolderOpen, Languages, LoaderCircle, Plus, Search, Upload, X } from "lucide-react";
 import { authHeaders, firebaseEnabled } from "@/lib/firebase-client";
 import { formatCourseName } from "@/lib/course-name";
 import { examColor, examAccentColor } from "@/lib/exam-colors";
-import { ReferralsSection } from "./referrals-section";
+import { ShareDialog } from "./share-dialog";
+import { SharedMaterials } from "./shared-materials";
+import type { ShareTarget } from "@/lib/sharing-types";
+import { FriendsSection } from "./friends-section";
+import { FriendsActivity } from "./friends-activity";
 import { TonyGreeting } from "./tony-greeting";
 import { MobileNavigation } from "./mobile-navigation";
 import { SidebarProfile } from "./sidebar-profile";
@@ -61,7 +65,9 @@ const size = (bytes: number) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)
 type BatchProgress = { id: string; startedAt: number; total: number; completed: number; current: number | null; active: number[]; status: "running" | "stopping" | "stopped" | "completed" | "error" };
 
 export default function Workspace() {
-  const [section, setSection] = useState<"study" | "sessions" | "referrals">("study");
+  const [friendsTab, setFriendsTab] = useState("friends");
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
+  const [section, setSection] = useState<"study" | "sessions" | "friends">("study");
   const [selectedStudyDay, setSelectedStudyDay] = useState("");
   const [folders, setFolders] = useState<ExamFolder[]>([]);
   const [folderId, setFolderId] = useState("");
@@ -187,6 +193,42 @@ export default function Workspace() {
     if (sequence !== refreshSequence.current) return;
     setLibrary(documents); setFolders(exams);
   }, []);
+  useEffect(() => {
+    const share = (event: Event) => setShareTarget((event as CustomEvent<ShareTarget>).detail);
+    const open = (event: Event) => { const id = (event as CustomEvent<{ folderId: string }>).detail.folderId; void refresh().then(() => openFolder(id)).catch(cause => setError(cause.message)); };
+    const changed = () => { void refresh().catch(cause => setError(cause.message)); };
+    window.addEventListener("studio-share", share);
+    window.addEventListener("studio-open-shared-course", open);
+    window.addEventListener("studio-sharing-changed", changed);
+    return () => { window.removeEventListener("studio-share", share); window.removeEventListener("studio-open-shared-course", open); window.removeEventListener("studio-sharing-changed", changed); };
+  }, [refresh]);
+  useEffect(() => {
+    if (!folders.find(folder => folder.id === folderId)?.collaborative) return;
+    let pending = false;
+    const controller = new AbortController();
+    const update = async () => {
+      if (pending || document.visibilityState !== "visible" || pendingNotes.current.size || pendingWrites.current || chatPending.current || analysisLock.current) return;
+      pending = true;
+      try {
+        const current = docRef.current;
+        await invalidateApiCache("/api/folders", "/api/documents", ...(current ? [`/api/documents/${current.id}`, `/api/documents/${current.id}/quiz`] : []));
+        await refresh();
+        if (current) {
+          const incoming = await api<StudyDocument>(`/api/documents/${current.id}`, { signal: controller.signal });
+          if (!controller.signal.aborted && docRef.current?.id === current.id && !pendingNotes.current.size && !pendingWrites.current && !chatPending.current && !analysisLock.current) {
+            const updated = { ...incoming, currentPage: docRef.current.currentPage };
+            docRef.current = updated; setDoc(updated);
+            chatController.registerDocumentMaterials(updated);
+            chatController.receiveMessages(updated.id, updated.currentPage, updated.slides[updated.currentPage]?.chat || []);
+            window.dispatchEvent(new CustomEvent("studio-quizzes-changed", { detail: { documentId: current.id } }));
+          }
+        }
+      } catch (cause) { if (!controller.signal.aborted) setError((cause as Error).message); }
+      finally { pending = false; }
+    };
+    const timer = setInterval(() => { void update(); }, 10000);
+    return () => { controller.abort(); clearInterval(timer); };
+  }, [folderId, folders.find(folder => folder.id === folderId)?.collaborative, refresh]);
   const courseAnalysis = useCourseAnalysis({
     folderId, documents: library, configured, disabled: busy,
     canStart: ids => (!analysisLock.current || !ids.includes(readerJobDocument.current || "")),
@@ -255,10 +297,11 @@ export default function Workspace() {
     setSection("sessions"); setSelectedStudyDay(day); setFolderId(""); setSidebar(false);
     void studySession.reloadHistory();
   }
-  function openReferrals() {
+  function openFriends() {
     if (busy) return;
-    if (window.location.pathname !== "/inviti") window.history.pushState(null, "", "/inviti");
-    setSection("referrals"); setFolderId(""); setSidebar(false);
+    if (docRef.current) { void closeDocument().then(() => openFriends()); return; }
+    if (window.location.pathname !== "/amici" || window.location.search) window.history.pushState(null, "", "/amici");
+    setFriendsTab("friends"); setSection("friends"); setFolderId(""); setSidebar(false);
   }
   const restoreRoute = useRef<(path: string) => Promise<void>>(async () => {});
   const restoringRoute = useRef(false);
@@ -276,7 +319,9 @@ export default function Workspace() {
     const match = parsedRoute.pathname.match(/^\/esami\/([^/]+)(?:\/documenti\/([^/]+))?\/?$/);
     restoringRoute.current = true;
     try {
-      setSection(sessionsRoute ? "sessions" : parsedRoute.pathname === "/inviti" ? "referrals" : "study");
+      setSection(["/amici", "/inviti"].includes(parsedRoute.pathname) ? "friends" : sessionsRoute ? "sessions" : "study");
+      setFriendsTab(parsedRoute.pathname === "/inviti" || parsedRoute.searchParams.get("tab") === "inviti" ? "invites" : "friends");
+      if (parsedRoute.pathname === "/inviti") window.history.replaceState(null, "", "/amici?tab=inviti");
       setSelectedStudyDay(sessionsRoute ? parsedRoute.searchParams.get("giorno") || "" : "");
       if (match?.[2]) await openDocument(match[2]);
       else { if (docRef.current || openingRequest.current || opening) await closeDocument(true); if (!docRef.current) setFolderId(match?.[1] || ""); }
@@ -491,7 +536,7 @@ export default function Workspace() {
     {!doc && !opening && <Sidebar>
       <SidebarHeader><a className="studio-brand" href="/" onClick={event => { event.preventDefault(); openFolder(""); }} aria-label="Studio, pagina iniziale">studio<span>.</span></a></SidebarHeader>
       <SidebarContent>
-      <nav className="sidebar-study-nav" aria-label="Studio"><SidebarMenu><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "study" && !folderId} aria-current={section === "study" && !folderId ? "page" : undefined} onClick={() => openFolder("")} disabled={busy}><House size={18} /><span>Home</span></SidebarMenuButton></SidebarMenuItem><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "sessions"} aria-current={section === "sessions" ? "page" : undefined} onClick={() => openSessions()} disabled={busy}><Clock3 size={18} /><span>Sessioni di studio</span></SidebarMenuButton></SidebarMenuItem><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "referrals"} aria-current={section === "referrals" ? "page" : undefined} onClick={openReferrals} disabled={busy}><UserPlus size={18} /><span>Inviti e saluti</span></SidebarMenuButton></SidebarMenuItem></SidebarMenu></nav>
+      <nav className="sidebar-study-nav" aria-label="Studio"><SidebarMenu><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "study" && !folderId} aria-current={section === "study" && !folderId ? "page" : undefined} onClick={() => openFolder("")} disabled={busy}><House size={18} /><span>Home</span></SidebarMenuButton></SidebarMenuItem><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "sessions"} aria-current={section === "sessions" ? "page" : undefined} onClick={() => openSessions()} disabled={busy}><Clock3 size={18} /><span>Sessioni di studio</span></SidebarMenuButton></SidebarMenuItem><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "friends"} aria-current={section === "friends" ? "page" : undefined} onClick={openFriends} disabled={busy}><Users size={18} /><span>Amici</span></SidebarMenuButton></SidebarMenuItem></SidebarMenu></nav>
       <div className="sidebar-create-exam"><Button className="new-document" aria-label="Crea esame" onClick={() => { setSidebar(false); setCreatingFolder(true); }} disabled={busy}><Plus size={18} /> Crea esame</Button></div>
       <nav className="exam-folders" aria-label="Esami"><div className="section-label"><button type="button" className="sidebar-exams-home" disabled={busy} onClick={() => openFolder("")}><span>I tuoi esami</span><span>{folders.filter(folder => !folder.archived).length}</span></button></div>
       <SidebarMenu>{folders.filter(folder => !folder.archived).map(folder => <SidebarMenuItem key={folder.id}><CourseContextMenu folder={folder} disabled={busy} onAction={action => { if (action === "open") openFolder(folder.id); else { openFolder(""); setRequestedCourseAction({ folderId: folder.id, action, requestId: Date.now() }); } }}><SidebarMenuButton disabled={busy} isActive={folderId === folder.id} className={folderId === folder.id ? "folder-item active" : "folder-item"} data-exam-color={examColor(folder)} style={{ "--course-accent": examAccentColor(folder) } as React.CSSProperties} aria-current={folderId === folder.id ? "page" : undefined} onClick={() => { openFolder(folder.id); }}><span className="folder-icon"><FolderOpen size={19} strokeWidth={1.8} /></span><span className="folder-name">{formatCourseName(folder.name)}</span><small>{library.filter(d => d.folderId === folder.id).length}</small></SidebarMenuButton></CourseContextMenu></SidebarMenuItem>)}</SidebarMenu>
@@ -502,6 +547,7 @@ export default function Workspace() {
 
     <div className={sessionStyles.dock}>
       <StudySessionBar portrait={!!doc && portrait} session={studySession} document={doc ? { name: doc.name, read: Object.values(doc.slides).filter(slide => slide.read).length, total: doc.pages } : undefined} />
+      <FriendsActivity running={studySession.running} onOpen={openFriends} />
       <NotificationCenter events={[...islandJobs.map(job => `analysis:${job.id}:${job.status}`), ...chatController.notifications.map(item => `chat:${item.key}`), ...uploads.jobs.map(job => `upload:${job.id}:${job.status}`)]}>{hideNotifications => <>
       {islandJobs.length > 0 && <AnalysisIsland jobs={islandJobs} embedded onHide={hideNotifications} />}
       <UploadNotifications controller={uploads} onOpen={id => { hideNotifications(); void openDocument(id); }} />
@@ -530,8 +576,9 @@ export default function Workspace() {
 
 
       {section === "study" && !doc && !opening && <ExamOverview dialogOnly={!!folderId} requestedCourseAction={requestedCourseAction} onCourseActionHandled={() => setRequestedCourseAction(undefined)} onDeleted={id => { setFolders(items => items.filter(item => item.id !== id)); setLibrary(items => items.filter(item => item.folderId !== id)); if (folderId === id) openFolder(""); void refresh(); }} isCourseBusy={id => uploads.jobs.some(job => job.folderId === id && ["queued", "preparing", "uploading", "processing"].includes(job.status)) || pendingWrites.current > 0 || courseAnalysis.jobs.some(job => job.folderId === id && ["checking", "running", "stopping"].includes(job.status)) || (!!readerJobDocument.current && analysisLock.current && library.some(item => item.id === readerJobDocument.current && item.folderId === id)) || Object.entries(chatController.sessions).some(([key, value]) => value.status === "pending" && library.some(item => item.folderId === id && key.startsWith(`${item.id}:`)))} onActivityDaySelect={openSessions} activity={studySession.activity} today={studySession.todayDate} folders={folders} documents={library} onOpen={openFolder} onCreate={() => { setSidebar(false); setCreatingFolder(true); }} onUpdated={folder => { setFolders(current => current.map(f => f.id === folder.id ? folder : f)); if (folder.archived && folderId === folder.id) openFolder(""); }} />}
+      {section === "study" && !folderId && !doc && !opening && <SharedMaterials home />}
       <TonyGreeting key={`${section}:${selectedStudyDay}:${folderId}:${doc?.id || opening?.id || ""}:${page}`} />
-      {section === "referrals" && !doc && !opening && <ReferralsSection />}
+      {section === "friends" && !doc && !opening && <FriendsSection initialTab={friendsTab} onTabChange={setFriendsTab} />}
       {section === "sessions" && !doc && !opening && <StudySessionsView sessions={studySession.sessions} activity={studySession.activity} today={studySession.todayDate} loading={studySession.loadingHistory} error={studySession.errorHistory} onRetry={() => void studySession.reloadHistory()} selectedDay={selectedStudyDay || null} onSelectDay={day => openSessions(day || "")} />}
       {section === "study" && folderId && <div className={`welcome ${homeStyles.courseWorkspace}`} hidden={!!doc || !!opening}>
         <CourseHeader onSettings={() => setRequestedCourseAction({ folderId, action: "settings", requestId: Date.now() })} folder={folders.find(f => f.id === folderId) || { id: folderId, name: "Esame", createdAt: "" }} />
@@ -557,7 +604,8 @@ export default function Workspace() {
       </>}
     </main>
     {dragging && <div className="drop-overlay" onDragLeave={e => { if (e.currentTarget === e.target) setDragging(false); }} onDrop={e => { e.preventDefault(); setDragging(false); void uploadFiles(e.dataTransfer.files); }}><Upload size={46} /><h2>Fai spazio a una nuova idea.</h2><p>Rilascia il PDF per iniziare.</p></div>}
-    {!doc && !opening && <MobileNavigation section={section} home={() => openFolder("")} sessions={() => openSessions()} referrals={openReferrals} disabled={busy} />}
+    {!doc && !opening && <MobileNavigation section={section} home={() => openFolder("")} sessions={() => openSessions()} friends={openFriends} disabled={busy} />}
+    {shareTarget && <ShareDialog key={`${shareTarget.kind}:${shareTarget.id}`} target={shareTarget} onClose={() => setShareTarget(null)} />}
     <NewExamDialog folders={folders} open={creatingFolder} onOpenChange={setCreatingFolder} onCreated={async folder => { setFolders(current => [...current.filter(f => f.id !== folder.id), folder]); await refresh(); }} />
     {settings && doc && <ReaderSettingsDialog display={readerDisplay.display} onVisibilityChange={readerDisplay.setVisible} zoom={zoom} onZoomChange={changeZoom} textSize={textSize} onTextSizeChange={changeTextSize} configured={configured} name={doc.name} page={page} notes={activeSlide?.notes || ""} noteStatus={noteStatus} onNotesChange={saveNotes} hasExplanation={!!explanation} disabled={busy || selectedDocumentAnalyzing || !!analyzing || !!batchRunning} onRegenerate={() => { setSettings(false); void analyze(true); }} onResetZoom={() => changeZoom(1, false)} onClose={() => { flushNotes(); setSettings(false); }} />}
   </div></SidebarProvider>;

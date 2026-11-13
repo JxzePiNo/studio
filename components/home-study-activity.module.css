@@ -1,0 +1,16 @@
+.row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; align-items:stretch; margin:28px 0; }
+.leaderboard,.calendar { min-width:0; }
+.placeholder { min-height:270px; border:1px solid var(--border); border-radius:18px; background:var(--muted); }
+.leaderboard>div,.calendar>section { margin:0; height:100%; box-sizing:border-box; }
+.leaderboard>div { padding:22px 24px 18px; }
+.leaderboard h2 { font-size:18px; }
+.leaderboard ol { max-height:190px; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; }
+.leaderboard ol li { padding-block:12px; }
+.leaderboard small { font-size:10px; }
+.calendar>section { display:flex; flex-direction:column; justify-content:space-between; }
+.calendar>section>div { min-width:0; }
+.calendar>section>div:first-child { flex-wrap:wrap; gap:10px; }
+.calendar>section>div:last-child { flex-wrap:wrap; }
+.error { font-size:12px; color:var(--muted-foreground); line-height:1.5; }
+@media(max-width:900px) { .row { grid-template-columns:minmax(0,1fr); gap:16px; } }
+@media(max-width:700px) { .row { margin:22px 0; } .leaderboard>div { padding:18px; } }

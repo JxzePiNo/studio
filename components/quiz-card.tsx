@@ -1,7 +1,10 @@
 "use client";
 
+import { QuizPeerResults } from "./quiz-peer-results";
+import { openShare } from "@/lib/sharing-client";
+import { Button } from "./ui/button";
 import { useEffect, useState } from "react";
-import { ArrowRight, Check, Clock3, Trophy, X } from "lucide-react";
+import { ArrowRight, Check, Clock3, Trophy, Share2, X } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
 import type { StudyQuiz } from "@/lib/quiz";
 import { quizResult } from "@/lib/quiz-score";
@@ -53,7 +56,7 @@ export function QuizCard({ quiz, onClose }: { quiz: StudyQuiz; onClose: () => vo
   }, [ready, finished, checked, open, correct, canContinue, explanationKey, expanded, quiz.documentId, quiz.id, index, selected, retry]);
   if (!question) return <p role="alert">Questo quiz non contiene domande.</p>;
   return <section className={styles.player} aria-label={`Quiz: ${quiz.title}`}>
-    <header className={styles.playerHeader}><div><strong>{quiz.title}</strong><span>{quiz.documentName}{quiz.difficulty && ` · Difficoltà ${quiz.difficulty === "avanzata" ? "alta" : quiz.difficulty}`}</span></div><span className={styles.step}>{finished ? total : index + 1} / {total}</span></header>
+    <header className={styles.playerHeader}><div><strong>{quiz.title}</strong><span>{quiz.documentName}{quiz.difficulty && ` · Difficoltà ${quiz.difficulty === "avanzata" ? "alta" : quiz.difficulty}`}</span></div><Button variant="ghost" size="icon" aria-label="Condividi quiz" onClick={() => openShare({ kind: "quiz", id: quiz.id, documentId: quiz.documentId, name: quiz.title })}><Share2 size={17} /></Button><span className={styles.step}>{finished ? total : index + 1} / {total}</span></header>
     {quiz.timing && !finished && <div className={styles.timer} data-low={remainingSeconds !== null && remainingSeconds <= 10}><Clock3 size={17} /><span>{quiz.timing.mode === "question" ? "Tempo per domanda" : "Tempo totale"}</span><strong role="timer" aria-label={quiz.timing.mode === "question" ? "Tempo rimanente per la domanda" : "Tempo totale rimanente"}>{remainingSeconds === null ? "In pausa" : `${Math.floor(remainingSeconds / 60).toString().padStart(2, "0")}:${(remainingSeconds % 60).toString().padStart(2, "0")}`}</strong></div>}
     <progress className={styles.playerProgress} value={finished ? total : index + (checked ? 1 : 0)} max={total} aria-label="Avanzamento quiz" />
     {finished ? <div className={styles.finish}>
@@ -63,6 +66,7 @@ export function QuizCard({ quiz, onClose }: { quiz: StudyQuiz; onClose: () => vo
       <div role="status">{closed.length > 0 && <><strong>{score} / {closed.length} risposte chiuse corrette.</strong><p className={styles.grade}>Voto: {grade}/30 · {Number(percentage!.toFixed(1))}%</p><p>{passed ? "Ottimo lavoro, hai superato il quiz!" : "Per superare il quiz serve più del 60% di risposte corrette. Ripassa le spiegazioni e continua ad allenarti."}</p></>}{total > closed.length && <p>Le risposte aperte si confrontano con la risposta di riferimento e non rientrano nel punteggio.{closed.length === 0 ? " Questo quiz non prevede un voto automatico." : " Il voto considera solo le domande chiuse."}</p>}</div>
       {resultSave.status === "saving" && <p aria-live="polite">Salvo il punteggio…</p>}
       {resultSave.status === "error" && <p role="alert">Non riesco a salvare il punteggio. <button type="button" className={styles.retryExplanation} onClick={resultSave.retry}>Riprova salvataggio</button></p>}
+      <QuizPeerResults quiz={quiz} saved={resultSave.status === "saved"} />
       <button className={styles.continue} type="button" onClick={onClose}>Chiudi Quiz</button>
     </div> : <>
       <Tabs value={checked ? answerTab : "question"} onValueChange={setAnswerTab} className={styles.answerTabs}>

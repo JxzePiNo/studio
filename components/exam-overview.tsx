@@ -23,7 +23,7 @@ import { HomeGreeting } from "./home-greeting";
 import { CourseContextMenu, type CourseAction } from "./course-context-menu";
 import greetingStyles from "./home-greeting.module.css";
 import folderStyles from "./exam-overview.module.css";
-import { ReadingHeatmap } from "./reading-heatmap";
+import { HomeStudyActivity } from "./home-study-activity";
 import type { ReadingActivity } from "@/lib/study-session";
 
 interface ExamOverviewProps {
@@ -178,7 +178,7 @@ export function ExamOverview({ dialogOnly = false, folders, documents, onOpen, o
 
   return <>{!dialogOnly && <div className="overview-page">
     <header className={`exam-overview-heading ${greetingStyles.header}`}><HomeGreeting /><Button className={greetingStyles.action} onClick={onCreate}><Plus size={17} /> Nuovo esame</Button></header>
-    {activity && today && <ReadingHeatmap activity={activity} today={today} onDaySelect={onActivityDaySelect} />}
+    {activity && today && <HomeStudyActivity activity={activity} today={today} onDaySelect={onActivityDaySelect} />}
     <div className={folderStyles.sectionHeading}><h2>{showArchived ? "I tuoi esami archiviati" : "I tuoi prossimi esami"}</h2>{(showArchived || folders.some(folder => folder.archived)) && <Button variant="ghost" onClick={() => setShowArchived(value => !value)} aria-pressed={showArchived}>{showArchived ? "Mostra prossimi esami" : "Mostra archiviati"}</Button>}</div>
     {folders.length > 0 && <div className={folderStyles.toolbar}>
       <label className="form-field exam-search-field"><span className="form-field-label">Cerca un esame</span><div className={folderStyles.search}><Search size={17} aria-hidden="true" /><Input type="search" aria-label="Cerca un esame" placeholder="Cerca un esame" value={search} onChange={event => setSearch(event.target.value)} /></div></label>

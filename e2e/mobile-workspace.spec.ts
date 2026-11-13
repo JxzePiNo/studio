@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 
 test.use({ hasTouch: true });
 
-test("mobile navigation opens Home, Sessions, Invitations and Account without the companion", async ({ page }) => {
+test("mobile navigation opens Home, Sessions, Friends and Account, with invitations inside Friends", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   const nav = page.getByRole("navigation", { name: "Navigazione principale", exact: true });
@@ -13,8 +13,9 @@ test("mobile navigation opens Home, Sessions, Invitations and Account without th
   await nav.getByRole("button", { name: "Sessioni", exact: true }).click();
   await expect(page).toHaveURL(/\/sessioni$/);
   const sessionsBack = (await page.getByRole("button", { name: "Torna alla home", exact: true }).boundingBox())!;
-  await nav.getByRole("button", { name: "Inviti", exact: true }).click();
-  await expect(page).toHaveURL(/\/inviti$/);
+  await nav.getByRole("button", { name: "Amici", exact: true }).click();
+  await page.getByRole("tab", { name: "Inviti", exact: true }).click();
+  await expect(page).toHaveURL(/\/amici\?tab=inviti$/);
   await expect(page.getByRole("heading", { name: "Inviti e saluti", exact: true })).toBeVisible();
   const back = await page.getByRole("button", { name: "Torna alla home", exact: true }).boundingBox();
   expect(back!.x).toBe(sessionsBack.x);

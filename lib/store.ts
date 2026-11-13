@@ -1,3 +1,4 @@
+import { getStudyProfile } from "./study-profile";
 import { cloudEnabled } from "./firebase-server";
 import * as cloud from "./cloud-store";
 import { documentSnapshots, pdfBytes, rememberDocument } from "./content-cache";
@@ -87,7 +88,8 @@ export async function readVersionedDocument(id: string, etag?: string | null) {
 }
 export async function createDocument(name: string, bytes: Uint8Array, pages: number, folderId?: string, id: string = randomUUID()) {
   if (cloudEnabled()) return cloud.create(name, bytes, pages, folderId, id);
-  const doc: StudyDocument = { id, name, pages, size: bytes.length, createdAt: new Date().toISOString(), currentPage: 1, slides: {}, ...(folderId ? { folderId } : {}) };
+  const profile = await getStudyProfile();
+  const doc: StudyDocument = { provenance: { university: profile.university || "", studyProgram: profile.studyProgram, authorName: profile.displayName || "Studente" }, id, name, pages, size: bytes.length, createdAt: new Date().toISOString(), currentPage: 1, slides: {}, ...(folderId ? { folderId } : {}) };
   await mkdir(documentDir(doc.id), { recursive: true });
   try {
     await writeFile(path.join(documentDir(doc.id), "original.pdf"), bytes);

@@ -1,13 +1,14 @@
 import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import path from "node:path";
-import { cloudEnabled, services, userRoot } from "./firebase-server";
+import { documentReference } from "./shared-access";
+import { cloudEnabled, services } from "./firebase-server";
 import { documentDir, readDocumentMetadata } from "./store";
 
 function check(assetId: string) { if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assetId)) throw Object.assign(new Error("Immagine non valida."), { status: 400 }); }
 async function location(documentId: string, assetId: string, requireDocument = true) {
   check(assetId); check(documentId);
   if (requireDocument) await readDocumentMetadata(documentId);
-  if (cloudEnabled()) return { file: services().bucket.file(`${(await userRoot()).path}/documents/${documentId}/visuals/${assetId}.png`) };
+  if (cloudEnabled()) return { file: services().bucket.file(`${(await documentReference(documentId)).path}/visuals/${assetId}.png`) };
   return { local: path.join(documentDir(documentId), "visuals", `${assetId}.png`) };
 }
 export async function saveArtifactImage(documentId: string, assetId: string, bytes: Uint8Array) {
@@ -16,6 +17,8 @@ export async function saveArtifactImage(documentId: string, assetId: string, byt
   else { await mkdir(path.dirname(target.local!), { recursive: true }); await writeFile(target.local!, bytes); }
 }
 export async function readArtifactImage(documentId: string, assetId: string): Promise<Uint8Array> {
+  const meta = await readDocumentMetadata(documentId);
+  if (cloudEnabled() && meta.sharedVisuals?.[assetId]) return (await services().bucket.file(meta.sharedVisuals[assetId]).download())[0];
   const target = await location(documentId, assetId);
   // These files are user uploads created at runtime, never bundled application assets.
   if (!target.file) return readFile(/* turbopackIgnore: true */ target.local!);
@@ -25,6 +28,10 @@ export async function readArtifactImage(documentId: string, assetId: string): Pr
 export async function removeArtifactImage(documentId: string, assetId: string) {
   // A document can be deleted while generation is finishing. Rollback still
   // removes its private asset in the current user's namespace in that case.
+  if (cloudEnabled()) {
+    const meta = await (await documentReference(documentId)).get();
+    if (meta.get("sharedBlobId")) return;
+  }
   const target = await location(documentId, assetId, false);
   if (target.file) await target.file.delete({ ignoreNotFound: true }); else await rm(target.local!, { force: true });
 }

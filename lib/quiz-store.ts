@@ -1,3 +1,4 @@
+import { documentReference } from "./shared-access";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
@@ -18,9 +19,10 @@ export async function readQuizIndexDocument(id: string): Promise<StudyDocument> 
   if (!cloudEnabled()) return document;
   // Migrate legacy chat quizzes once. create() never overwrites edits/tombstones
   // written by another request while the migration was reading old chat data.
-  const root = (await userRoot()).collection("documents").doc(id).collection("quizzes");
+  const root = (await documentReference(id)).collection("quizzes");
   const legacy = new Map<string, StudyQuiz>();
-  for (const slide of Object.values(document.slides)) for (const message of slide.chat || []) if (message.quiz) legacy.set(message.quiz.id, message.quiz);
+  const raw = await root.parent!.collection("slides").get();
+  for (const slide of raw.docs) for (const message of (slide.get("chat") || []) as import("./types").ChatMessage[]) if (message.quiz) legacy.set(message.quiz.id, message.quiz);
   for (const quiz of legacy.values()) {
     checkId(quiz.id);
     try { await root.doc(quiz.id).create(quiz); }
@@ -34,7 +36,7 @@ function checkId(id: string) {
 }
 async function records(documentId: string): Promise<StoredQuiz[]> {
   if (cloudEnabled()) {
-    const snapshot = await (await userRoot()).collection("documents").doc(documentId).collection("quizzes").get();
+    const snapshot = await (await documentReference(documentId)).collection("quizzes").get();
     return snapshot.docs.map(item => item.data() as StoredQuiz);
   }
   const directory = path.join(documentDir(documentId), "quizzes");
@@ -49,7 +51,14 @@ export async function listSavedQuizzes(document: StudyDocument): Promise<StudyQu
   for (const slide of Object.values(document.slides)) for (const message of slide.chat || []) if (message.quiz) quizzes.set(message.quiz.id, message.quiz);
   for (const quiz of await records(document.id)) quizzes.set(quiz.id, quiz);
   const saved = [...quizzes.values()].filter((quiz): quiz is StudyQuiz => !("deleted" in quiz)).map(quiz => ({ ...quiz, documentId: document.id, documentName: document.name })).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  if (cloudEnabled()) return saved;
+  if (cloudEnabled()) {
+    const root = await userRoot(), source = await documentReference(document.id);
+    return Promise.all(saved.map(async quiz => {
+      const personal = await root.collection("quizResults").doc(`${document.id}-${quiz.id}`).get();
+      const { latestResult, ...withoutResult } = quiz;
+      return { ...withoutResult, ...(personal.exists ? { latestResult: personal.data() as SavedQuizResult } : source.parent.parent!.id === root.id && latestResult ? { latestResult } : {}) };
+    }));
+  }
   return Promise.all(saved.map(async quiz => {
     try { const result = JSON.parse(await readFile(path.join(documentDir(document.id), "quiz-results", `${quiz.id}.json`), "utf8")) as SavedQuizResult; return { ...quiz, latestResult: result }; }
     catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return quiz; throw error; }
@@ -58,7 +67,11 @@ export async function listSavedQuizzes(document: StudyDocument): Promise<StudyQu
 async function write(documentId: string, quiz: StoredQuiz) {
   checkId(quiz.id);
   if (cloudEnabled()) {
-    await (await userRoot()).collection("documents").doc(documentId).collection("quizzes").doc(quiz.id).set(quiz);
+    const ref = await documentReference(documentId);
+    if (!("deleted" in quiz) && quiz.latestResult) await (await userRoot()).collection("quizResults").doc(`${documentId}-${quiz.id}`).set(quiz.latestResult);
+    const stored = { ...quiz };
+    if (!("deleted" in stored)) delete stored.latestResult;
+    await ref.collection("quizzes").doc(quiz.id).set(stored);
     return;
   }
   const directory = path.join(documentDir(documentId), "quizzes");
@@ -90,7 +103,8 @@ export async function deleteSavedQuiz(documentId: string, quizId: string) {
 export async function saveQuizResult(documentId: string, quizId: string, result: SavedQuizResult) {
   checkId(quizId);
   if (cloudEnabled()) {
-    await (await userRoot()).collection("documents").doc(documentId).collection("quizzes").doc(quizId).set({ latestResult: result }, { merge: true });
+    await documentReference(documentId);
+    await (await userRoot()).collection("quizResults").doc(`${documentId}-${quizId}`).set(result);
     return;
   }
   const directory = path.join(documentDir(documentId), "quiz-results");
@@ -103,14 +117,14 @@ export async function saveQuizResult(documentId: string, quizId: string, result:
 // Separate artifacts keep explanations independent of quiz titles and legacy chat copies.
 export async function readQuizExplanation(documentId: string, quizId: string, key: string): Promise<string | undefined> {
   checkId(quizId); checkId(key);
-  if (cloudEnabled()) return (await (await userRoot()).collection("documents").doc(documentId).collection("quizzes").doc(quizId).collection("explanations").doc(key).get()).data()?.explanation;
+  if (cloudEnabled()) return (await (await documentReference(documentId)).collection("quizzes").doc(quizId).collection("explanations").doc(key).get()).data()?.explanation;
   try { return await readFile(path.join(documentDir(documentId), "quiz-explanations", quizId, `${key}.md`), "utf8"); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
 }
 export async function saveQuizExplanation(documentId: string, quizId: string, key: string, explanation: string) {
   checkId(quizId); checkId(key);
   if (cloudEnabled()) {
-    await (await userRoot()).collection("documents").doc(documentId).collection("quizzes").doc(quizId).collection("explanations").doc(key).set({ explanation });
+    await (await documentReference(documentId)).collection("quizzes").doc(quizId).collection("explanations").doc(key).set({ explanation });
     return;
   }
   const directory = path.join(documentDir(documentId), "quiz-explanations", quizId);

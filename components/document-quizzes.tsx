@@ -1,11 +1,12 @@
 "use client";
+import { openShare } from "@/lib/sharing-client";
 import { cachedApi, invalidateApiCache } from "@/lib/browser-data-cache";
 
 import { useEffect, useRef, useState } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ClipboardList, MoreHorizontal, Pencil, Trash2, X } from "lucide-react";
+import { ClipboardList, MoreHorizontal, Pencil, Trash2, Share2, X } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
 import type { QuizSummary, StudyQuiz } from "@/lib/quiz";
 import { QuizCard } from "./quiz-card";
@@ -92,7 +93,7 @@ export function DocumentQuizzes({ documentId, documentName, pending = [], autoOp
   }
   function menu(item: QuizSummary, context: boolean) {
     const Item = context ? ContextMenu.Item : DropdownMenu.Item;
-    return <><Item className="material-menu-item" onSelect={() => choose(item, "open")}><ClipboardList size={15} /> Apri quiz</Item><Item className="material-menu-item" onSelect={() => choose(item, "rename")}><Pencil size={15} /> Rinomina</Item><Item className="material-menu-item" onSelect={() => choose(item, "delete")}><Trash2 size={15} /> Elimina quiz</Item></>;
+    return <><Item className="material-menu-item" onSelect={() => { opening.current = true; openShare({ kind: "quiz", id: item.id, documentId, name: item.title }); }}><Share2 size={15} /> Condividi quiz</Item><Item className="material-menu-item" onSelect={() => choose(item, "open")}><ClipboardList size={15} /> Apri quiz</Item><Item className="material-menu-item" onSelect={() => choose(item, "rename")}><Pencil size={15} /> Rinomina</Item><Item className="material-menu-item" onSelect={() => choose(item, "delete")}><Trash2 size={15} /> Elimina quiz</Item></>;
   }
   const menuFocus = (event: Event) => { if (opening.current) { event.preventDefault(); opening.current = false; } };
   return <>
