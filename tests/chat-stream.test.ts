@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PDFDocument } from "pdf-lib";
+import { heartMap } from "../lib/artifact-example";
 import { POST } from "../app/api/documents/[id]/chat/route";
 import { createDocument, readDocument } from "../lib/store";
 import { readChatStream, type ChatStreamEvent } from "../lib/chat-stream";
@@ -86,6 +87,26 @@ test("chat streams actual deltas before completion, persists once, and reports i
   const done = quizEvents.at(-1);
   assert.ok(done?.event === "done" && done.data.quizId);
   assert.equal((await readDocument(doc.id)).slides[1].chat?.length, 4);
+
+  const materialTool = { ...tool, name: "create_material", arguments: JSON.stringify({ kind: "map", interactive: false, question: "Mappa del cuore", scope: "slide" }) };
+  globalThis.fetch = async (_url, options) => {
+    const body = JSON.parse(String(options?.body));
+    if (body.stream) return new Response(new ReadableStream({ start(controller) {
+      controller.enqueue(frame({ type: "response.output_item.added", item: materialTool }));
+      controller.enqueue(frame({ type: "response.function_call_arguments.done", arguments: materialTool.arguments }));
+      controller.enqueue(frame({ type: "response.completed", response: { id: "map_response", status: "completed", output: [materialTool] } }));
+      controller.close();
+    } }), { headers: { "Content-Type": "text/event-stream" } });
+    const { id: _id, kind: _kind, ...graph } = heartMap;
+    return Response.json({ id: "generated_map", status: "completed", output_text: JSON.stringify({ ...graph, nodes: graph.nodes.map(node => ({ ...node, sourcePage: 1 })) }), output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: JSON.stringify({ ...graph, nodes: graph.nodes.map(node => ({ ...node, sourcePage: 1 })) }), annotations: [] }] }] });
+  };
+  const materialEvents: ChatStreamEvent[] = [];
+  await readChatStream(await ask(), event => materialEvents.push(event));
+  assert.deepEqual(materialEvents.map(event => event.event), ["material-start", "material-start", "done"]);
+  assert.deepEqual(materialEvents[1], { event: "material-start", data: { kind: "map" } });
+  const materialDone = materialEvents.at(-1);
+  assert.ok(materialDone?.event === "done" && materialDone.data.messages.at(-1)?.artifact?.kind === "map");
+  assert.equal((await readDocument(doc.id)).slides[1].chat?.length, 6);
 
 });
 

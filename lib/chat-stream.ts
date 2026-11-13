@@ -1,6 +1,7 @@
 import type { ChatMessage } from "./types";
 
 export type ChatStreamEvent =
+  | { event: "material-start"; data: { kind: string } }
   | { event: "delta"; data: { text: string } }
   | { event: "quiz-start"; data: { documentId: string } }
   | { event: "quiz"; data: { quizId: string } }
@@ -19,7 +20,7 @@ export async function readChatStream(response: Response, onEvent: (event: ChatSt
     const event = lines.find(line => line.startsWith("event:"))?.slice(6).trim();
     const data = lines.filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
     if (!event || !data) return;
-    if (!["delta", "quiz-start", "quiz", "done", "error"].includes(event)) return;
+    if (!["material-start", "delta", "quiz-start", "quiz", "done", "error"].includes(event)) return;
     const parsed = JSON.parse(data);
     if (event === "error") throw new Error(typeof parsed.error === "string" ? parsed.error : "Invio non riuscito. Riprova.");
     if (event === "done") {

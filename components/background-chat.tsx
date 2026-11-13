@@ -14,7 +14,7 @@ import styles from "./background-chat.module.css";
 import type { QuizConfig, StudyQuiz } from "@/lib/quiz";
 
 type ChatRequest = { id: string; page: number; name: string; question: string; scope: "document" | "slide" | "studied"; quiz?: QuizConfig; quizIntent?: boolean; visualization?: boolean; artifactKind?: import("@/lib/study-artifact").ArtifactKind };
-export type BackgroundChatSession = { status: "pending" | "completed" | "error"; question: string; messages?: ChatMessage[]; streamingText?: string; error?: string; revision: number; kind?: "chat" | "quiz" | "visualization"; documentId?: string; request?: ChatRequest };
+export type BackgroundChatSession = { status: "pending" | "completed" | "error"; question: string; messages?: ChatMessage[]; streamingText?: string; error?: string; revision: number; materialKind?: string; kind?: "chat" | "quiz" | "visualization"; documentId?: string; request?: ChatRequest };
 type ChatNotification = { key: string; id: string; page: number; name: string; error?: string; quizId?: string; kind?: "chat" | "quiz" | "visualization" };
 export const chatSessionKey = (id: string, page: number) => `${id}:${page}`;
 export type GeneratedMaterial = { documentId: string; page: number; name: string; artifact: StudyArtifact };
@@ -90,6 +90,10 @@ export function useBackgroundChat({ onSaved, onQuizStarted }: { onSaved: (id: st
       if (response.ok && response.headers.get("Content-Type")?.includes("text/event-stream")) {
         await readChatStream(response, event => {
           if (!mounted.current || controller.signal.aborted) return;
+          if (event.event === "material-start") {
+            kind = "visualization";
+            setSessions(current => ({ ...current, [key]: { ...current[key], kind, materialKind: event.data.kind, streamingText: "" } }));
+          }
           if (event.event === "delta") setSessions(current => ({ ...current, [key]: { ...current[key], streamingText: (current[key]?.streamingText || "") + event.data.text } }));
           if (event.event === "quiz-start") {
             if (kind !== "quiz") quizStartedCallback.current?.(input.id);

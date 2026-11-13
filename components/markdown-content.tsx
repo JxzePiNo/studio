@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, isValidElement, memo, useEffect, useRef, useState, type ReactNode } from "react";
+import { Children, isValidElement, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -8,6 +8,9 @@ import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
 import { Check, Copy } from "lucide-react";
 import { prepareMarkdown } from "@/lib/markdown";
+import { SelectionNotesContext, noteSource } from "@/lib/selection-notes-context";
+import { annotateTerms } from "@/lib/markdown-notes";
+import type { Root } from "hast";
 
 function CodeBlock({ children }: { children: ReactNode }) {
   const code = useRef<HTMLPreElement>(null);
@@ -39,5 +42,15 @@ const remarkPlugins: Options["remarkPlugins"] = [remarkGfm, remarkMath];
 const rehypePlugins: Options["rehypePlugins"] = [[rehypeKatex, { strict: "ignore", trust: false }], [rehypeHighlight, { detect: false }]];
 
 export const MarkdownContent = memo(function MarkdownContent({ children, className = "" }: { children: string; className?: string }) {
-  return <div className={`markdown-content ${className}`}><ReactMarkdown skipHtml remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={components}>{prepareMarkdown(children)}</ReactMarkdown></div>;
+  const annotations = useContext(SelectionNotesContext);
+  const source = noteSource(children);
+  const plugins = useMemo<Options["rehypePlugins"]>(() => {
+    const notes = annotations?.notes.filter(note => note.source === source) || [];
+    return notes.length ? [...rehypePlugins!, () => (tree: Root) => annotateTerms(tree, notes)] : rehypePlugins;
+  }, [annotations?.notes, source]);
+  const renderers = useMemo<Components>(() => ({ ...components, span: ({ node, children, ...props }) => {
+    const id = node?.properties["data-note-id"];
+    return typeof id === "string" && annotations ? <button type="button" className="chat-term-chip" onClick={() => annotations.open(id)} aria-label={`Spiega ${String(children)}`}>{children}</button> : <span {...props}>{children}</span>;
+  } }), [annotations]);
+  return <div className={`markdown-content ${className}`} data-note-source={annotations ? source : undefined}><ReactMarkdown skipHtml remarkPlugins={remarkPlugins} rehypePlugins={plugins} components={annotations ? renderers : components}>{prepareMarkdown(children)}</ReactMarkdown></div>;
 });

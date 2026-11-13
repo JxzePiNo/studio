@@ -19,7 +19,7 @@ const graphArtifact = graphShape.extend({ id: z.string().uuid(), kind: z.enum(["
 });
 const imageArtifact = z.object({ ...textFields, id: z.string().uuid(), kind: z.literal("image"),
   image: z.object({ assetId: z.string().uuid(), width: z.number().int().positive().max(8192), height: z.number().int().positive().max(8192) }).strict(),
-  hotspots: hotspotShape.shape.hotspots,
+  hotspots: z.array(hotspotShape.shape.hotspots.element).max(18),
 }).strict();
 export const studyArtifactSchema = z.union([graphArtifact.strict(), imageArtifact]);
 export type StudyArtifact = z.infer<typeof studyArtifactSchema>;

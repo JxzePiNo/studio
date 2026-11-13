@@ -18,3 +18,10 @@ test("literal math syntax stays untouched in inline code and fenced code blocks"
   }
   assert.equal(prepareMarkdown("```text\n\\(unfinished fence\\)"), "```text\n\\(unfinished fence\\)");
 });
+
+
+test("LaTeX math fences and standalone undelimited expressions render while existing math stays stable", () => {
+  assert.equal(prepareMarkdown("```latex\n\\frac{1}{2}\n```"), "$$\n\\frac{1}{2}\n$$");
+  assert.equal(prepareMarkdown(String.raw`\frac{1}{2}`), "\n$$\n\\frac{1}{2}\n$$\n");
+  for (const source of [String.raw`$\frac{1}{2}$`, "$$\n\\frac{1}{2}\n$$", "Prezzo: 20 $.", String.raw`La formula usa \frac{a}{b} come rapporto.`]) assert.equal(prepareMarkdown(source), source);
+});

@@ -133,4 +133,11 @@ test("images use the generated pixels for hotspots, store PNGs outside chat and 
   const removed = await DELETE(new Request("http://127.0.0.1/visualizations", { method: "DELETE", body: JSON.stringify({ page: 1, artifactId: artifact.id }) }), { params: Promise.resolve({ id: doc.id }) });
   assert.equal(removed.status, 200);
   assert.equal((await imageGET(new Request("http://127.0.0.1/image"), { params })).status, 404);
+  stages = 0;
+  const plain = await POST(new Request(`http://127.0.0.1/api/documents/${doc.id}/visualizations`, { method: "POST", body: JSON.stringify({ page: 1, question: "Una cellula", scope: "slide", kind: "image", interactive: false }) }), { params: Promise.resolve({ id: doc.id }) });
+  assert.equal(plain.status, 200);
+  assert.equal(stages, 2, "plain images skip hotspot generation");
+  const plainArtifact = (await plain.json()).at(-1).artifact;
+  assert.deepEqual(plainArtifact.hotspots, []);
+  assert.equal((await edit(plainArtifact)).status, 200, "plain images remain valid when saved");
 });

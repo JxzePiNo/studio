@@ -24,6 +24,8 @@ test("chat uses the current study profile and analysis as its opening context wi
   const doc = await createDocument("Lezione 1.pdf", await pdf.save(), 4, folder.id);
   const explanation: Explanation = { title: "Entropia", language: "it", overview: "Una spiegazione iniziale completa della slide.", concepts: [{ title: "Ipotesi", explanation: "Un sistema in equilibrio." }], example: "Un esempio svolto.", takeaway: "L’entropia caratterizza gli stati accessibili.", glossary: [] };
   await updateDocument(doc.id, d => { d.slides[1] = { notes: "Un appunto personale.", explanation }; });
+  const other = await createDocument("Lezione precedente.pdf", await pdf.save(), 4, folder.id);
+  await updateDocument(other.id, d => { d.slides[1] = { notes: "", chat: [{ role: "user", content: "Ricordati il mio dubbio sulla pressione osmotica" }, { role: "assistant", content: "Abbiamo discusso la pressione osmotica." }] }; });
   let expectedProgram = "Laurea magistrale in fisica";
   let calls = 0;
   let checkMemory = false;
@@ -35,6 +37,8 @@ test("chat uses the current study profile and analysis as its opening context wi
     assert.equal(body.store, false); assert.equal(body.max_output_tokens, 7000);
     assert.match(body.instructions, /laurea magistrale/);
     const text = body.input[0].content.find((part: { type: string }) => part.type === "input_text").text;
+    assert.ok(text.includes("Ricordati il mio dubbio sulla pressione osmotica"));
+    assert.ok(text.includes("Lezione precedente.pdf"));
     const file = body.input[0].content.find((part: { type: string }) => part.type === "input_file");
     const attachedPdf = await PDFDocument.load(Buffer.from(file.file_data.split(",")[1], "base64"));
     assert.equal(attachedPdf.getPageCount(), expectedPages);
