@@ -5,12 +5,9 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Check, RotateCcw, Sparkles, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import type { ReaderDisplay } from "./use-reader-display";
 import styles from "./reader-settings-dialog.module.css";
 
 interface ReaderSettingsDialogProps {
-  display: ReaderDisplay;
-  onVisibilityChange: (field: keyof ReaderDisplay, visible: boolean) => void;
   zoom: number;
   onZoomChange: (value: number) => void;
   textSize: number;
@@ -28,7 +25,7 @@ interface ReaderSettingsDialogProps {
   onClose: () => void;
 }
 
-export function ReaderSettingsDialog({ display, onVisibilityChange, zoom, onZoomChange, textSize, onTextSizeChange, configured, name, page, notes, noteStatus, onNotesChange, hasExplanation, disabled, onRegenerate, onResetZoom, onClose }: ReaderSettingsDialogProps) {
+export function ReaderSettingsDialog({ zoom, onZoomChange, textSize, onTextSizeChange, configured, name, page, notes, noteStatus, onNotesChange, hasExplanation, disabled, onRegenerate, onResetZoom, onClose }: ReaderSettingsDialogProps) {
   const id = useId();
   return <Dialog.Root open onOpenChange={open => { if (!open) onClose(); }}>
     <Dialog.Portal>
@@ -52,14 +49,6 @@ export function ReaderSettingsDialog({ display, onVisibilityChange, zoom, onZoom
                 <input className={styles.range} style={{ "--range-fill": `${(textSize - 14) / 8 * 100}%` } as CSSProperties} id={`${id}-size`} aria-label="Dimensione del testo" type="range" min="14" max="22" step="1" value={textSize} onChange={event => onTextSizeChange(Number(event.target.value))} />
                 <small className={styles.help}>Per spiegazioni e messaggi della chat.</small>
               </div>
-            </div>
-          </section>
-
-          <section className={styles.section} aria-labelledby={`${id}-controls`}>
-            <h3 id={`${id}-controls`}>Comandi del PDF</h3>
-            <div className={styles.options}>
-              <label className={`${styles.option} reader-display-option`}><span>Mostra frecce di navigazione</span><input type="checkbox" role="switch" checked={display.navigation} onChange={event => onVisibilityChange("navigation", event.target.checked)} /></label>
-              <label className={`${styles.option} reader-display-option`}><span>Mostra suggerimenti dei comandi</span><input type="checkbox" role="switch" checked={display.hints} onChange={event => onVisibilityChange("hints", event.target.checked)} /></label>
             </div>
           </section>
 

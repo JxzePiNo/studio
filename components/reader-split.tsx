@@ -8,7 +8,7 @@ type Sizes = { desktop: number; mobile: number };
 const defaults: Sizes = { desktop: 0.46, mobile: 0.6 };
 const storageKey = "studio-reader-split";
 
-export function ReaderSplit({ children }: { children: ReactNode }) {
+export function ReaderSplit({ children, clean = false }: { children: ReactNode; clean?: boolean }) {
   const panels = Children.toArray(children);
   const [sizes, setSizes] = useState<Sizes>(defaults);
   const [mobile, setMobile] = useState(false);
@@ -22,7 +22,7 @@ export function ReaderSplit({ children }: { children: ReactNode }) {
   const previous = useRef<Sizes>({ ...defaults });
   const chatId = useId();
   const axis = mobile ? "mobile" : "desktop";
-  const fraction = mobile ? mobileChatOpen ? 0.5 : 0 : sizes.desktop;
+  const fraction = mobile ? mobileChatOpen || clean ? 0.5 : 0 : sizes.desktop;
   const collapsed = fraction === 0;
 
   useEffect(() => {
@@ -79,7 +79,7 @@ export function ReaderSplit({ children }: { children: ReactNode }) {
   function finish() { pointer.current = null; setDragging(false); }
   const Icon = mobile ? collapsed ? ChevronUp : ChevronDown : collapsed ? ChevronLeft : ChevronRight;
 
-  return <div ref={container} className={`study-grid reader-split${collapsed ? " chat-collapsed" : ""}${dragging ? " is-resizing" : ""}${mobileChatOpen ? " mobile-chat-open" : ""}`} style={{ "--desktop-chat-size": `${sizes.desktop * 100}%`, "--mobile-chat-size": "50%" } as CSSProperties}>
+  return <div ref={container} className={`study-grid reader-split${collapsed ? " chat-collapsed" : ""}${dragging ? " is-resizing" : ""}${mobileChatOpen || clean ? " mobile-chat-open" : ""}`} style={{ "--desktop-chat-size": `${sizes.desktop * 100}%`, "--mobile-chat-size": "50%" } as CSSProperties}>
     {panels[0]}
     <div className="reader-splitter" role="separator" tabIndex={0} aria-label="Ridimensiona chat" aria-orientation={mobile ? "horizontal" : "vertical"} aria-controls={chatId} aria-valuemin={0} aria-valuemax={mobile ? 80 : 70} aria-valuenow={Math.round(fraction * 100)} aria-valuetext={collapsed ? "Chat chiusa" : `Chat al ${Math.round(fraction * 100)}%`} title="Trascina per ridimensionare la chat. Doppio clic per aprirla o chiuderla."
       onDoubleClick={event => { if (!(event.target as HTMLElement).closest("button")) toggle(); }}

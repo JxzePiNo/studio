@@ -18,7 +18,7 @@ for (const width of [1280, 390]) test(`zoom persists and fits portrait pages to 
     await expect(page.getByRole("button", { name: "Zoom 110%, ripristina al 100%", exact: true })).toBeVisible();
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.getByRole("button", { name: "Zoom 110%, ripristina al 100%", exact: true })).toBeVisible();
-    const fit = page.getByRole("button", { name: "Adatta alla larghezza", exact: true });
+    const fit = page.getByRole("button", { name: "Adatta automaticamente il PDF", exact: true });
     await fit.click();
     await expect(fit).toHaveAttribute("aria-pressed", "true");
     await expect.poll(async () => canvas.evaluate(element => Math.abs(element.getBoundingClientRect().width - element.parentElement!.clientWidth))).toBeLessThan(2);

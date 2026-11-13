@@ -8,7 +8,7 @@ import { cachedApi, cachedPdf, invalidateApiCache } from "@/lib/browser-data-cac
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { House, Clock3, Users, ArrowLeft, ArrowRight, FileText, FolderOpen, Languages, LoaderCircle, Plus, Search, Upload, X, Minimize, Maximize } from "lucide-react";
+import { House, Clock3, Users, ArrowLeft, ArrowRight, FileText, FolderOpen, Languages, LoaderCircle, Plus, Search, Upload, X, Minimize } from "lucide-react";
 import { authHeaders, firebaseEnabled } from "@/lib/firebase-client";
 import { formatCourseName } from "@/lib/course-name";
 import { examColor, examAccentColor } from "@/lib/exam-colors";
@@ -46,10 +46,8 @@ import { StudyChat } from "./study-chat";
 import type { ExamFolder } from "@/lib/types";
 import { loadPdf, PdfCanvas } from "./pdf-viewer";
 import { useReaderPageScroll } from "./use-reader-page-scroll";
-import { useReaderDisplay } from "./use-reader-display";
 import { ReaderSettingsDialog } from "./reader-settings-dialog";
-import { ReaderNavigation } from "./reader-navigation";
-import { ReaderZoom } from "./reader-zoom";
+import { ReaderToolbar } from "./reader-toolbar";
 import { BottomPanel } from "./bottom-panel";
 import { BaristaLoading } from "./barista-loading";
 import baristaStyles from "./barista-loading.module.css";
@@ -84,7 +82,8 @@ export default function Workspace() {
   const [library, setLibrary] = useState<DocumentSummary[]>([]);
   const [doc, setDoc] = useState<StudyDocument | null>(null);
   const [readerClean, setReaderClean] = useState(false);
-  useEffect(() => { setReaderClean(false); }, [doc?.id]);
+  const [pdfOnly, setPdfOnly] = useState(false);
+  useEffect(() => { setReaderClean(false); setPdfOnly(false); }, [doc?.id]);
   const [opening, setOpening] = useState<{ id: string; name: string; error?: string } | null>(null);
   useLayoutEffect(() => {
     const media = window.matchMedia("(max-width: 700px)");
@@ -105,17 +104,18 @@ export default function Workspace() {
   const [mapReturn, setMapReturn] = useState<{ documentId: string; page: number } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [fitWidth, setFitWidth] = useState(false);
+  const [autoFit, setAutoFit] = useState(true);
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("studio-reader-zoom") || "null");
       if (saved && typeof saved.zoom === "number" && saved.zoom >= 0.5 && saved.zoom <= 2 && typeof saved.fitWidth === "boolean") {
-        setZoom(saved.zoom); setFitWidth(saved.fitWidth);
+        setZoom(saved.zoom); setFitWidth(saved.fitWidth); setAutoFit(saved.autoFit !== false);
       }
     } catch {}
   }, []);
   function changeZoom(value: number, width = fitWidth) {
     setZoom(value); setFitWidth(width);
-    try { localStorage.setItem("studio-reader-zoom", JSON.stringify({ zoom: value, fitWidth: width })); } catch {}
+    try { localStorage.setItem("studio-reader-zoom", JSON.stringify({ zoom: value, fitWidth: width, autoFit })); } catch {}
   }
   const [portrait, setPortrait] = useState(false);
   const [textSize, setTextSize] = useState(14);
@@ -398,7 +398,6 @@ export default function Workspace() {
   }
 
   const ambientRef = useAmbientParallax(!doc && !opening);
-  const readerDisplay = useReaderDisplay(doc?.id);
 
   const navigate = useCallback((target: number) => {
     const current = docRef.current;
@@ -550,7 +549,21 @@ export default function Workspace() {
     void saves.catch(e => setError((e as Error).message));
   }
 
-  return <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell ${doc || opening ? "reader-active" : ""} ${readerClean && doc ? "reader-clean" : ""}`} onDragOver={e => { e.preventDefault(); if (folderId && !busy && e.dataTransfer.types.includes("Files")) setDragging(true); }} onDrop={e => { e.preventDefault(); if (!folderId && e.dataTransfer.files.length) setError("Apri un esame prima di caricare un file."); }}>
+  const studyDock = (<div className={sessionStyles.dock}>
+      <StudySessionBar suppressed={readerClean && !!doc} portrait={!!doc && portrait} session={studySession} document={doc ? { name: doc.name, read: Object.values(doc.slides).filter(slide => slide.read).length, total: doc.pages } : undefined} />
+      <FriendsActivity running={studySession.running} onOpen={openFriends} />
+      <NotificationCenter events={[...islandJobs.map(job => `analysis:${job.id}:${job.status}`), ...chatController.notifications.map(item => `chat:${item.key}`), ...uploads.jobs.map(job => `upload:${job.id}:${job.status}`)]}>{hideNotifications => <>
+      {islandJobs.length > 0 && <AnalysisIsland jobs={islandJobs} embedded onHide={hideNotifications} />}
+      <UploadNotifications controller={uploads} onOpen={id => { hideNotifications(); void openDocument(id); }} />
+      <ChatNotifications controller={chatController} onHide={hideNotifications} onOpenQuiz={(id, quizId) => { hideNotifications(); const course = library.find(item => item.id === id)?.folderId; if (!course) return; if (docRef.current || opening) void closeDocument(); setSection("study"); setFolderId(course); setQuery(""); changeLocation(course); if (quizId) setQuizToOpen({ documentId: id, quizId }); }} onOpen={(id, target) => { hideNotifications(); void (async () => {
+        if (docRef.current?.id !== id) await openDocument(id);
+        if (docRef.current?.id === id) navigate(Math.min(Math.max(1, target), docRef.current.pages));
+      })(); }} />
+      </>}</NotificationCenter>
+      <GeneratedMaterials items={chatController.generations.filter(item => item.documentId === doc?.id || library.some(file => file.id === item.documentId))} onSaved={chatController.receiveMessages} onNavigatePage={async (item, target) => { if (docRef.current?.id !== item.documentId) await openDocument(item.documentId); if (docRef.current?.id === item.documentId) { setMapReturn({ documentId: item.documentId, page: item.page }); navigate(target); } }} />
+    </div>);
+
+  return <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell ${doc || opening ? "reader-active" : ""} ${readerClean && doc ? "reader-clean" : ""} ${pdfOnly && doc ? "reader-pdf-only" : ""}`} onDragOver={e => { e.preventDefault(); if (folderId && !busy && e.dataTransfer.types.includes("Files")) setDragging(true); }} onDrop={e => { e.preventDefault(); if (!folderId && e.dataTransfer.files.length) setError("Apri un esame prima di caricare un file."); }}>
     {folderId && <Input ref={input} type="file" accept={UPLOAD_ACCEPT} multiple className="sr-only" onChange={e => void uploadFiles(e.target.files)} aria-label="Carica PDF o immagini" />}
     {!doc && !opening && <Sidebar>
       <SidebarHeader><a className="studio-brand" href="/" onClick={event => { event.preventDefault(); openFolder(""); }} aria-label="Studio, pagina iniziale">studio<span>.</span></a></SidebarHeader>
@@ -564,24 +577,17 @@ export default function Workspace() {
       <SidebarFooter><SidebarProfile /></SidebarFooter>
     </Sidebar>}
 
-    <div className={sessionStyles.dock}>
-      <StudySessionBar suppressed={readerClean && !!doc} portrait={!!doc && portrait} session={studySession} document={doc ? { name: doc.name, read: Object.values(doc.slides).filter(slide => slide.read).length, total: doc.pages } : undefined} />
-      <FriendsActivity running={studySession.running} onOpen={openFriends} />
-      <NotificationCenter events={[...islandJobs.map(job => `analysis:${job.id}:${job.status}`), ...chatController.notifications.map(item => `chat:${item.key}`), ...uploads.jobs.map(job => `upload:${job.id}:${job.status}`)]}>{hideNotifications => <>
-      {islandJobs.length > 0 && <AnalysisIsland jobs={islandJobs} embedded onHide={hideNotifications} />}
-      <UploadNotifications controller={uploads} onOpen={id => { hideNotifications(); void openDocument(id); }} />
-      <ChatNotifications controller={chatController} onHide={hideNotifications} onOpenQuiz={(id, quizId) => { hideNotifications(); const course = library.find(item => item.id === id)?.folderId; if (!course) return; if (docRef.current || opening) void closeDocument(); setSection("study"); setFolderId(course); setQuery(""); changeLocation(course); if (quizId) setQuizToOpen({ documentId: id, quizId }); }} onOpen={(id, target) => { hideNotifications(); void (async () => {
-        if (docRef.current?.id !== id) await openDocument(id);
-        if (docRef.current?.id === id) navigate(Math.min(Math.max(1, target), docRef.current.pages));
-      })(); }} />
-      </>}</NotificationCenter>
-      <GeneratedMaterials items={chatController.generations.filter(item => item.documentId === doc?.id || library.some(file => file.id === item.documentId))} onSaved={chatController.receiveMessages} onNavigatePage={async (item, target) => { if (docRef.current?.id !== item.documentId) await openDocument(item.documentId); if (docRef.current?.id === item.documentId) { setMapReturn({ documentId: item.documentId, page: item.page }); navigate(target); } }} />
-    </div>
+    {!doc && studyDock}
     <UploadIsland controller={uploads} summaryHidden={studySession.hidden} />
-    {doc && !opening && portrait && <div className="portrait-complete"><Button disabled={busy} aria-pressed={!!activeSlide?.read} onClick={() => { if (!docRef.current?.slides[page]?.read) toggleRead(); navigate(page + 1); }}>Completata</Button>{readerDisplay.display.hints && <small>oppure premi Spazio</small>}</div>}
     <main ref={ambientRef} className="main-shell" data-section={section} data-course-theme={courseColor ? "true" : undefined} style={courseColor ? { "--course-color": courseColor, "--course-foreground": courseForeground } as React.CSSProperties : undefined}>
       {courseColor && !doc && !opening && <CourseAmbient />}
-      {(folderId || section !== "study" || doc || opening) && <Button variant="ghost" className="workspace-back" aria-label={doc || opening ? "Torna alla biblioteca" : "Torna alla home"} onClick={() => { if (doc || opening) void closeDocument(); else openFolder(""); }}><ArrowLeft size={16} /><span>{doc || opening ? "Torna al corso" : "Torna alla home"}</span></Button>}
+      {doc && <header className="reader-topbar">
+        <Button variant="ghost" className="workspace-back" aria-label="Torna alla biblioteca" onClick={() => void closeDocument()}><ArrowLeft size={16} /><span>Torna al corso</span></Button>
+        <ReaderToolbar name={doc.name} page={page} total={doc.pages} zoom={zoom} autoFit={autoFit} portrait={portrait} pdfOnly={pdfOnly} disabled={busy} onZoom={changeZoom} onAutoFit={() => { setAutoFit(true); setZoom(1); try { localStorage.setItem("studio-reader-zoom", JSON.stringify({ zoom: 1, fitWidth, autoFit: true })); } catch {} }} onNavigate={navigate} onPdfOnly={() => setPdfOnly(value => !value)} onComplete={() => { if (!docRef.current?.slides[page]?.read) toggleRead(); navigate(page + 1); }} onClean={() => { setPdfOnly(false); setReaderClean(true); }} onSettings={() => setSettings(true)} />
+        {studyDock}
+      </header>}
+
+      {!doc && (folderId || section !== "study" || opening) && <Button variant="ghost" className="workspace-back" aria-label={doc || opening ? "Torna alla biblioteca" : "Torna alla home"} onClick={() => { if (doc || opening) void closeDocument(); else openFolder(""); }}><ArrowLeft size={16} /><span>{doc || opening ? "Torna al corso" : "Torna alla home"}</span></Button>}
       {!doc && !opening && <SidebarTrigger />}
       <TonyCompanion sidebarSlot={sidebarTonySlot} context={doc || opening ? "reader" : section === "sessions" ? "sessions" : folderId ? "course" : "home"} onNavigate={destination => {
         if (busy || doc || opening) return false;
@@ -613,12 +619,12 @@ export default function Workspace() {
       {opening && <>
         <ReaderSplit><section className={`slide-panel${portrait ? " portrait-pdf" : ""}`}><div className="slide-stage"><BaristaLoading key={opening.id} name={opening.name} error={opening.error} onRetry={() => void openDocument(opening.id)} /></div></section><aside className="explanation-panel reader-chat-panel" aria-label="Tutor della slide"><div className={baristaStyles.chat}><strong>Tony sta preparando il tuo spazio.</strong><p>Il PDF e le tue conversazioni arrivano tra un momento.</p></div></aside></ReaderSplit>
       </>}
-      {doc && <><Button variant="outline" size="icon" className="reader-clean-toggle" aria-label={readerClean ? "Mostra tutti i controlli" : "Mostra solo il PDF"} title={readerClean ? "Mostra tutti i controlli" : "Mostra solo il PDF"} aria-pressed={readerClean} onClick={() => setReaderClean(value => !value)}>{readerClean ? <Minimize size={19} /> : <Maximize size={19} />}</Button>
-        <ReaderSplit><section className={`slide-panel${portrait ? " portrait-pdf" : ""}`} style={{ position: "relative" }}><ReaderZoom zoom={zoom} fitWidth={fitWidth} onZoomChange={changeZoom} onFitWidth={() => changeZoom(1, true)} /><div className={`slide-stage ${activeSlide?.read ? "is-read" : ""}`} ref={viewer}>{pdf && <PdfCanvas pdf={pdf} page={page} zoom={zoom} fitHeight={!fitWidth} onOrientationChange={setPortrait} />}{busy && <div className="viewer-busy"><LoaderCircle className="spin" /> Apertura documento…</div>}</div><ReaderNavigation portrait={portrait} display={readerDisplay.display} onVisibilityChange={readerDisplay.setVisible} page={page} total={doc.pages} disabled={busy} onNavigate={navigate} /><BottomPanel key={doc.id}>
+      {doc && <>{readerClean && <Button variant="outline" size="icon" className="reader-clean-toggle" aria-label="Mostra tutti i controlli" title="Mostra tutti i controlli" onClick={() => setReaderClean(false)}><Minimize size={19} /></Button>}
+        <ReaderSplit clean={readerClean}><section className={`slide-panel${portrait ? " portrait-pdf" : ""}`} style={{ position: "relative" }}><div className={`slide-stage ${activeSlide?.read ? "is-read" : ""}`} ref={viewer}>{pdf && <PdfCanvas pdf={pdf} page={page} zoom={zoom} fitHeight={!(autoFit ? portrait : fitWidth)} onOrientationChange={setPortrait} />}{busy && <div className="viewer-busy"><LoaderCircle className="spin" /> Apertura documento…</div>}</div><BottomPanel key={doc.id}>
           <div className="glossary"><div className="glossary-heading"><span><Languages size={17} /> Le parole della slide</span><span className="language-tag">EN <ArrowRight size={10} /> IT</span></div>{explanation?.glossary.length ? <div className="glossary-words">{explanation.glossary.map(g => <div key={g.word} className="glossary-word" title={g.context}><strong>{g.word}</strong><span>{g.translation}</span><small>{g.context}</small></div>)}</div> : <p>{explanation ? explanation.language === "en" ? "Nessun termine da tradurre individuato in questa slide." : "Questa slide non è in inglese. Puoi concentrarti sui concetti." : "Quando spieghi una slide in inglese, trovi qui i termini importanti con la traduzione italiana."}</p>}</div>
           </BottomPanel>
         </section>
-        <aside className="explanation-panel reader-chat-panel" style={{ "--reader-text-size": `${textSize}px` } as React.CSSProperties} aria-label="Tutor della slide"><h1 className="sr-only">{doc.name.replace(/\.pdf$/i, "")}</h1><StudyChat onNavigatePage={target => { if (target !== page) setMapReturn({ documentId: doc.id, page }); navigate(target); }} onReturnToMap={mapReturn?.documentId === doc.id && mapReturn.page !== page ? () => { navigate(mapReturn.page); setMapReturn(null); } : undefined} controller={chatController} documentName={doc.name} courseName={folders.find(folder => folder.id === doc.folderId)?.name} key={`${doc.id}:${page}`} id={doc.id} page={page} folder={doc.folderId} initial={activeSlide?.chat || []} explanation={explanation} onAnalyze={() => void analyze()} onAnalyzeAll={() => void analyzeAll()} analyzing={currentAnalyzing} batchRunning={!!batchRunning && batch?.id === doc.id} analysisBusy={selectedDocumentAnalyzing || !!analyzing || !!batchRunning} configured={configured} disabled={busy} analysisProgress={batch?.id === doc.id ? { completed: batch.completed, total: batch.total, current: batch.current, active: batch.active, status: batch.status } : undefined} onStopAnalysis={stopAnalysis} onSettings={() => setSettings(true)} />
+        <aside className="explanation-panel reader-chat-panel" style={{ "--reader-text-size": `${textSize}px` } as React.CSSProperties} aria-label="Tutor della slide"><h1 className="sr-only">{doc.name.replace(/\.pdf$/i, "")}</h1><StudyChat onNavigatePage={target => { if (target !== page) setMapReturn({ documentId: doc.id, page }); navigate(target); }} onReturnToMap={mapReturn?.documentId === doc.id && mapReturn.page !== page ? () => { navigate(mapReturn.page); setMapReturn(null); } : undefined} controller={chatController} documentName={doc.name} courseName={folders.find(folder => folder.id === doc.folderId)?.name} key={`${doc.id}:${page}`} id={doc.id} page={page} folder={doc.folderId} initial={activeSlide?.chat || []} explanation={explanation} onAnalyze={() => void analyze()} onAnalyzeAll={() => void analyzeAll()} analyzing={currentAnalyzing} batchRunning={!!batchRunning && batch?.id === doc.id} analysisBusy={selectedDocumentAnalyzing || !!analyzing || !!batchRunning} configured={configured} disabled={busy} analysisProgress={batch?.id === doc.id ? { completed: batch.completed, total: batch.total, current: batch.current, active: batch.active, status: batch.status } : undefined} onStopAnalysis={stopAnalysis} />
         </aside></ReaderSplit>
       </>}
     </main>
@@ -626,6 +632,6 @@ export default function Workspace() {
     {!doc && !opening && <MobileNavigation section={section} home={() => openFolder("")} sessions={() => openSessions()} friends={openFriends} disabled={busy} />}
     {shareTarget && <ShareDialog key={`${shareTarget.kind}:${shareTarget.id}`} target={shareTarget} onClose={() => setShareTarget(null)} />}
     <NewExamDialog folders={folders} open={creatingFolder} onOpenChange={setCreatingFolder} onCreated={async folder => { setFolders(current => [...current.filter(f => f.id !== folder.id), folder]); await refresh(); }} />
-    {settings && doc && <ReaderSettingsDialog display={readerDisplay.display} onVisibilityChange={readerDisplay.setVisible} zoom={zoom} onZoomChange={changeZoom} textSize={textSize} onTextSizeChange={changeTextSize} configured={configured} name={doc.name} page={page} notes={activeSlide?.notes || ""} noteStatus={noteStatus} onNotesChange={saveNotes} hasExplanation={!!explanation} disabled={busy || selectedDocumentAnalyzing || !!analyzing || !!batchRunning} onRegenerate={() => { setSettings(false); void analyze(true); }} onResetZoom={() => changeZoom(1, false)} onClose={() => { flushNotes(); setSettings(false); }} />}
+    {settings && doc && <ReaderSettingsDialog zoom={zoom} onZoomChange={changeZoom} textSize={textSize} onTextSizeChange={changeTextSize} configured={configured} name={doc.name} page={page} notes={activeSlide?.notes || ""} noteStatus={noteStatus} onNotesChange={saveNotes} hasExplanation={!!explanation} disabled={busy || selectedDocumentAnalyzing || !!analyzing || !!batchRunning} onRegenerate={() => { setSettings(false); void analyze(true); }} onResetZoom={() => changeZoom(1, false)} onClose={() => { flushNotes(); setSettings(false); }} />}
   </div></SidebarProvider>;
 }

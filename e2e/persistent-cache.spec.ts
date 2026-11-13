@@ -38,7 +38,7 @@ test("PDF and explanations survive reload and unchanged content revalidates with
   expect(fullDocuments).toBe(1);
 });
 
-test("navigation and hints can be dismissed per PDF and restored from reading settings", async ({ page }) => {
+test("reader toolbar restores after clean view and reading settings persist", async ({ page }) => {
   const template: StudyDocument = { id: "prefs-a", folderId: "prefs-course", name: "Primo.pdf", pages: 3, size: 1000, currentPage: 1, createdAt: new Date().toISOString(), slides: {} };
   const second = { ...template, id: "prefs-b", name: "Secondo.pdf" };
   await page.route("**/api/**", route => {
@@ -56,21 +56,13 @@ test("navigation and hints can be dismissed per PDF and restored from reading se
   });
   await page.goto("/esami/prefs-course/documenti/prefs-a");
   await expect(page.locator(".slide-stage canvas")).toBeVisible();
-  await page.locator(".reader-navigation-island").hover();
-  await page.getByRole("button", { name: "Nascondi frecce per questo PDF" }).click();
-  await page.locator(".reader-navigation-hint").hover();
-  await page.getByRole("button", { name: "Nascondi suggerimenti per questo PDF" }).click();
-  await expect(page.locator(".reader-navigation-footer")).toHaveCount(0);
+  await page.getByRole("button", { name: "Pulisci schermata", exact: true }).click();
+  await expect(page.getByRole("toolbar", { name: "Comandi del PDF" })).toBeHidden();
+  await expect(page.getByRole("complementary", { name: "Tutor della slide" })).toBeVisible();
+  await page.getByRole("button", { name: "Mostra tutti i controlli", exact: true }).click();
+  await expect(page.getByRole("toolbar", { name: "Comandi del PDF" })).toBeVisible();
   await page.reload();
-  await expect(page.locator(".slide-stage canvas")).toBeVisible();
-  await expect(page.locator(".reader-navigation-footer")).toHaveCount(0);
-  await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
-  await page.getByRole("button", { name: "Apri Secondo", exact: true }).click();
-  await expect(page.locator(".reader-navigation-island")).toBeVisible();
-  await expect(page.locator(".reader-navigation-hint")).toBeVisible();
-  await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
-  await page.getByRole("button", { name: "Apri Primo", exact: true }).click();
-  await expect(page.locator(".reader-navigation-footer")).toHaveCount(0);
+  await expect(page.getByRole("toolbar", { name: "Comandi del PDF" })).toBeVisible();
   await page.getByRole("button", { name: "Impostazioni della lettura", exact: true }).click();
   const settings = page.getByRole("dialog", { name: "Impostazioni della lettura", exact: true });
   const zoom = settings.getByRole("slider", { name: "Zoom del PDF", exact: true });
@@ -79,21 +71,16 @@ test("navigation and hints can be dismissed per PDF and restored from reading se
   await settings.getByRole("button", { name: "Ripristina zoom", exact: true }).click();
   await expect(zoom).toHaveValue("1");
   await settings.getByRole("slider", { name: "Dimensione del testo", exact: true }).fill("18");
-  const navigation = settings.getByRole("switch", { name: "Mostra frecce di navigazione" });
-  const hints = settings.getByRole("switch", { name: "Mostra suggerimenti dei comandi" });
-  await expect(navigation).not.toBeChecked(); await expect(hints).not.toBeChecked();
-  await navigation.check(); await hints.check();
   await page.getByRole("button", { name: "Chiudi impostazioni", exact: true }).click();
   await expect(page.locator(".reader-navigation-island")).toBeVisible();
-  await expect(page.locator(".reader-navigation-hint")).toBeVisible();
   await page.reload();
   await expect(page.locator(".reader-navigation-island")).toBeVisible();
-  await expect(page.locator(".reader-navigation-hint")).toBeVisible();
   await page.getByRole("button", { name: "Impostazioni della lettura", exact: true }).click();
   await expect(page.getByRole("slider", { name: "Dimensione del testo", exact: true })).toHaveValue("18");
 });
 
-test("reading updates the cached page without a full document or history reload", async ({ page }) => {
+test("reading updates the cached page and refreshes history without a full document reload", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("studio-session:local:imported", "true"));
   const document: StudyDocument = { id: "read-cache", folderId: "read-course", name: "Lettura.pdf", pages: 3, size: 1000, currentPage: 1, createdAt: new Date().toISOString(), slides: {} };
   let revision = "v1";
   let documents = 0;
@@ -141,7 +128,7 @@ test("reading updates the cached page without a full document or history reload"
   await expect(page.locator(".chat-slide-label")).toHaveText("Slide 2");
   await expect.poll(() => positions).toBe(1);
   await expect.poll(() => readWrites).toBe(1);
-  expect(historyReads).toBe(1);
+  await expect.poll(() => historyReads).toBe(2);
   expect(documents).toBe(1);
   await page.reload();
   await expect(page.locator(".chat-slide-label")).toHaveText("Slide 2");
