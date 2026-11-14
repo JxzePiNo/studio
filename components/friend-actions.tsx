@@ -5,6 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Ban, Flag, MoreHorizontal, UserMinus, X } from "lucide-react";
 import type { FriendPerson } from "@/lib/friends-types";
 import { Button } from "./ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import styles from "./friends.module.css";
 
 export function FriendActions({ person, friend = false, busy, onAction }: { person: FriendPerson; friend?: boolean; busy: boolean; onAction: (body: unknown, message: string) => Promise<boolean | undefined> }) {
@@ -28,7 +29,7 @@ export function FriendActions({ person, friend = false, busy, onAction }: { pers
         if (await onAction(body, message)) { setAction(null); setDetails(""); }
         else setError("Operazione non riuscita. Riprova.");
       }}>
-        {action === "report" && <><label>Motivo<select value={reason} onChange={event => setReason(event.target.value)} disabled={busy}><option value="spam">Spam</option><option value="harassment">Molestie o comportamenti offensivi</option><option value="inappropriate">Contenuti inappropriati</option><option value="other">Altro</option></select></label><label>Dettagli (facoltativi)<textarea value={details} onChange={event => setDetails(event.target.value)} maxLength={1000} rows={3} disabled={busy} /></label></>}
+        {action === "report" && <><label>Motivo<Select value={reason} onValueChange={setReason} disabled={busy}><SelectTrigger aria-label="Motivo"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="spam">Spam</SelectItem><SelectItem value="harassment">Molestie o comportamenti offensivi</SelectItem><SelectItem value="inappropriate">Contenuti inappropriati</SelectItem><SelectItem value="other">Altro</SelectItem></SelectContent></Select></label><label>Dettagli (facoltativi)<textarea value={details} onChange={event => setDetails(event.target.value)} maxLength={1000} rows={3} disabled={busy} /></label></>}
         {error && <p role="alert">{error}</p>}<div className={styles.actions}><Button type="button" variant="outline" disabled={busy} onClick={() => setAction(null)}>Annulla</Button><Button type="submit" disabled={busy}>{busy ? "Salvataggio…" : title}</Button></div>
       </form>
     </Dialog.Content></Dialog.Portal></Dialog.Root>

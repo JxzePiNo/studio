@@ -8,7 +8,7 @@ import { ReferralsSection } from "./referrals-section";
 import * as Popover from "@radix-ui/react-popover";
 import { FriendActions } from "./friend-actions";
 import { BaristaLoading } from "./barista-loading";
-import { FriendsProfile, FriendsProfileEditor } from "./friends-profile";
+import { FriendsProfile, FriendsProfileEditor, FriendsShareCard } from "./friends-profile";
 import { FriendAvatar } from "./friend-avatar";
 import { TonyMascot } from "./mascot/tony-mascot";
 import { SharedMaterials } from "./shared-materials";
@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import styles from "./friends.module.css";
 
 function Person({ person, children, menu }: { person: FriendPerson; children?: React.ReactNode; menu?: React.ReactNode }) {
-  return <li className={styles.person}><FriendAvatar name={person.name} photoURL={person.photoURL} /><div className={styles.personCopy}><strong>{person.name}</strong>{person.nickname && <span>@{person.nickname}</span>}<small>{[person.university, person.studyProgram].filter(Boolean).join(" · ")}</small>{person.status && <span className={styles.status} data-studying={person.status === "studying"}>{person.status !== "offline" && <i className={styles.liveDot} />}{person.status === "studying" ? "Sta studiando" : person.status === "online" ? "Online" : "Offline"}</span>}</div><div className={styles.personActions}>{children}{menu}</div></li>;
+  return <li className={styles.person}><FriendAvatar name={person.name} photoURL={person.photoURL} /><div className={styles.personCopy}><strong>{person.name}</strong>{person.nickname && <span>@{person.nickname}</span>}<small>{[person.university, person.studyProgram].filter(Boolean).join(" · ")}</small>{person.status && <span className={styles.status} data-studying={person.status === "studying"}>{person.status !== "offline" && <i className={styles.liveDot} />}{person.status === "studying" ? "Sta studiando" : person.status === "online" ? "Online" : "Offline"}</span>}</div>{(children || menu) && <div className={styles.personActions}>{children}{menu}</div>}</li>;
 }
 function FriendRequests({ title, people, actions }: { title: string; people: FriendPerson[]; actions: (person: FriendPerson) => React.ReactNode }) {
   const [expanded, setExpanded] = useState(false);
@@ -89,7 +89,7 @@ export function FriendsSection({ initialTab = "friends", onTabChange }: { initia
     return () => { controller.abort(); clearInterval(timer); window.removeEventListener("studio-friends-changed", refresh); document.removeEventListener("visibilitychange", refresh); };
   }, [load, profile?.updatedAt]);
   useEffect(() => {
-    if (!data?.available) { setResults(null); return; }
+    if (!data?.available || !query) { setResults(null); setSearching(false); setSearchError(""); return; }
     const controller = new AbortController(); setSearching(true); setSearchError("");
     void friendsRequest<{ people: FriendPerson[]; truncated: boolean }>(`?search=${encodeURIComponent(query)}`, undefined, controller.signal).then(value => { if (!controller.signal.aborted) setResults(value); }).catch(cause => { if (!controller.signal.aborted) { setResults(null); setSearchError((cause as Error).message); } }).finally(() => { if (!controller.signal.aborted) setSearching(false); });
     return () => controller.abort();
@@ -142,11 +142,11 @@ export function FriendsSection({ initialTab = "friends", onTabChange }: { initia
           </div>}
           <FriendRequests title="Richieste ricevute" people={data.incoming} actions={requestActions} />
           <form className={styles.search} role="search" onSubmit={event => { event.preventDefault(); setQuery(term.trim()); setRevision(value => value + 1); }}><label className="sr-only" htmlFor="friend-search">Nome o username</label><Input id="friend-search" value={term} onChange={event => setTerm(event.target.value)} maxLength={80} placeholder="Cerca per nome o @username" /><Button type="submit"><Search size={16} /> Cerca</Button></form>
-          <div className={styles.card}><h2>I tuoi amici</h2><ul className={styles.list}><li className={`${styles.person} ${styles.tonyFriend}`}><TonyMascot size={data.friends.length ? 64 : 96} animated showName={false} /><div className={styles.personCopy}><strong>Tony del bar</strong><span>{data.friends.length ? "Sempre qui a studiare con te." : "Non ti preoccupare, saremo per sempre amici."}</span></div></li>{data.friends.map(person => <Person key={person.id} person={person}><FriendActions person={person} friend busy={busy} onAction={mutate} /></Person>)}</ul></div>
-          <div className={styles.card}><div className={styles.searchHeading}><h2>{query ? `Risultati per “${query}”` : "Dal tuo ateneo"}</h2>{query && <Button variant="ghost" size="sm" onClick={() => { setQuery(""); setTerm(""); }}>Mostra suggeriti</Button>}</div>
-            {searching && <BaristaLoading name="Cerchiamo i tuoi amici" statusText="Ricerca persone in corso." hint="Tony sta cercando nel tuo ateneo." />}{searchError && <p role="alert">{searchError} <Button variant="ghost" size="sm" onClick={() => setRevision(value => value + 1)}>Riprova</Button></p>}
+          <div className={`${styles.card} ${styles.friendsListCard}`}><h2>I tuoi amici</h2><ul className={styles.list}><li className={`${styles.person} ${styles.tonyFriend}`}><TonyMascot size={data.friends.length ? 64 : 96} animated showName={false} /><div className={styles.personCopy}><strong>Tony del bar</strong><span>{data.friends.length ? "Sempre qui a studiare con te." : "Non ti preoccupare, saremo per sempre amici."}</span></div></li>{data.friends.map(person => <Person key={person.id} person={person}><FriendActions person={person} friend busy={busy} onAction={mutate} /></Person>)}</ul></div>
+          {query ? <div className={styles.card}><div className={styles.searchHeading}><h2>{query ? `Risultati per “${query}”` : "Risultati"}</h2>{query && <Button variant="ghost" size="sm" onClick={() => { setQuery(""); setTerm(""); }}>Chiudi ricerca</Button>}</div>
+            {searching && <BaristaLoading name="Cerchiamo i tuoi amici" statusText="Ricerca persone in corso." hint="Tony sta cercando i tuoi amici." />}{searchError && <p role="alert">{searchError} <Button variant="ghost" size="sm" onClick={() => setRevision(value => value + 1)}>Riprova</Button></p>}
             {!searching && !searchError && results && <>{!results.people.length ? <p>{query ? "Nessuna persona trovata. Prova un altro nome o username." : "Qui troverai altre persone del tuo ateneo."}</p> : <ul className={styles.list}>{results.people.map(person => <Person key={person.id} person={person} menu={<FriendActions person={person} friend={person.relationship === "friend"} busy={busy} onAction={mutate} />}>{person.relationship === "friend" ? <span className={styles.pill}><Check size={13} /> Amici</span> : person.relationship === "outgoing" ? <span className={styles.pill}>Richiesta inviata</span> : person.relationship === "incoming" ? requestActions(person) : <Button size="sm" variant="outline" disabled={busy} onClick={() => relationship(person, "request")} aria-label={`Invia richiesta a ${person.name}`}><UserPlus size={15} /> Aggiungi</Button>}</Person>)}</ul>}{results.truncated && <p>Scrivi un nome più preciso per vedere altri risultati.</p>}</>}
-          </div>
+          </div> : <FriendsShareCard discoverable={data.self?.discoverable ?? true} />}
           <FriendRequests title="Richieste inviate" people={data.outgoing} actions={person => <Button size="sm" variant="outline" disabled={busy} onClick={() => relationship(person, "cancel")} aria-label={`Annulla richiesta a ${person.name}`}>Annulla richiesta</Button>} />
           <SharedMaterials />
         </>}

@@ -17,7 +17,8 @@ test("exam home searches accents, sorts cards and opens all settings from one ic
     const cards = page.locator(".exam-overview-card");
     await expect(cards).toHaveCount(3);
     await expect(cards.first().getByRole("button", { name: `Apri esame ${folders[1].name}`, exact: true })).toBeVisible();
-    await page.getByRole("combobox", { name: "Ordina esami", exact: true }).selectOption("name");
+    await page.getByRole("combobox", { name: "Ordina esami", exact: true }).click();
+    await page.getByRole("option", { name: "Nome A–Z", exact: true }).click();
     await expect(cards.first().getByRole("button", { name: `Apri esame ${folders[0].name}`, exact: true })).toBeVisible();
     await expect(cards.first().getByRole("heading", { level: 3 })).toHaveText(formatCourseName(folders[0].name));
     await expect(cards.first().getByRole("button")).toHaveCount(2);
@@ -33,9 +34,18 @@ test("exam home searches accents, sorts cards and opens all settings from one ic
     await expect(page.getByRole("heading", { name: "Nessun esame trovato", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Cancella ricerca", exact: true }).click();
     await expect(page.getByRole("searchbox", { name: "Cerca un esame", exact: true })).toHaveValue("");
-    await page.getByRole("combobox", { name: "Ordina esami", exact: true }).selectOption("newest");
+    await page.getByRole("combobox", { name: "Ordina esami", exact: true }).click();
+    await page.getByRole("option", { name: "Più recenti", exact: true }).click();
     await page.screenshot({ path: "test-results/exam-home-clean.png" });
     await page.setViewportSize({ width: 390, height: 844 });
+    const search = (await page.getByRole("searchbox", { name: "Cerca un esame", exact: true }).boundingBox())!;
+    const sort = page.getByRole("combobox", { name: "Ordina esami", exact: true });
+    const sortBox = (await sort.boundingBox())!;
+    expect(Math.abs(search.y - sortBox.y)).toBeLessThan(2);
+    expect(Math.abs(search.width / sortBox.width - 2)).toBeLessThan(0.05);
+    await sort.click();
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await page.getByRole("option", { name: "Data più vicina", exact: true }).click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: "test-results/exam-home-clean-mobile.png" });
   } finally { for (const folder of folders) await request.delete(`/api/folders/${folder.id}`); }

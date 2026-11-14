@@ -5,7 +5,7 @@ import { readApiResponse } from "@/lib/api-response";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { CalendarDays, Check, ChevronDown, FolderOpen, LoaderCircle, Plus, Search, Settings2, X } from "lucide-react";
+import { CalendarDays, Check, FolderOpen, LoaderCircle, Plus, Search, Settings2, X } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
 import { examColors, type ExamColor, examColor } from "@/lib/exam-colors";
 import { visibleExams, type ExamSort } from "@/lib/exam-list";
@@ -16,6 +16,7 @@ import type { DocumentSummary, ExamFolder } from "@/lib/types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Calendar } from "./ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { StudyAvailability } from "./study-availability";
@@ -28,6 +29,7 @@ import type { ReadingActivity } from "@/lib/study-session";
 
 interface ExamOverviewProps {
   dialogOnly?: boolean;
+  examsOnly?: boolean;
   folders: ExamFolder[];
   documents: DocumentSummary[];
   onOpen: (id: string) => void;
@@ -68,7 +70,7 @@ function ExamFolderVisual() {
   </span>;
 }
 
-export function ExamOverview({ dialogOnly = false, folders, documents, onOpen, onCreate, onUpdated, onDeleted, isCourseBusy, activity, today, onActivityDaySelect, requestedCourseAction, onCourseActionHandled }: ExamOverviewProps) {
+export function ExamOverview({ dialogOnly = false, examsOnly = false, folders, documents, onOpen, onCreate, onUpdated, onDeleted, isCourseBusy, activity, today, onActivityDaySelect, requestedCourseAction, onCourseActionHandled }: ExamOverviewProps) {
   const [showArchived, setShowArchived] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [search, setSearch] = useState("");
@@ -177,12 +179,12 @@ export function ExamOverview({ dialogOnly = false, folders, documents, onOpen, o
   const displayedFolders = visibleExams(folders.filter(folder => showArchived ? folder.archived : !folder.archived), search, sort, today);
 
   return <>{!dialogOnly && <div className="overview-page">
-    <header className={`exam-overview-heading ${greetingStyles.header}`}><HomeGreeting /><Button className={greetingStyles.action} onClick={onCreate}><Plus size={17} /> Nuovo esame</Button></header>
-    {activity && today && <HomeStudyActivity activity={activity} today={today} onDaySelect={onActivityDaySelect} />}
+    <header className={`exam-overview-heading ${greetingStyles.header}`}><>{examsOnly ? <h1 className={folderStyles.pageTitle}>I tuoi esami</h1> : <HomeGreeting />}</><Button className={greetingStyles.action} onClick={onCreate}><Plus size={17} /> Nuovo esame</Button></header>
+    {!examsOnly && activity && today && <HomeStudyActivity activity={activity} today={today} onDaySelect={onActivityDaySelect} />}
     <div className={folderStyles.sectionHeading}><h2>{showArchived ? "I tuoi esami archiviati" : "I tuoi prossimi esami"}</h2>{(showArchived || folders.some(folder => folder.archived)) && <Button variant="ghost" onClick={() => setShowArchived(value => !value)} aria-pressed={showArchived}>{showArchived ? "Mostra prossimi esami" : "Mostra archiviati"}</Button>}</div>
     {folders.length > 0 && <div className={folderStyles.toolbar}>
       <label className="form-field exam-search-field"><span className="form-field-label">Cerca un esame</span><div className={folderStyles.search}><Search size={17} aria-hidden="true" /><Input type="search" aria-label="Cerca un esame" placeholder="Cerca un esame" value={search} onChange={event => setSearch(event.target.value)} /></div></label>
-      <label className={`${folderStyles.sort} exam-sort-field`}><span className="form-field-label">Ordina per</span><span className="select-field-control"><select aria-label="Ordina esami" value={sort} onChange={event => setSort(event.target.value as ExamSort)}><option value="deadline">Data più vicina</option><option value="name">Nome A–Z</option><option value="newest">Più recenti</option></select><ChevronDown size={16} aria-hidden="true" /></span></label>
+      <label className={`${folderStyles.sort} exam-sort-field`}><span className="form-field-label">Ordina per</span><Select value={sort} onValueChange={value => setSort(value as ExamSort)}><SelectTrigger aria-label="Ordina esami"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="deadline">Data più vicina</SelectItem><SelectItem value="name">Nome A–Z</SelectItem><SelectItem value="newest">Più recenti</SelectItem></SelectContent></Select></label>
     </div>}
     <div className="exam-overview-grid">
       {displayedFolders.map(folder => {

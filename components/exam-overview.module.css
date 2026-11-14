@@ -48,12 +48,11 @@
 .openButton:focus-visible { outline: none; }
 .openButton:focus-visible::after { outline: 2px solid var(--ring, #6b8061); outline-offset: -3px; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin: 0 0 22px; }
+.pageTitle { flex:1; margin:0; font-size:32px; font-weight:500; letter-spacing:-1px; }
 .search { position: relative; flex: 1 1 240px; max-width: 390px; }
 .search > svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted-foreground); pointer-events: none; }
 .search > input { width: 100%; padding-left: 39px; background: #fff; }
 .sort { display: flex; align-items: center; gap: 9px; color: var(--muted-foreground); font-size: 12px; }
-.sort select { min-height: 40px; max-width: 190px; padding: 8px 28px 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--foreground); font: inherit; cursor: pointer; }
-.sort select:focus-visible { outline: 2px solid var(--ring, #6b8061); outline-offset: 2px; }
 .noResults.noResults { min-height: 260px; }
 .sectionHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 22px 0 12px; }
 .sectionHeading h2 { margin: 0; font-size: 15px; font-weight: 700; }
@@ -75,4 +74,9 @@
 .optionalSwitch:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 .optionalSwitch:disabled { opacity: .5; cursor: default; }
 @media (prefers-reduced-motion: reduce) { .optionalSwitch, .optionalSwitch::before { transition: none; } }
-@media (max-width: 600px) { .search { max-width: none; } .sort { margin-left: auto; } }
+@media (max-width: 600px) {
+  .toolbar { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: end; gap: 12px; }
+  .toolbar > label { min-width: 0; max-width: none; }
+  .search { max-width: none; }
+  .sort { margin-left: 0; }
+}

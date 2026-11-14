@@ -97,7 +97,8 @@ test("admin costs retain provider currencies, period selection and independent s
   const openai = page.getByRole("region", { name: "Costi OpenAI", exact: true }), firebase = page.getByRole("region", { name: "Costi Firebase", exact: true });
   await expect(openai).toContainText("14,50"); await expect(firebase).toContainText("0,75");
   await page.screenshot({ path: "test-results/admin-costs.png" });
-  await page.getByRole("combobox", { name: "Periodo", exact: true }).selectOption("7");
+  await page.getByRole("combobox", { name: "Periodo", exact: true }).click();
+    await page.getByRole("option", { name: "Ultimi 7 giorni", exact: true }).click();
   await expect.poll(() => period).toBe("7");
   await expect(firebase).toContainText("Da collegare"); await expect(openai).toContainText("14,50");
   await page.setViewportSize({ width: 390, height: 844 });

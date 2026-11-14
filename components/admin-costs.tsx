@@ -7,6 +7,7 @@ import { authHeaders } from "@/lib/firebase-client";
 import { readApiResponse } from "@/lib/api-response";
 import type { AdminCostsReport, CostEntry, ProviderCosts } from "@/lib/admin-cost-types";
 import { Button } from "./ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import styles from "./admin-dashboard.module.css";
 
 const money = (amount: number, currency: string) => new Intl.NumberFormat("it-IT", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(amount);
@@ -41,7 +42,7 @@ export function AdminCosts() {
   }, [days, revision]);
 
   return <section aria-label="Costi dei fornitori">
-    <div className={styles.toolbar}><h1>Costi</h1><div className={styles.controls}><label>Periodo<select value={days} onChange={event => setDays(Number(event.target.value))}><option value={7}>Ultimi 7 giorni</option><option value={30}>Ultimi 30 giorni</option><option value={90}>Ultimi 90 giorni</option></select></label><Button variant="outline" size="sm" disabled={loading} onClick={() => setRevision(value => value + 1)}><RefreshCw size={14} /> Aggiorna costi</Button></div></div>
+    <div className={styles.toolbar}><h1>Costi</h1><div className={styles.controls}><label>Periodo<Select value={String(days)} onValueChange={value => setDays(Number(value))}><SelectTrigger aria-label="Periodo"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="7">Ultimi 7 giorni</SelectItem><SelectItem value="30">Ultimi 30 giorni</SelectItem><SelectItem value="90">Ultimi 90 giorni</SelectItem></SelectContent></Select></label><Button variant="outline" size="sm" disabled={loading} onClick={() => setRevision(value => value + 1)}><RefreshCw size={14} /> Aggiorna costi</Button></div></div>
     <p className={styles.hint}>Spesa riportata da OpenAI e Google Cloud Billing. I dati possono arrivare in ritardo e vengono aggiornati al massimo ogni 5 minuti. Le valute sono mantenute separate.</p>
     {loading && <div className={styles.loadingPanel}><BaristaLoading name="Costi della piattaforma" statusText="Carico i costi dai fornitori." hint="Sto preparando il conto. Quello vero." /></div>}
     {error && <p role="alert" className={styles.error}>{error}</p>}

@@ -25,7 +25,8 @@ test("user menu reports, removes, blocks and unblocks friends on mobile", async 
   await page.getByRole("button", { name: "Azioni per Bob", exact: true }).click();
   await page.getByRole("menuitem", { name: "Segnala utente", exact: true }).click();
   let dialog = page.getByRole("dialog", { name: "Segnala utente", exact: true });
-  await dialog.getByLabel("Motivo").selectOption("harassment");
+  await dialog.getByRole("combobox", { name: "Motivo", exact: true }).click();
+  await page.getByRole("option", { name: "Molestie o comportamenti offensivi", exact: true }).click();
   await dialog.getByLabel("Dettagli (facoltativi)").fill("Comportamento offensivo");
   await dialog.getByRole("button", { name: "Segnala utente", exact: true }).click();
   await expect(dialog).not.toBeVisible();

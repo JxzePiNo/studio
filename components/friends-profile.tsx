@@ -12,7 +12,17 @@ import { UsernameInput } from "./username-input";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { ShareProfile } from "./share-profile";
+import { TonyMascot } from "./mascot/tony-mascot";
 import styles from "./friends.module.css";
+
+export function FriendsShareCard({ discoverable }: { discoverable: boolean }) {
+  const [user, setUser] = useState<User | null>(null);
+  useEffect(() => { if (firebaseEnabled) return onAuthStateChanged(browserAuth(), setUser); }, []);
+  return <section className={`${styles.card} ${styles.shareCard}`} aria-label="Invita i tuoi amici">
+    <TonyMascot size={100} animated showName={false} />
+    <div><h2>Studiare insieme è meglio.</h2><p>Condividi il tuo profilo e porta i tuoi amici al tavolo con Tony.</p>{user && <ShareProfile uid={user.uid} discoverable={discoverable} />}</div>
+  </section>;
+}
 
 async function profilePhoto(file: File): Promise<string> {
   if (!file.type.startsWith("image/") || file.size > 15 * 1024 * 1024) throw new Error("Scegli un’immagine fino a 15 MB.");
