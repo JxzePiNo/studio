@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { FriendPerson, FriendsOverview, FriendsPeriod, SocialSettings } from "./friends-types";
 import { canonicalUniversity, normalizeUniversity } from "./universities";
 import { lastKnownPlatformVisit } from "./platform-visits";
+import type { FriendMessage } from "./friend-messages";
 
 const uidSchema = z.string().min(1).max(128).regex(/^[^/]+$/);
 export const friendsActionSchema = z.discriminatedUnion("action", [
@@ -54,6 +55,53 @@ function settings(profile: Profile): SocialSettings {
 /** Only this server service reads presence and private study records. */
 export class FriendsService {
   constructor(private db: Firestore, private uid: string, private now = Date.now()) {}
+  async sendMessage(id: string, targetId: string, text: string) {
+    if (targetId === this.uid) throw fail("Scegli un amico a cui scrivere.");
+    const inbox = this.db.collection("users").doc(targetId).collection("friendMessages").doc(id);
+    const limit = this.db.collection("socialMessageLimits").doc(this.uid);
+    await this.db.runTransaction(async tx => {
+      const [edge, block, me, target, presence, previous, rate] = await Promise.all([
+        tx.get(this.edges().doc(pairId(this.uid, targetId))), tx.get(this.db.collection("socialBlocks").doc(pairId(this.uid, targetId))),
+        tx.get(this.profiles().doc(this.uid)), tx.get(this.profiles().doc(targetId)),
+        tx.get(this.profiles().doc(targetId).collection("presence").where("lastSeen", ">=", this.now - 90000).limit(1)),
+        tx.get(inbox), tx.get(limit),
+      ]);
+      if (edge.get("status") !== "accepted" || block.get("blockers")?.length || !me.get("enabled") || !target.get("enabled")) throw fail("Puoi scrivere solo ai tuoi amici disponibili.", 403);
+      if (previous.exists) {
+        if (previous.get("senderId") !== this.uid) throw fail("Messaggio non valido.", 409);
+        return;
+      }
+      if (!target.get("shareActivity") || presence.empty) throw fail("Questo amico non è più online. Riprova quando torna disponibile.", 409);
+      if (this.now - (Number(rate.get("sentAt")) || 0) < 2000) throw fail("Attendi un momento prima di inviare un altro messaggio.", 409);
+      tx.set(inbox, { senderId: this.uid, text, sentAt: this.now, read: false });
+      tx.set(limit, { sentAt: this.now });
+    });
+    return { ok: true };
+  }
+  async incomingMessages(): Promise<FriendMessage[]> {
+    const [inbox, edges, blocked, me] = await Promise.all([
+      this.db.collection("users").doc(this.uid).collection("friendMessages").where("read", "==", false).limit(50).get(),
+      this.edges().where("members", "array-contains", this.uid).get(), this.blockedIds(), this.profile(),
+    ]);
+    if (!me?.enabled) return [];
+    const friends = new Set(edges.docs.filter(doc => doc.get("status") === "accepted").flatMap(doc => (doc.get("members") as string[]).filter(id => id !== this.uid)));
+    const messages = await Promise.all(inbox.docs.map(async (record): Promise<FriendMessage | null> => {
+      const senderId = record.get("senderId") as string;
+      if (!friends.has(senderId) || blocked.has(senderId)) return null;
+      const sender = await this.profile(senderId);
+      if (!sender?.enabled) return null;
+      return { id: record.id, sender: { id: senderId, name: sender.name, nickname: sender.nickname, photoURL: sender.photoURL || "" }, text: record.get("text") as string, sentAt: record.get("sentAt") as number };
+    }));
+    return messages.filter((message): message is FriendMessage => !!message).sort((a, b) => b.sentAt - a.sentAt);
+  }
+  async readMessages(ids: string[]) {
+    const inbox = this.db.collection("users").doc(this.uid).collection("friendMessages");
+    await this.db.runTransaction(async tx => {
+      const records = await Promise.all(ids.map(id => tx.get(inbox.doc(id))));
+      for (const record of records) if (record.exists) tx.update(record.ref, { read: true });
+    });
+    return { ok: true };
+  }
   private profiles() { return this.db.collection("socialProfiles"); }
   private edges() { return this.db.collection("friendships"); }
   private async blockedIds() {

@@ -11,12 +11,11 @@ export function NotificationCenter({ events, children, autoOpenOnEntry = false }
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState<string[]>([]);
   const autoOpened = useRef(false);
-  const hadEntryEvents = useRef(events.length > 0);
   const fingerprint = events.join("\u0000");
   useEffect(() => { const show = () => setOpen(true); window.addEventListener("studio-open-notifications", show); return () => window.removeEventListener("studio-open-notifications", show); }, []);
   useEffect(() => { if (open) setSeen(fingerprint ? fingerprint.split("\u0000") : []); }, [open, fingerprint]);
   useEffect(() => {
-    if ((!hadEntryEvents.current && !autoOpenOnEntry) || autoOpened.current) return;
+    if (!autoOpenOnEntry || autoOpened.current) return;
     autoOpened.current = true;
     setOpen(true);
   }, [autoOpenOnEntry]);

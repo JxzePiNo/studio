@@ -107,45 +107,6 @@ export function useStudySession({ documents = [], reader }: { documents?: Docume
     window.addEventListener("online", retry);
     return () => { unsubscribe?.(); clearInterval(timer); window.removeEventListener("online", retry); };
   }, [flush, persistQueue, reloadHistory, save]);
-  const readerRef = useRef(reader); readerRef.current = reader;
-  useEffect(() => {
-    if (!reader || !owner || session.startedAt !== null) return;
-    const document = window.document;
-    let startedAt: number | null = null;
-    let pages = new Map<number, NonNullable<typeof reader>>();
-    const rememberPage = () => { const value = readerRef.current; if (value?.id === reader.id && current.current.pages.includes(`${value.id}:${value.page}`)) pages.set(value.page, value); };
-    const checkpoint = () => {
-      const time = Date.now();
-      if (startedAt !== null && time > startedAt && key.current === owner) {
-        rememberPage();
-        const saved: SavedSessionInput = { id: crypto.randomUUID(), startedAt: new Date(startedAt).toISOString(), endedAt: new Date(time).toISOString(), day: studyDay(new Date(startedAt)), durationMs: Math.min(time - startedAt, 7 * 86400000), pages: [...pages.values()].map(value => ({ documentId: value.id, name: value.name, page: value.page })) };
-        setSessions(previous => [buildSavedSession(saved), ...previous]);
-        enqueue({ type: "session", session: saved });
-      }
-      pages = new Map();
-      startedAt = null;
-    };
-    const visibility = () => {
-      checkpoint();
-      if (document.visibilityState === "visible") { startedAt = Date.now(); rememberPage(); }
-    };
-    visibility();
-    const timer = window.setInterval(() => {
-      rememberPage();
-      if (startedAt !== null && Date.now() - startedAt >= 60000) visibility();
-    }, 1000);
-    const leave = () => checkpoint();
-    document.addEventListener("visibilitychange", visibility);
-    window.addEventListener("pagehide", leave);
-    window.addEventListener("pageshow", visibility);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", visibility);
-      window.removeEventListener("pagehide", leave);
-      window.removeEventListener("pageshow", visibility);
-      checkpoint();
-    };
-  }, [reader?.id, owner, session.startedAt, enqueue]);
   const recordRead = useCallback((id: string, page: number, read: boolean) => {
     revision.current++;
     optimistic.current.set(`${id}:${page}`, read);
@@ -156,17 +117,57 @@ export function useStudySession({ documents = [], reader }: { documents?: Docume
     const time = Date.now(); setNow(time);
     const value = current.current;
     save(value.startedAt === null ? startStudyTimer(value, crypto.randomUUID(), time) : pauseStudyTimer(value, time));
+    if (value.startedAt !== null) saveActiveSession(false);
   }
-  function endSession() {
+  const saveActiveSession = useCallback((finish: boolean) => {
     const time = Date.now(); setNow(time);
     const value = current.current;
     const startedAt = value.activeStartedAt ?? value.startedAt;
     if (startedAt === null || startedAt === undefined) return;
-    const saved: SavedSessionInput = { id: value.activeId || crypto.randomUUID(), startedAt: new Date(startedAt).toISOString(), endedAt: new Date(time).toISOString(), day: studyDay(new Date(startedAt)), durationMs: Math.max(0, Math.min(time - startedAt, 7 * 86400000, Math.floor(sessionElapsed(value, time)))), pages: (value.activePages || []).map(key => { const split = key.lastIndexOf(":"); const documentId = key.slice(0, split); return { documentId, page: Number(key.slice(split + 1)), name: names.current.find(document => document.id === documentId)?.name || "PDF" }; }) };
-    save({ ...value, elapsedMs: 0, startedAt: null, activeStartedAt: undefined, activeId: undefined, activePages: [] });
+    const elapsed = Math.floor(sessionElapsed(value, time));
+    const durationMs = Math.max(0, Math.min(time - startedAt, 7 * 86400000, elapsed - (value.savedElapsedMs || 0)));
+    save(finish
+      ? { ...value, elapsedMs: 0, savedElapsedMs: 0, startedAt: null, activeStartedAt: undefined, activeId: undefined, activePages: [] }
+      : { ...value, savedElapsedMs: elapsed });
+    if (!durationMs) return;
+    const saved: SavedSessionInput = { id: crypto.randomUUID(), startedAt: new Date(time - durationMs).toISOString(), endedAt: new Date(time).toISOString(), day: studyDay(new Date(time - durationMs)), durationMs, pages: (value.activePages || []).map(key => { const split = key.lastIndexOf(":"); const documentId = key.slice(0, split); return { documentId, page: Number(key.slice(split + 1)), name: names.current.find(document => document.id === documentId)?.name || "PDF" }; }) };
     setSessions(previous => [buildSavedSession(saved), ...previous]);
     enqueue({ type: "session", session: saved });
-  }
+  }, [enqueue, save]);
+  const endSession = useCallback(() => saveActiveSession(true), [saveActiveSession]);
+  useEffect(() => {
+    if (!reader?.id || !owner) return;
+    const document = window.document;
+    let resume = false;
+    const start = () => {
+      const time = Date.now(); setNow(time);
+      save(startStudyTimer(current.current, crypto.randomUUID(), time));
+    };
+    if (document.visibilityState === "visible") start();
+    else resume = true;
+    const hide = () => {
+      resume = resume || current.current.startedAt !== null;
+      save(pauseStudyTimer(current.current));
+      saveActiveSession(false);
+    };
+    const visibility = () => {
+      if (document.visibilityState === "hidden") hide();
+      else if (resume) { resume = false; start(); }
+    };
+    const timer = window.setInterval(() => {
+      if (current.current.startedAt !== null) saveActiveSession(false);
+    }, 60000);
+    document.addEventListener("visibilitychange", visibility);
+    window.addEventListener("pagehide", hide);
+    window.addEventListener("pageshow", visibility);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", visibility);
+      window.removeEventListener("pagehide", hide);
+      window.removeEventListener("pageshow", visibility);
+      if (key.current === owner) endSession();
+    };
+  }, [reader?.id, owner, save, saveActiveSession, endSession]);
   function toggleVisibility() { setHidden(value => { try { localStorage.setItem(`${key.current}:hidden`, String(!value)); } catch {} return !value; }); }
   const hasReadToday = useCallback((id: string, page: number) => current.current.day === studyDay() && current.current.pages.includes(`${id}:${page}`), []);
   return { today: session.pages.length, todayDate: session.day, activity: session.activity, hasReadToday, elapsed: sessionElapsed(session, now), running: session.startedAt !== null, hasActiveSession: !!session.activeId || session.startedAt !== null, recordRead, commitRead, toggleTimer, endSession, resetTimer: endSession, hidden, toggleVisibility, sessions, loadingHistory, errorHistory, savingHistory, reloadHistory: async () => { await flush(); await reloadHistory(); } };

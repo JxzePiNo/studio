@@ -1,5 +1,6 @@
 "use client";
 
+import { FriendMessageNotifications, useFriendMessages } from "./friend-messages";
 import { TonyTour } from "./tony-tour";
 import { useTonyTours } from "./tony-tour-provider";
 import { useStudyProfile } from "./study-profile-provider";
@@ -74,6 +75,7 @@ function resetMobilePageScroll() {
 type BatchProgress = { id: string; startedAt: number; total: number; completed: number; current: number | null; active: number[]; status: "running" | "stopping" | "stopped" | "completed" | "error" };
 
 export default function Workspace() {
+  const friendMessages = useFriendMessages();
   const { requested: requestedTour, consumeRequest: cancelTourRequest } = useTonyTours();
   const { profile: tourProfile, loading: tourProfileLoading } = useStudyProfile();
   const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
@@ -615,7 +617,8 @@ export default function Workspace() {
   const studyDock = (<div className={`${sessionStyles.dock} study-activity-dock`}>
       <StudySessionBar suppressed={readerClean && !!doc} portrait={!!doc && portrait} session={studySession} document={doc ? { name: doc.name, read: Object.values(doc.slides).filter(slide => slide.read).length, total: doc.pages } : undefined} />
       <FriendsActivity running={studySession.running} onOpen={openFriends} onIncomingChange={reportIncomingRequests} />
-      <NotificationCenter autoOpenOnEntry={initialFriendRequests} events={[...(incomingFriendRequests ? [`friends:${incomingFriendRequests}`] : []), ...islandJobs.map(job => `analysis:${job.id}:${job.status}`), ...chatController.notifications.map(item => `chat:${item.key}`), ...uploads.jobs.map(job => `upload:${job.id}:${job.status}`)]}>{hideNotifications => <>
+      <NotificationCenter autoOpenOnEntry={initialFriendRequests} events={[...friendMessages.messages.map(message => `message:${message.id}`), ...(incomingFriendRequests ? [`friends:${incomingFriendRequests}`] : []), ...islandJobs.map(job => `analysis:${job.id}:${job.status}`), ...chatController.notifications.map(item => `chat:${item.key}`), ...uploads.jobs.map(job => `upload:${job.id}:${job.status}`)]}>{hideNotifications => <>
+      <FriendMessageNotifications inbox={friendMessages} onReply={hideNotifications} />
       {incomingFriendRequests > 0 && <Button variant="outline" onClick={() => { hideNotifications(); openFriends(); }}>{incomingFriendRequests} {incomingFriendRequests === 1 ? "richiesta di amicizia ricevuta" : "richieste di amicizia ricevute"}. Apri richieste</Button>}
       {islandJobs.length > 0 && <AnalysisIsland jobs={islandJobs} embedded onHide={hideNotifications} />}
       <UploadNotifications controller={uploads} onOpen={id => { hideNotifications(); void openDocument(id); }} />

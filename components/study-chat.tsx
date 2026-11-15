@@ -1,12 +1,14 @@
 "use client";
 
+import { ActionTooltip } from "./ui/tooltip";
+import { CHAT_ATTACHMENT_ACCEPT, MAX_CHAT_ATTACHMENTS, MAX_CHAT_ATTACHMENT_BYTES, encodeChatAttachments } from "@/lib/chat-attachments";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { browserAuth, firebaseEnabled } from "@/lib/firebase-client";
 import { useStudyProfile } from "./study-profile-provider";
 import { ChatMessageAuthor } from "./chat-message-author";
 import { ChatLoadingSkeleton } from "./chat-loading-skeleton";
-import { ClipboardList, ArrowUp, FileText, LoaderCircle, Settings2, Sparkles } from "lucide-react";
+import { ClipboardList, ArrowUp, FileText, LoaderCircle, Settings2, Sparkles, Paperclip, X } from "lucide-react";
 import type { ChatMessage, Explanation } from "@/lib/types";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
@@ -71,6 +73,10 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
   const authorName = profile?.displayName?.trim() || user?.displayName || "Tu";
   const session = controller.sessions[chatSessionKey(id, page)];
   const [question, setQuestion] = useState(() => session?.status === "error" ? session.question : "");
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachmentError, setAttachmentError] = useState("");
+  const [preparing, setPreparing] = useState(false);
+  const attachmentInput = useRef<HTMLInputElement>(null);
   const [quizDialog, setQuizDialog] = useState(false);
   const [modelDialog, setModelDialog] = useState(false);
   const [wholeDocument, setWholeDocument] = useState(false);
@@ -90,7 +96,7 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
   const scopeHintId = useId();
   const errorId = useId();
   const conversation = messages.filter(message => message.source !== "analysis");
-  const canSend = !busy && !disabled && configured && !!question.trim();
+  const canSend = !preparing && !busy && !disabled && configured && !!question.trim();
   const showProgress = batchRunning || !!analysisProgress;
 
   useEffect(() => {
@@ -123,17 +129,23 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
   }, [busy]);
 
   async function send(prompt?: string) {
-    if (lock.current || busy || disabled || !configured || !(prompt || question).trim()) return;
+    if (lock.current || preparing || busy || disabled || !configured || !(prompt || question).trim()) return;
     const submittedQuestion = (prompt || question).trim().slice(0, 4000);
     lock.current = true;
     setScrollRequest(value => value + 1);
     try {
+      setAttachmentError(""); setPreparing(true);
+      const encodedAttachments = await encodeChatAttachments(attachments);
+      setPreparing(false);
       const quizIntent = /^\s*(?:puoi\s+|mi\s+|per favore\s+)*(?:genera\w*|crea\w*|fammi|prepara\w*|vorrei|voglio)\b[\s\S]{0,100}\bquiz\b/i.test(submittedQuestion) || /^\s*(?:un\s+)?quiz\b/i.test(submittedQuestion);
-      const success = await controller.send({ id, page, name: documentName, question: submittedQuestion, scope: wholeDocument ? "document" : "slide", quizIntent });
+      const success = await controller.send({ id, page, name: documentName, question: submittedQuestion, scope: wholeDocument ? "document" : "slide", quizIntent, attachments: encodedAttachments });
       if (!mounted.current) return;
-      if (success) setQuestion("");
+      if (success) { setQuestion(""); setAttachments([]); }
       return success;
+    } catch (cause) {
+      if (mounted.current) setAttachmentError((cause as Error).message);
     } finally {
+      if (mounted.current) setPreparing(false);
       lock.current = false;
     }
   }
@@ -166,7 +178,7 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
           {!configured && <p className="chat-analysis-configure">Configura OpenAI dalle impostazioni della lettura per iniziare.</p>}
         </div>}
         <div className="chat-conversation" aria-live="polite" aria-relevant="additions text">
-          {conversation.filter(message => !message.quiz).map((message, index) => <article className={`chat-message ${message.role}`} key={`conversation-${index}`}><ChatMessageAuthor role={message.role} name={authorName} photoURL={user?.photoURL} />{message.artifact ? <StudyArtifactView key={message.artifact.id} artifact={message.artifact} documentId={id} page={page} onNavigatePage={onNavigatePage} onSaved={messages => controller.receiveMessages(id, page, messages)} /> : message.visualization ? <ConceptModelView model={message.visualization} /> : message.role === "assistant" ? <MarkdownContent>{message.content}</MarkdownContent> : <p>{message.content}</p>}</article>)}
+          {conversation.filter(message => !message.quiz).map((message, index) => <article className={`chat-message ${message.role}`} key={`conversation-${index}`}><ChatMessageAuthor role={message.role} name={authorName} photoURL={user?.photoURL} />{message.artifact ? <StudyArtifactView key={message.artifact.id} artifact={message.artifact} documentId={id} page={page} onNavigatePage={onNavigatePage} onSaved={messages => controller.receiveMessages(id, page, messages)} /> : message.visualization ? <ConceptModelView model={message.visualization} /> : message.role === "assistant" ? <MarkdownContent>{message.content}</MarkdownContent> : <><p>{message.content}</p>{!!message.attachments?.length && <ul className="chat-message-attachments" aria-label="Allegati della domanda">{message.attachments.map((file, i) => <li key={i}><Paperclip size={13} />{file.name}</li>)}</ul>}</>}</article>)}
           {pendingQuestion && <article className="chat-message user is-pending"><ChatMessageAuthor role="user" name={authorName} photoURL={user?.photoURL} /><p>{pendingQuestion}</p></article>}
           {session?.streamingText && session.kind !== "quiz" && <article className="chat-message assistant is-streaming"><ChatMessageAuthor /><MarkdownContent>{session.streamingText}</MarkdownContent></article>}
           {busy && session?.kind === "visualization" && <div className="chat-generation-skeleton" role="status" aria-label="Generazione del materiale in corso"><Sparkles size={28} /><span>{session.materialKind === "image" || session.request?.artifactKind === "image" ? "Sto generando l'immagine..." : "Sto creando il materiale..."}</span></div>}
@@ -178,7 +190,16 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
       {showProgress && <BatchProgress progress={analysisProgress} running={batchRunning} onStop={onStopAnalysis} />}
       {error && <p className="chat-error" id={errorId} role="alert">{error}</p>}
       {error && session?.kind === "visualization" && <Button variant="outline" size="sm" onClick={() => controller.retry(chatSessionKey(id, page))}>Riprova generazione</Button>}
+      {attachmentError && <p className="chat-error" role="alert">{attachmentError}</p>}
+      {!!attachments.length && <div className="chat-attachments"><ul aria-label="Allegati da inviare">{attachments.map((file, index) => <li key={`${file.name}:${index}`}><Paperclip size={14} /><span>{file.name}</span><ActionTooltip label={`Rimuovi ${file.name}`}><button type="button" aria-label={`Rimuovi allegato ${file.name}`} disabled={busy || preparing} onClick={() => setAttachments(current => current.filter((_, i) => i !== index))}><X size={14} /></button></ActionTooltip></li>)}</ul><small>Gli allegati vengono usati per questa domanda. Massimo 3 file e 3 MB totali.</small></div>}
+      <input type="file" ref={attachmentInput} className="sr-only" accept={CHAT_ATTACHMENT_ACCEPT} multiple aria-label="Allega file alla domanda" disabled={busy || preparing || disabled || !configured} onChange={event => {
+        const files = [...attachments, ...Array.from(event.target.files || [])]; event.target.value = "";
+        if (files.length > MAX_CHAT_ATTACHMENTS || files.reduce((size, file) => size + file.size, 0) > MAX_CHAT_ATTACHMENT_BYTES) { setAttachmentError("Puoi allegare fino a 3 file, per un totale di 3 MB."); return; }
+        if (files.some(file => !file.size || !/\.(pdf|png|jpe?g|txt|md)$/i.test(file.name) || file.name.length > 200)) { setAttachmentError("Scegli PDF, immagini PNG/JPEG o file TXT/MD non vuoti, con nomi entro 200 caratteri."); return; }
+        setAttachmentError(""); setAttachments(files);
+      }} />
       <form className="chat-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
+        <ActionTooltip label="Allega PDF, immagini o testo"><Button type="button" variant="ghost" size="icon" className="chat-attach" aria-label="Aggiungi allegati" disabled={busy || preparing || disabled || !configured || attachments.length >= MAX_CHAT_ATTACHMENTS} onClick={() => attachmentInput.current?.click()}><Paperclip size={18} /></Button></ActionTooltip>
         <Textarea id={questionInputId} ref={textarea} className="chat-composer-textarea" aria-label="Domanda al tutor" aria-describedby={error ? errorId : undefined} value={question} onChange={event => setQuestion(event.target.value)} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onKeyDown={event => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !composing.current && event.nativeEvent.keyCode !== 229) {
             event.preventDefault(); void send();

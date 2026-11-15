@@ -1,5 +1,5 @@
 export type ReadingActivity = Record<string, number>;
-export type StudySession = { day: string; pages: string[]; activity: ReadingActivity; elapsedMs: number; startedAt: number | null; activeStartedAt?: number; activeId?: string; activePages?: string[] };
+export type StudySession = { day: string; pages: string[]; activity: ReadingActivity; elapsedMs: number; savedElapsedMs?: number; startedAt: number | null; activeStartedAt?: number; activeId?: string; activePages?: string[] };
 
 export function studyDay(now = new Date()) {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -35,6 +35,7 @@ export function restoreSession(raw: string | null, now = Date.now()): StudySessi
       pages: saved.day === empty.day ? savedPages : [],
       activity,
       elapsedMs: Number.isFinite(saved.elapsedMs) && saved.elapsedMs >= 0 ? saved.elapsedMs : 0,
+      savedElapsedMs: Number.isFinite(saved.savedElapsedMs) && saved.savedElapsedMs >= 0 ? saved.savedElapsedMs : 0,
       startedAt: Number.isFinite(saved.startedAt) && saved.startedAt > 0 && saved.startedAt <= now ? saved.startedAt : null,
     };
   } catch { return empty; }
@@ -63,5 +64,5 @@ export function startStudyTimer(session: StudySession, id: string, now = Date.no
   if (session.startedAt !== null) return session;
   return session.activeId
     ? { ...session, startedAt: now }
-    : { ...session, startedAt: now, activeStartedAt: now, elapsedMs: 0, activeId: id, activePages: [] };
+    : { ...session, startedAt: now, activeStartedAt: now, elapsedMs: 0, savedElapsedMs: 0, activeId: id, activePages: [] };
 }

@@ -58,7 +58,7 @@ export interface ExamFolder extends StudyAvailability {
   pagesPerHour?: number;
   documentOrder?: string[];
 }
-export interface ChatMessage { sharedAt?: number; privateOwnerId?: string; role: "user" | "assistant"; content: string; source?: "analysis"; quiz?: import("./quiz").StudyQuiz; visualization?: import("./concept-model").ConceptModel; artifact?: import("./study-artifact").StudyArtifact }
+export interface ChatMessage { attachments?: import("./chat-attachments").ChatAttachmentInfo[]; sharedAt?: number; privateOwnerId?: string; role: "user" | "assistant"; content: string; source?: "analysis"; quiz?: import("./quiz").StudyQuiz; visualization?: import("./concept-model").ConceptModel; artifact?: import("./study-artifact").StudyArtifact }
 
 export interface StudyProfile {
   photoURL?: string;

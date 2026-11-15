@@ -30,10 +30,15 @@ test("chat uses the current study profile and analysis as its opening context wi
   let calls = 0;
   let checkMemory = false;
   let expectedPages = 1;
+  let checkAttachments = false;
   globalThis.fetch = async (url, options) => {
     calls++;
     assert.equal(String(url), "https://api.openai.com/v1/responses");
     const body = JSON.parse(String(options?.body));
+    if (checkAttachments) {
+      assert.ok(body.input[0].content.some((part: { text?: string }) => part.text?.includes("Testo aggiuntivo: E = mc²")));
+      assert.ok(body.input[0].content.some((part: { filename?: string }) => part.filename === "Allegato.pdf"));
+    }
     assert.equal(body.store, false); assert.equal(body.max_output_tokens, 7000);
     assert.match(body.instructions, /laurea magistrale/);
     const text = body.input[0].content.find((part: { type: string }) => part.type === "input_text").text;
@@ -52,8 +57,8 @@ test("chat uses the current study profile and analysis as its opening context wi
     }
     return Response.json({ id: `response_${calls}`, object: "response", status: "completed", output: [{ id: `message_${calls}`, type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: "Un approfondimento tecnico con ipotesi e derivazione.", annotations: [] }] }] });
   };
-  async function ask(scope = "slide", page = 1) {
-    const response = await POST(new Request(`http://127.0.0.1/api/documents/${doc.id}/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ page, question: "Approfondisci la derivazione.", scope }) }), { params: Promise.resolve({ id: doc.id }) });
+  async function ask(scope = "slide", page = 1, attachments?: { name: string; data: string }[]) {
+    const response = await POST(new Request(`http://127.0.0.1/api/documents/${doc.id}/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ page, question: "Approfondisci la derivazione.", scope, attachments }) }), { params: Promise.resolve({ id: doc.id }) });
     assert.equal(response.status, 200); return response.json();
   }
   await saveStudyProfile({ studyProgram: expectedProgram, onboardingCompleted: true });
@@ -75,4 +80,8 @@ test("chat uses the current study profile and analysis as its opening context wi
   checkMemory = true;
   await ask("slide", 3);
   assert.equal(calls, 4);
+  checkAttachments = true;
+  const supplemented = await ask("slide", 3, [{ name: "Appunti.txt", data: Buffer.from("Testo aggiuntivo: E = mc²").toString("base64") }, { name: "Allegato.pdf", data: Buffer.from(await pdf.save()).toString("base64") }]);
+  assert.equal(supplemented.at(-2).attachments[0].name, "Appunti.txt");
+  assert.equal("data" in supplemented.at(-2).attachments[0], false);
 });

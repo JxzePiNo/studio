@@ -67,15 +67,23 @@ test("PDF study saves automatically and clean view restores the controls", async
     await page.getByRole("button", { name: "Mostra tutti i controlli", exact: true }).click();
     await expect(page.getByRole("button", { name: "Torna alla biblioteca", exact: true })).toBeVisible();
     const beforeClose = saved.length;
+    const beforeClosing = await page.evaluate(() => {
+      const session = JSON.parse(localStorage.getItem("studio-session:local")!);
+      const now = Date.now();
+      return { at: now, elapsed: session.elapsedMs + (session.startedAt === null ? 0 : now - session.startedAt) };
+    });
     await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
     await expect.poll(() => saved.length).toBeGreaterThan(beforeClose);
+    const totalSaved = saved.reduce((sum, session) => sum + session.durationMs, 0);
+    expect(totalSaved).toBeGreaterThanOrEqual(beforeClosing.elapsed);
+    expect(totalSaved).toBeLessThanOrEqual(beforeClosing.elapsed + await page.evaluate(() => Date.now()) - beforeClosing.at);
     const count = saved.length;
     await page.clock.runFor(61000);
     expect(saved).toHaveLength(count);
   } finally { await request.delete(`/api/documents/${document.id}`); await request.delete(`/api/folders/${exam.id}`); }
 });
 
-test("study summary counts saved reads and keeps the timer while navigating and hiding", async ({ page, request }) => {
+test("PDF timer starts automatically, stops on close and preserves manual controls", async ({ page, request }) => {
   await page.clock.install();
   await page.goto("/");
   const exam = await createExam(page, "Sessione di studio");
@@ -93,26 +101,35 @@ test("study summary counts saved reads and keeps the timer while navigating and 
     await expect(bar.getByText("pag oggi", { exact: true }).locator("..").locator("strong")).toHaveText(String(baseline + 1));
     await expect(bar).toContainText("1 / 3");
     await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
+    await expect(bar.getByRole("button", { name: "Play", exact: true })).toBeDisabled();
+    await bar.getByRole("button", { name: "Fine sessione", exact: true }).click();
     await bar.getByRole("button", { name: "Play", exact: true }).click();
     await page.clock.runFor(3100);
-    await expect(bar.getByRole("timer")).toHaveText("00:03");
-    await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
-    await page.clock.runFor(2100);
-    await expect(bar.getByRole("timer")).toHaveText("00:05");
     await bar.getByRole("button", { name: "Pausa", exact: true }).click();
+    await expect(bar.getByRole("timer")).toHaveText("00:03");
+    await bar.getByRole("button", { name: "Play", exact: true }).click();
+    await page.getByRole("button", { name: "Torna alla biblioteca", exact: true }).click();
+    await expect(bar.getByRole("timer")).toHaveText("00:00");
+    await expect(bar.getByRole("button", { name: "Pausa", exact: true })).toBeDisabled();
+    await page.clock.runFor(2100);
+    await expect(bar.getByRole("timer")).toHaveText("00:00");
+    await bar.getByRole("button", { name: "Play", exact: true }).click();
+    await page.clock.runFor(2100);
+    await bar.getByRole("button", { name: "Pausa", exact: true }).click();
+    await expect(bar.getByRole("timer")).toHaveText("00:02");
     await page.clock.runFor(5000);
-    await expect(bar.getByRole("timer")).toHaveText("00:05");
+    await expect(bar.getByRole("timer")).toHaveText("00:02");
     await page.getByRole("button", { name: "Nascondi riepilogo studio", exact: true }).click();
     await expect(bar).toHaveCount(0);
     await page.getByRole("button", { name: "Mostra riepilogo studio", exact: true }).click();
-    await expect(bar.getByRole("timer")).toHaveText("00:05");
+    await expect(bar.getByRole("timer")).toHaveText("00:02");
     await page.reload();
-    await expect(bar.getByRole("timer")).toHaveText("00:05");
+    await expect(bar.getByRole("timer")).toHaveText("00:02");
     await expect(bar.getByText("pag oggi", { exact: true }).locator("..").locator("strong")).toHaveText(String(baseline + 1));
     await bar.getByRole("button", { name: "Play", exact: true }).click();
     await page.clock.runFor(2100);
-    await expect(bar.getByRole("timer")).toHaveText("00:07");
     await bar.getByRole("button", { name: "Pausa", exact: true }).click();
+    await expect(bar.getByRole("timer")).toHaveText("00:04");
     await expect(page.getByRole("button", { name: "Sposta riepilogo studio", exact: true })).toHaveCount(0);
     const fixed = (await bar.boundingBox())!;
     await page.reload();

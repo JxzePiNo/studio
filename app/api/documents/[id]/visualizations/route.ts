@@ -1,3 +1,5 @@
+import { chatAttachmentsSchema } from "@/lib/chat-attachments";
+import { chatAttachmentContent } from "@/lib/chat-attachment-content";
 import { recordQuestion } from "@/lib/question-log";
 import { NextResponse } from "next/server";
 import { PDFDocument } from "pdf-lib";
@@ -16,7 +18,7 @@ import { openaiError } from "@/lib/openai";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
-const input = z.object({ page: z.number().int().positive(), question: z.string().trim().min(1).max(4000), scope: z.enum(["studied", "slide", "document"]), kind: artifactKindSchema, interactive: z.boolean().optional() }).strict();
+const input = z.object({ page: z.number().int().positive(), question: z.string().trim().min(1).max(4000), scope: z.enum(["studied", "slide", "document"]), kind: artifactKindSchema, interactive: z.boolean().optional(), attachments: chatAttachmentsSchema.optional() }).strict();
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const denied = await requestGuard(request); if (denied) return denied;
   try {
@@ -25,6 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     const doc = await readDocument(id);
     const { page, question, scope, kind } = parsed.data;
+    const support = await chatAttachmentContent(parsed.data.attachments);
     if (page > doc.pages) return NextResponse.json({ error: "Pagina non valida." }, { status: 400 });
     if (!process.env.OPENAI_API_KEY?.trim()) return NextResponse.json({ error: "Configura OpenAI per creare il materiale." }, { status: 503 });
     await recordQuestion(id, page, question, kind);
@@ -40,7 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const learningDoc = scope === "studied" ? { ...doc, slides: Object.fromEntries(Object.entries(doc.slides).filter(([number]) => Number(number) <= page)) } : doc;
     const context = `${formatStudyContext({ studyProgram: profile.studyProgram, courseName: folder?.name, documentName: doc.name })}\nPagina selezionata: ${page}. Ambito: ${scope}.\n${chatLearningContext(learningDoc, page)}\nSpiegazione e appunti della pagina (dati): ${JSON.stringify(doc.slides[page] ? { explanation: doc.slides[page].explanation, notes: doc.slides[page].notes } : {}).slice(0, 18000)}`;
     const conversation = (doc.slides[page]?.chat || []).slice(-8).map(message => ({ role: message.role, content: message.content.slice(0, 2000) }));
-    const { artifact, imageBytes } = await generateArtifact(bytes, question, `${context}\nDomande e risposte precedenti della pagina (dati): ${JSON.stringify(conversation)}`, kind, request.signal, attachedPageCount, parsed.data.interactive);
+    const { artifact, imageBytes } = await generateArtifact(bytes, question, `${context}\nDomande e risposte precedenti della pagina (dati): ${JSON.stringify(conversation)}`, kind, request.signal, attachedPageCount, parsed.data.interactive, support.content);
     if (artifact.kind !== "image") {
       // References use physical pages in the attached PDF. A single-page
       // attachment is remapped to its original page before saving.
@@ -53,7 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     try {
       if (artifact.kind === "image" && imageBytes) { await saveArtifactImage(id, artifact.image.assetId, imageBytes); savedImage = true; }
       request.signal.throwIfAborted();
-      const updated = await updateSlide(id, page, slide => ({ ...slide, chat: boundedChatHistory([...(slide.chat || []), { role: "user", content: `Crea ${artifactNames[kind].toLowerCase()}: ${question}` }, { role: "assistant", content: `${artifact.title}\n\n${artifact.summary}`, artifact }]) }));
+      const updated = await updateSlide(id, page, slide => ({ ...slide, chat: boundedChatHistory([...(slide.chat || []), { role: "user", content: `Crea ${artifactNames[kind].toLowerCase()}: ${question}`, ...(support.info.length ? { attachments: support.info } : {}) }, { role: "assistant", content: `${artifact.title}\n\n${artifact.summary}`, artifact }]) }));
       return NextResponse.json(updated.chat);
     } catch (error) {
       if (savedImage && artifact.kind === "image") await removeArtifactImage(id, artifact.image.assetId).catch(() => {});
