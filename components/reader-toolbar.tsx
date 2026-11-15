@@ -23,7 +23,7 @@ export function ReaderToolbar({ name, page, total, zoom, autoFit, portrait, pdfO
     </div>
     <ReaderNavigation page={page} total={total} disabled={disabled} onNavigate={onNavigate} display={{ navigation: true, hints: false }} onVisibilityChange={() => {}} />
     <div className="reader-toolbar-views">
-      <ToolbarButton hint={"Completa la slide e vai avanti"} variant="ghost" size="icon" aria-label="Completa la slide e vai avanti" disabled={disabled} onClick={onComplete}><Check size={17} /></ToolbarButton>
+      <ToolbarButton data-tour="complete-page" hint={"Completa la slide e vai avanti"} variant="ghost" size="icon" aria-label="Completa la slide e vai avanti" disabled={disabled} onClick={onComplete}><Check size={17} /></ToolbarButton>
       <ToolbarButton hint={pdfOnly ? "Mostra PDF e chat affiancati" : "Espandi il PDF e nascondi la chat"} variant="ghost" size="icon" aria-label={pdfOnly ? "Mostra PDF e chat" : "Ingrandisci PDF"} aria-pressed={pdfOnly} onClick={onPdfOnly}>{pdfOnly ? <Minimize size={17} /> : <Maximize size={17} />}</ToolbarButton>
       <ToolbarButton hint={"Espandi la lettura: PDF e chat senza controlli"} variant="ghost" size="icon" aria-label="Espandi la lettura: PDF e chat senza controlli" onClick={onClean}><MoveDiagonal size={17} /></ToolbarButton>
       <ToolbarButton hint={"Personalizza le impostazioni della lettura"} variant="ghost" size="icon" aria-label="Impostazioni della lettura" onClick={onSettings}><Settings2 size={17} /></ToolbarButton>

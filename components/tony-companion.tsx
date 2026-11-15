@@ -80,7 +80,7 @@ export function TonyCompanion({ context, onNavigate, sidebarSlot }: { context: C
   }
 
   const inSidebar = !!sidebarSlot && sidebarFits && context === "course";
-  const companion = context !== "reader" && <div className={`${styles.lane} ${inSidebar ? styles.sidebarLane : ""}`} data-placement={inSidebar ? "sidebar" : "workspace"}>
+  const companion = context !== "reader" && <div className={`${styles.lane} ${inSidebar ? styles.sidebarLane : ""}`} data-tony-companion data-placement={inSidebar ? "sidebar" : "workspace"}>
       <div className={styles.companion}>
         <button className={styles.mascot} type="button" onClick={() => { if (muted) setMuted(false); else nextPhrase(); }} aria-label="Un consiglio da Tony del bar"><TonyMascot size="100%" animated={false} /></button>
         {!muted && <div className={styles.bubble}><p key={`${context}:${phrase}`}>{phrase}</p><button type="button" aria-label="Nascondi i consigli di Tony" onClick={() => setMuted(true)}><X size={13} /></button></div>}

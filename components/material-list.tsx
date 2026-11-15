@@ -36,6 +36,17 @@ export function MaterialList({ documents, folder, query, busy, analysisRunning =
   const [selected, setSelected] = useState<string[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [status, setStatus] = useState("");
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [tourMenuId, setTourMenuId] = useState<string | null>(null);
+  useEffect(() => {
+    const change = (event: Event) => {
+      const { open, id } = (event as CustomEvent<{ open: boolean; id?: string }>).detail;
+      if (open && id && documents.some(document => document.id === id)) { setTourMenuId(id); setOpenMenuId(id); }
+      else if (!open) { setOpenMenuId(null); setTourMenuId(null); }
+    };
+    window.addEventListener("studio-tour-material-menu", change);
+    return () => window.removeEventListener("studio-tour-material-menu", change);
+  }, [documents]);
   useEffect(() => { setSelected([]); }, [query]);
   const mutation = useRef(false);
   const openingDialog = useRef(false);
@@ -114,11 +125,11 @@ export function MaterialList({ documents, folder, query, busy, analysisRunning =
     const Separator = context ? ContextMenu.Separator : DropdownMenu.Separator;
     const index = sorted.findIndex(d => d.id === doc.id);
     return <>
-      <Item className="material-menu-item" onSelect={() => void toggleStudy(doc)} disabled={busy || saving}><Check size={15} />{doc.excludedFromStudy ? "Includi nelle statistiche" : "Escludi dalle statistiche"}</Item>
-      <Item className="material-menu-item" onSelect={() => { openingDialog.current = true; lastRenamed.current = doc.id; setReading(doc); }} disabled={busy || saving || analysisRunning || doc.pages < 1}><Check size={15} /> Segna pagine lette</Item>
+      <Item data-tour-action="study-inclusion" className="material-menu-item" onSelect={() => void toggleStudy(doc)} disabled={busy || saving}><Check size={15} />{doc.excludedFromStudy ? "Includi nelle statistiche" : "Escludi dalle statistiche"}</Item>
+      <Item data-tour-action="read-pages" className="material-menu-item" onSelect={() => { openingDialog.current = true; lastRenamed.current = doc.id; setReading(doc); }} disabled={busy || saving || analysisRunning || doc.pages < 1}><Check size={15} /> Segna pagine lette</Item>
       {folder.sharedRole !== "coauthor" && <Item className="material-menu-item" onSelect={() => { openingDialog.current = true; openShare({ kind: "pdf", id: doc.id, name: doc.name }); }} disabled={busy || saving}><Share2 size={15} /> Condividi PDF</Item>}
       <Item className="material-menu-item" onSelect={() => edit(doc)} disabled={busy || saving || analysisRunning}><Pencil size={15} /> Rinomina</Item>
-      <Item className="material-menu-item" onSelect={() => { openingDialog.current = true; lastRenamed.current = doc.id; setDeleting(doc); setError(""); }} disabled={busy || saving || analysisRunning || isDocumentBusy?.(doc.id)}><Trash2 size={15} /> Elimina file</Item>
+      <Item data-tour-action="delete-file" className="material-menu-item" onSelect={() => { openingDialog.current = true; lastRenamed.current = doc.id; setDeleting(doc); setError(""); }} disabled={busy || saving || analysisRunning || isDocumentBusy?.(doc.id)}><Trash2 size={15} /> Elimina file</Item>
       <Separator className="material-menu-separator" />
       <Item className="material-menu-item" onSelect={() => void move(doc, "up")} disabled={busy || saving || analysisRunning || index === 0}><ArrowUp size={15} /> Sposta su</Item>
       <Item className="material-menu-item" onSelect={() => void move(doc, "down")} disabled={busy || saving || analysisRunning || index === sorted.length - 1}><ArrowDown size={15} /> Sposta giù</Item>
@@ -145,7 +156,7 @@ export function MaterialList({ documents, folder, query, busy, analysisRunning =
         <ContextMenu.Trigger asChild disabled={busy || saving || analysisRunning}><div className="material-row" data-excluded-from-study={!!item.excludedFromStudy} data-document-id={item.id} tabIndex={0}>
           <label className="material-select"><input type="checkbox" aria-label={`Seleziona ${item.name}`} checked={selection.includes(item.id)} disabled={busy || saving || (!selection.includes(item.id) && selection.length >= 100)} onChange={() => { setStatus(""); select(item.id); }} /></label>
           <Button variant="ghost" className="material-open" disabled={busy || saving} aria-label={`Apri ${item.name.replace(/\.pdf$/i, "")}`} onClick={() => onOpen(item.id)}><span className="material-lesson" aria-label={`Lezione ${sorted.findIndex(document => document.id === item.id) + 1}`}><span>Lezione</span><strong>{String(sorted.findIndex(document => document.id === item.id) + 1).padStart(2, "0")}</strong></span><span className="material-info"><span className="material-title-row"><strong className="material-title">{item.name.replace(/\.pdf$/i, "")}.pdf</strong><span className={`material-analysis-badge ${item.analyzedPages >= item.pages && item.pages > 0 ? "is-analyzed" : item.analyzedPages > 0 ? "is-partial" : "is-pending"}`} role="status">{item.analyzedPages >= item.pages && item.pages > 0 ? <><Check size={12} aria-hidden="true" />Analizzato</> : item.analyzedPages > 0 ? <><Clock3 size={12} aria-hidden="true" />Parzialmente analizzato</> : <><CircleAlert size={12} aria-hidden="true" />Da analizzare</>}</span></span>{item.excludedFromStudy && <span className="material-reference-label">Solo consultazione: escluso da statistiche e calendario</span>}<span className="material-provenance">{item.provenance?.university || ""}</span><span className="material-progress"><span className="material-progress-labels"><span className="material-progress-percent">{item.pages > 0 ? Math.round(Math.min(item.readPages || 0, item.pages) / item.pages * 100) : 0}%</span><span className="material-progress-count"><strong>{item.readPages || 0}</strong><span>/{item.pages}</span></span></span><progress max={item.pages || 1} value={item.readPages || 0} aria-label={`Avanzamento ${item.name}`} /></span></span><ChevronRight size={16} /></Button>
-          <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" className="material-more" aria-label={`Azioni ${item.name.replace(/\.pdf$/i, "")}`} disabled={busy || saving || analysisRunning}><MoreHorizontal size={18} /></Button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="material-menu-content" align="end" sideOffset={5} onCloseAutoFocus={closeMenuFocus}>{items(item, false)}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
+          <DropdownMenu.Root open={openMenuId === item.id} onOpenChange={open => setOpenMenuId(open ? item.id : null)} modal={tourMenuId !== item.id}><DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" className="material-more" aria-label={`Azioni ${item.name.replace(/\.pdf$/i, "")}`} disabled={busy || saving || analysisRunning}><MoreHorizontal size={18} /></Button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content data-tour-material-menu={tourMenuId === item.id ? "true" : undefined} className="material-menu-content" align="end" sideOffset={5} onInteractOutside={event => { if (tourMenuId === item.id && event.detail.originalEvent.target instanceof Element && event.detail.originalEvent.target.closest("[data-tony-tour-panel]")) event.preventDefault(); }} onCloseAutoFocus={event => { if (tourMenuId === item.id) event.preventDefault(); closeMenuFocus(event); }}>{items(item, false)}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
         </div></ContextMenu.Trigger>
         <ContextMenu.Portal><ContextMenu.Content className="material-menu-content" onCloseAutoFocus={closeMenuFocus}>{items(item, true)}</ContextMenu.Content></ContextMenu.Portal>
       </ContextMenu.Root><DocumentQuizzes documentId={item.id} documentName={item.name} pending={pendingQuizzes?.(item.id)} autoOpenQuizId={openQuiz?.documentId === item.id ? openQuiz.quizId : undefined} onAutoOpened={onQuizOpened} /></div>)}

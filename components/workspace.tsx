@@ -1,5 +1,10 @@
 "use client";
 
+import { TonyTour } from "./tony-tour";
+import { useTonyTours } from "./tony-tour-provider";
+import { useStudyProfile } from "./study-profile-provider";
+import { needsProfileOnboarding } from "@/lib/profile-onboarding";
+import type { TourSection } from "@/lib/tony-tours";
 import { SlideGlossary } from "./slide-glossary";
 import { ActionTooltip } from "@/components/ui/tooltip";
 import { UPLOAD_ACCEPT } from "@/lib/upload-formats";
@@ -69,6 +74,9 @@ function resetMobilePageScroll() {
 type BatchProgress = { id: string; startedAt: number; total: number; completed: number; current: number | null; active: number[]; status: "running" | "stopping" | "stopped" | "completed" | "error" };
 
 export default function Workspace() {
+  const { requested: requestedTour, consumeRequest: cancelTourRequest } = useTonyTours();
+  const { profile: tourProfile, loading: tourProfileLoading } = useStudyProfile();
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
   const [incomingFriendRequests, setIncomingFriendRequests] = useState(0);
   const [initialFriendRequests, setInitialFriendRequests] = useState(false);
   const reportIncomingRequests = useCallback((count: number, initial: boolean) => {
@@ -216,7 +224,7 @@ export default function Workspace() {
     const sequence = ++refreshSequence.current;
     const [documents, exams] = await Promise.all([api<DocumentSummary[]>("/api/documents"), api<ExamFolder[]>("/api/folders")]);
     if (sequence !== refreshSequence.current) return;
-    setLibrary(documents); setFolders(exams);
+    setLibrary(documents); setFolders(exams); setWorkspaceLoaded(true);
   }, []);
   useEffect(() => {
     const share = (event: Event) => setShareTarget((event as CustomEvent<ShareTarget>).detail);
@@ -377,6 +385,27 @@ export default function Workspace() {
       else { if (docRef.current || openingRequest.current || opening) await closeDocument(true); if (!docRef.current) setFolderId(match?.[1] || ""); }
     } finally { restoringRoute.current = false; }
   };
+
+  useEffect(() => {
+    if (!requestedTour || busy || !workspaceLoaded) return;
+    if (requestedTour === "reader" && doc) { setReaderClean(false); setPdfOnly(false); return; }
+    if (requestedTour === "home" && section === "study" && !folderId && !doc && !opening) return;
+    if (requestedTour === "course" && section === "study" && folderId && !doc && !opening && library.some(document => document.folderId === folderId)) return;
+    const navigateToTour = async () => {
+      if (docRef.current) await closeDocument();
+      if (requestedTour === "home") { openFolder(""); return; }
+      if (requestedTour === "course") {
+        const target = folders.find(folder => folder.id === folderId && !folder.archived && library.some(document => document.folderId === folder.id)) || folders.find(folder => !folder.archived && library.some(document => document.folderId === folder.id));
+        if (target) openFolder(target.id);
+        else { cancelTourRequest(); setError("Aggiungi prima un PDF all’esame, poi rifai il tour dei tre puntini dall’account."); }
+        return;
+      }
+      const target = library.find(document => document.folderId === folderId) || library.find(document => !folders.find(folder => folder.id === document.folderId)?.archived);
+      if (target) { setSection("study"); await openDocument(target.id); }
+      else { cancelTourRequest(); setError("Carica prima un PDF, poi scegli di nuovo il tour Lettore PDF dall’account."); }
+    };
+    void navigateToTour().catch(cause => setError(cause instanceof Error ? cause.message : "Impossibile aprire il tour."));
+  }, [requestedTour, busy, workspaceLoaded, section, folderId, doc?.id, opening?.id, folders, library, cancelTourRequest]);
 
   async function openDocument(id: string) {
     setPortrait(false);
@@ -580,6 +609,9 @@ export default function Workspace() {
     void saves.catch(e => setError((e as Error).message));
   }
 
+  const tourSection: TourSection | null = doc ? "reader" : !opening && section === "study" ? folderId ? "course" : "home" : null;
+  const tourScope = doc?.id || folderId || "home";
+
   const studyDock = (<div className={`${sessionStyles.dock} study-activity-dock`}>
       <StudySessionBar suppressed={readerClean && !!doc} portrait={!!doc && portrait} session={studySession} document={doc ? { name: doc.name, read: Object.values(doc.slides).filter(slide => slide.read).length, total: doc.pages } : undefined} />
       <FriendsActivity running={studySession.running} onOpen={openFriends} onIncomingChange={reportIncomingRequests} />
@@ -662,6 +694,7 @@ export default function Workspace() {
         </aside></ReaderSplit>
       </>}
     </main>
+    <TonyTour section={tourSection} scope={tourScope} ready={workspaceLoaded && !busy && !opening && (tourSection !== "reader" || !!pdf)} eligible={!!tourProfile && !tourProfileLoading && !needsProfileOnboarding(tourProfile)} />
     {dragging && <div className="drop-overlay" onDragLeave={e => { if (e.currentTarget === e.target) setDragging(false); }} onDrop={e => { e.preventDefault(); setDragging(false); void uploadFiles(e.dataTransfer.files); }}><Upload size={46} /><h2>Fai spazio a una nuova idea.</h2><p>Rilascia il PDF per iniziare.</p></div>}
     {!doc && !opening && <MobileNavigation section={section} calendar={openCalendar} home={() => openFolder("")} exams={openExams} sessions={() => openSessions()} friends={openFriends} disabled={busy} />}
     {shareTarget && <ShareDialog key={`${shareTarget.kind}:${shareTarget.id}`} target={shareTarget} onClose={() => setShareTarget(null)} />}

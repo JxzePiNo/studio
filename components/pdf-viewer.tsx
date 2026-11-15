@@ -79,7 +79,7 @@ export function PdfCanvas({ pdf, page, zoom = 1, thumbnail = false, fitHeight = 
     void render();
     return () => { canceled = true; task?.cancel(); };
   }, [pdf, page, width, height, zoom, visible, thumbnail, fitHeight]);
-  return <div ref={container} className={`pdf-canvas ${thumbnail ? "thumbnail-canvas" : ""}`}>
+  return <div ref={container} data-ready={!loading && !error} className={`pdf-canvas ${thumbnail ? "thumbnail-canvas" : ""}`}>
     <canvas ref={canvas} aria-label={`Slide ${page}`} role="img" style={{ visibility: loading || error ? "hidden" : "visible" }} />
     {loading && <div className="canvas-loader"><LoaderCircle className="spin" size={thumbnail ? 16 : 24} /><span className={thumbnail ? "sr-only" : ""}>Caricamento slide…</span></div>}
     {error && <p className="canvas-loader error-text">{error}</p>}

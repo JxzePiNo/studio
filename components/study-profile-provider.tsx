@@ -1,5 +1,6 @@
 "use client";
 
+import { TonyTourProvider } from "./tony-tour-provider";
 import { cachedApi } from "@/lib/browser-data-cache";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
@@ -89,7 +90,7 @@ export function StudyProfileProvider({ children, onSignOut, requireProfile = tru
     finally { signOutLock.current = false; setSigningOut(false); }
   }
 
-  return <StudyProfileContext.Provider value={{ profile, loading, error, saveProfile, reload }}>
+  return <StudyProfileContext.Provider value={{ profile, loading, error, saveProfile, reload }}><TonyTourProvider>
     {!profile && requireProfile ? <main className={loading ? undefined : "study-profile-loading"} aria-busy={loading}>
       {loading ? <BaristaLoading fullScreen name="Il tuo profilo di studio" statusText="Caricamento del profilo di studio." hint="Un momento e possiamo iniziare." /> : <>
         <p role="alert">{error || "Il profilo di studio non è disponibile."}</p>
@@ -99,7 +100,7 @@ export function StudyProfileProvider({ children, onSignOut, requireProfile = tru
         </div>
       </>}
     </main> : <NicknamesProvider><ReferralWelcome>{children}{profile && requireProfile && <StudyOnboarding key={profile.studyProgram} profile={profile} saveProfile={saveProfile} />}</ReferralWelcome></NicknamesProvider>}
-  </StudyProfileContext.Provider>;
+  </TonyTourProvider></StudyProfileContext.Provider>;
 }
 
 export function useStudyProfile() {
