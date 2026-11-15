@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionTooltip } from "@/components/ui/tooltip";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { Eye, EyeOff, Pause, Play, Square } from "lucide-react";
@@ -176,15 +177,15 @@ export function StudySessionBar({ session, document, portrait = false, suppresse
   const [mobile, setMobile] = useState(false);
   useEffect(() => { setMounted(true); const media = window.matchMedia("(max-width:700px)"); const update = () => setMobile(media.matches); update(); media.addEventListener("change", update); return () => media.removeEventListener("change", update); }, []);
   if (!mounted || suppressed) return null;
-  const visibility = <button className={styles.restore} aria-label={session.hidden ? "Mostra riepilogo studio" : "Nascondi riepilogo studio"} aria-expanded={!session.hidden} title={session.hidden ? "Mostra riepilogo studio" : "Nascondi riepilogo studio"}>{session.hidden ? <Eye size={18} /> : <EyeOff size={18} />}</button>;
+  const visibility = <ActionTooltip label={session.hidden ? "Mostra riepilogo studio" : "Nascondi riepilogo studio"}><button className={styles.restore} aria-label={session.hidden ? "Mostra riepilogo studio" : "Nascondi riepilogo studio"} aria-expanded={!session.hidden}>{session.hidden ? <Eye size={18} /> : <EyeOff size={18} />}</button></ActionTooltip>;
   const seconds = Math.floor(session.elapsed / 1000);
   const time = `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
   return <Popover.Root open={!session.hidden} onOpenChange={open => { if (open === session.hidden) session.toggleVisibility(); }}><Popover.Trigger asChild>{visibility}</Popover.Trigger><Popover.Portal><Popover.Content role="region" aria-label="Controlli della sessione" className={styles.floating} side="bottom" align="center" sideOffset={mobile && portrait ? 76 : 8} collisionPadding={8} onOpenAutoFocus={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}>
     <section className={styles.bar} aria-label="Riepilogo studio">
     <div className={styles.count}><strong>{session.today}</strong><span>pag oggi</span></div>
-    <div className={styles.timer}><span role="timer" aria-label="Tempo di studio">{time}</span><button onClick={session.toggleTimer} disabled={session.running} aria-label="Play" title="Avvia o riprendi timer"><Play size={13} /><span className={styles.actionLabel}>Play</span></button><button onClick={session.toggleTimer} disabled={!session.running} aria-label="Pausa" title="Metti in pausa"><Pause size={13} /><span className={styles.actionLabel}>Pausa</span></button><button onClick={session.endSession} disabled={!session.hasActiveSession} aria-label="Fine sessione" title="Termina e salva la sessione"><Square size={12} /><span>Fine sessione</span></button></div>
-    {document && <div className={styles.document} title={document.name}><strong>{document.read}<span> / {document.total}</span></strong><span>pag PDF</span></div>}
-    {session.errorHistory && <button onClick={() => void session.reloadHistory()} title={session.errorHistory} aria-label="Riprova salvataggio sessioni">Riprova salvataggio</button>}
+    <div className={styles.timer}><span role="timer" aria-label="Tempo di studio">{time}</span><ActionTooltip label="Avvia o riprendi timer"><button onClick={session.toggleTimer} disabled={session.running} aria-label="Play"><Play size={13} /><span className={styles.actionLabel}>Play</span></button></ActionTooltip><ActionTooltip label="Metti in pausa"><button onClick={session.toggleTimer} disabled={!session.running} aria-label="Pausa"><Pause size={13} /><span className={styles.actionLabel}>Pausa</span></button></ActionTooltip><ActionTooltip label="Termina e salva la sessione"><button onClick={session.endSession} disabled={!session.hasActiveSession} aria-label="Fine sessione"><Square size={12} /><span>Fine sessione</span></button></ActionTooltip></div>
+    {document && <ActionTooltip label={document.name}><div className={styles.document}><strong>{document.read}<span> / {document.total}</span></strong><span>pag PDF</span></div></ActionTooltip>}
+    {session.errorHistory && <ActionTooltip label={session.errorHistory}><button onClick={() => void session.reloadHistory()} aria-label="Riprova salvataggio sessioni">Riprova salvataggio</button></ActionTooltip>}
 
   </section>
   </Popover.Content></Popover.Portal></Popover.Root>;

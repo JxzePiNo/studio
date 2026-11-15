@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionTooltip } from "@/components/ui/tooltip";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { readingCalendar, readingMonthCalendar } from "@/lib/reading-activity";
 import type { ReadingActivity } from "@/lib/study-session";
@@ -42,7 +43,7 @@ export function ReadingHeatmap({ activity, today, onDaySelect, onSelectDay }: { 
   }
 
   function cell(day: (typeof days)[number] | null, row: number) {
-    return day ? <button key={day.date} ref={element => { if (element) cells.current.set(day.date, element); else cells.current.delete(day.date); }} className={styles.cell} data-level={day.level} data-date={day.date} tabIndex={current?.date === day.date ? 0 : -1} aria-label={`${dateLabel(day.date)}: ${day.count} ${day.count === 1 ? "pagina letta" : "pagine lette"}`} title={`${dateLabel(day.date)} · ${day.count} pagine lette`} onClick={() => { setSelected(day.date); onDaySelect?.(day.date); onSelectDay?.(day.date); }} onFocus={() => setSelected(day.date)} onKeyDown={event => navigate(event, day.date)} /> : <span className={styles.empty} key={`empty-${row}`} />;
+    return day ? <ActionTooltip label={`${dateLabel(day.date)} · ${day.count} pagine lette`} key={day.date}><button ref={element => { if (element) cells.current.set(day.date, element); else cells.current.delete(day.date); }} className={styles.cell} data-level={day.level} data-date={day.date} tabIndex={current?.date === day.date ? 0 : -1} aria-label={`${dateLabel(day.date)}: ${day.count} ${day.count === 1 ? "pagina letta" : "pagine lette"}`} onClick={() => { setSelected(day.date); onDaySelect?.(day.date); onSelectDay?.(day.date); }} onFocus={() => setSelected(day.date)} onKeyDown={event => navigate(event, day.date)} /></ActionTooltip> : <span className={styles.empty} key={`empty-${row}`} />;
   }
 
   return <section className={styles.card} aria-label="Attività di lettura annuale">

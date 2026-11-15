@@ -1,4 +1,5 @@
 "use client";
+import { isStudyMaterial } from "@/lib/document-study";
 import { trackedFetch } from "@/lib/browser-data-cache";
 
 import { readApiResponse } from "@/lib/api-response";
@@ -173,7 +174,7 @@ export function ExamOverview({ dialogOnly = false, examsOnly = false, folders, d
     finally { setBusy(false); }
   }
 
-  const draftPages = editing ? documents.filter(document => document.folderId === editing.id).reduce((sum, document) => sum + document.pages, 0) : 0;
+  const draftPages = editing ? documents.filter(document => document.folderId === editing.id && isStudyMaterial(document)).reduce((sum, document) => sum + document.pages, 0) : 0;
   const draftPlan = calculateStudyPlan(draftPages, examDate, Number(pace), undefined, { nonStudyWeekdays, nonStudyDates });
   const selectedDate = validExamDate(examDate) ? new Date(`${examDate}T12:00:00`) : undefined;
   const displayedFolders = visibleExams(folders.filter(folder => showArchived ? folder.archived : !folder.archived), search, sort, today);
@@ -189,12 +190,12 @@ export function ExamOverview({ dialogOnly = false, examsOnly = false, folders, d
     <div className="exam-overview-grid">
       {displayedFolders.map(folder => {
         const materials = documents.filter(document => document.folderId === folder.id);
-        const pages = materials.reduce((sum, document) => sum + document.pages, 0);
+        const pages = materials.filter(isStudyMaterial).reduce((sum, document) => sum + document.pages, 0);
         const plan = calculateStudyPlan(pages, folder.examDate, folder.pagesPerHour, today, { nonStudyWeekdays: folder.nonStudyWeekdays, nonStudyDates: folder.nonStudyDates });
         const remainingDays = folder.examDate && validExamDate(folder.examDate) ? Math.round((Date.parse(`${folder.examDate}T00:00:00Z`) - Date.parse(`${today || localStudyDate()}T00:00:00Z`)) / 86400000) : null;
         const metadata = [
           folder.cfu !== undefined && validExamCfu(folder.cfu) ? `${new Intl.NumberFormat("it-IT").format(folder.cfu)} CFU` : "",
-          !pages ? "Aggiungi materiali" : plan.state !== "overdue" && plan.state !== "unscheduled" ? plan.daysAvailable === 0 ? "Nessun giorno disponibile" : plan.hoursPerDay !== null ? `${duration(plan.hoursPerDay)} al giorno` : "" : "",
+          !pages ? materials.length ? "Materiali solo in consultazione" : "Aggiungi materiali" : plan.state !== "overdue" && plan.state !== "unscheduled" ? plan.daysAvailable === 0 ? "Nessun giorno disponibile" : plan.hoursPerDay !== null ? `${duration(plan.hoursPerDay)} al giorno` : "" : "",
         ].filter(Boolean).join(" \u2022 ");
         const urgency = remainingDays !== null && remainingDays <= 7 ? "urgent" : remainingDays !== null && remainingDays <= 21 ? "soon" : "later";
         return <CourseContextMenu key={folder.id} folder={folder} disabled={busy} deleteDisabled={isCourseBusy?.(folder.id)} onAction={action => courseAction(folder, action)}><Card className={`exam-overview-card ${folderStyles.card}`} onClick={event => { if (!(event.target as HTMLElement).closest("button, a, input")) onOpen(folder.id); }} data-folder-color={archiveColors[examColors.indexOf(examColor(folder))]} key={folder.id}>
@@ -215,7 +216,7 @@ export function ExamOverview({ dialogOnly = false, examsOnly = false, folders, d
     <Dialog.Root open={!!editing} onOpenChange={open => { if (!open && !busy) setEditing(null); }}>
       <Dialog.Portal><Dialog.Overlay className="plan-overlay" /><Dialog.Content className={`plan-dialog ${folderStyles.settingsDialog}`} onOpenAutoFocus={event => { if (renameRequested.current) { event.preventDefault(); nameInput.current?.focus(); nameInput.current?.select(); renameRequested.current = false; } }} onCloseAutoFocus={event => { event.preventDefault(); opener.current?.focus(); }} onEscapeKeyDown={event => { if (busy) event.preventDefault(); }} onPointerDownOutside={event => { if (busy) event.preventDefault(); }}>
         <Dialog.Title>Impostazioni {editing ? formatCourseName(editing.name) : ""}</Dialog.Title>
-        <Dialog.Description>La stima considera tutte le pagine caricate e i giorni di studio prima dell’esame, escludendo le tue pause. Scegli un ritmo adatto alla materia.</Dialog.Description>
+        <Dialog.Description>La stima considera le pagine dei materiali inclusi nello studio e i giorni di studio prima dell’esame, escludendo le tue pause. Scegli un ritmo adatto alla materia.</Dialog.Description>
         <Dialog.Close asChild><Button variant="ghost" size="icon" className="plan-dialog-close" aria-label="Chiudi pianificazione" disabled={busy}><X size={18} /></Button></Dialog.Close>
         <form className="plan-form" onSubmit={event => { event.preventDefault(); void save(); }}>
           <label><span className="form-field-label">Nome del corso</span><Input aria-label="Nome esame" ref={nameInput} className="course-title-input" placeholder="Es. Fundamentals of Machine Learning" value={name} onChange={event => setName(event.target.value)} maxLength={100} disabled={busy} required /></label>
@@ -231,7 +232,7 @@ export function ExamOverview({ dialogOnly = false, examsOnly = false, folders, d
           </Popover></div>
           <label htmlFor={`${formId}-pace`}>Pagine all’ora<Input id={`${formId}-pace`} type="number" min={1} max={200} step="any" value={pace} onChange={event => setPace(event.target.value)} disabled={busy} required /><small>Il valore iniziale di 10 pagine/ora è modificabile: includi lettura, appunti e ripasso.</small></label>
           <StudyAvailability key={editing?.id || "planning"} folders={folders} currentFolderId={editing?.id} nonStudyWeekdays={nonStudyWeekdays} nonStudyDates={nonStudyDates} onWeekdaysChange={setNonStudyWeekdays} onDatesChange={setNonStudyDates} disabled={busy} />
-          <div className="plan-preview" aria-live="polite"><strong>{draftPages} pagine caricate</strong><p>{draftPlan.state === "overdue" ? "La data è trascorsa: scegli un nuovo giorno." : !draftPages ? "La stima si aggiornerà quando caricherai i materiali." : draftPlan.daysAvailable === 0 ? `Nessun giorno di studio disponibile. Modifica le pause o la data dell’esame per distribuire ${duration(draftPlan.totalHours)} di studio.` : draftPlan.hoursPerDay !== null ? `Circa ${duration(draftPlan.hoursPerDay)} al giorno · ${duration(draftPlan.totalHours)} totali · ${draftPlan.daysAvailable} giorni disponibili` : `Circa ${duration(draftPlan.totalHours)} totali. Aggiungi una data per distribuirli sui giorni disponibili.`}</p></div>
+          <div className="plan-preview" aria-live="polite"><strong>{draftPages} pagine incluse nello studio</strong><p>{draftPlan.state === "overdue" ? "La data è trascorsa: scegli un nuovo giorno." : !draftPages ? "La stima si aggiornerà quando caricherai i materiali." : draftPlan.daysAvailable === 0 ? `Nessun giorno di studio disponibile. Modifica le pause o la data dell’esame per distribuire ${duration(draftPlan.totalHours)} di studio.` : draftPlan.hoursPerDay !== null ? `Circa ${duration(draftPlan.hoursPerDay)} al giorno · ${duration(draftPlan.totalHours)} totali · ${draftPlan.daysAvailable} giorni disponibili` : `Circa ${duration(draftPlan.totalHours)} totali. Aggiungi una data per distribuirli sui giorni disponibili.`}</p></div>
           {error && <p className="plan-error" role="alert">{error}</p>}
           <div className={folderStyles.courseActions}>
             <div className={folderStyles.courseActionRow}>

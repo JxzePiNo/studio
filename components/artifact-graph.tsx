@@ -1,4 +1,5 @@
 "use client";
+import { ActionTooltip } from "@/components/ui/tooltip";
 import { useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Background, Controls, Handle, MarkerType, Position, ReactFlow, type Node, type NodeProps } from "@xyflow/react";
@@ -61,7 +62,7 @@ export function ArtifactGraph({ graph, onChange, editing = false, onNavigatePage
         <Background gap={22} color="#cbd5e1" /><Controls showInteractive={false} />
       </ReactFlow>
     </div>
-    <div className={styles.parts} aria-label="Concetti della mappa">{visible.map(node => <button key={node.id} aria-pressed={active.id === node.id} onClick={() => selectConcept(node.id)} title={`Spiegazione di ${node.label}`}>{node.label}</button>)}</div>
+    <div className={styles.parts} aria-label="Concetti della mappa">{visible.map(node => <ActionTooltip label={`Spiegazione di ${node.label}`} key={node.id}><button aria-pressed={active.id === node.id} onClick={() => selectConcept(node.id)}>{node.label}</button></ActionTooltip>)}</div>
     {editing && <section className={styles.detail} aria-label="Spiegazione del concetto" aria-live="polite">
       {editing ? <><label>Nome<input value={active.label} maxLength={100} onChange={event => updateNode({ label: event.target.value })} /></label><label>Spiegazione<textarea value={active.description} rows={3} maxLength={1200} onChange={event => updateNode({ description: event.target.value })} /></label><div className={styles.actions}><Button variant="outline" size="sm" disabled={graph.nodes.length >= 60} onClick={addChild}>Aggiungi concetto</Button>{graph.kind === "map" && active.id !== graph.rootId && <Button variant="ghost" size="sm" disabled={graph.nodes.length - countBranch(graph, active.id) < 2} onClick={removeBranch}>Elimina ramo</Button>}</div></> : <><strong>{active.label}</strong><MarkdownContent>{active.description || "Nessuna spiegazione aggiunta."}</MarkdownContent></>}
       {active.sourcePage && onNavigatePage && <Button variant="outline" size="sm" onClick={() => onNavigatePage(active.sourcePage!)}>Apri pagina {active.sourcePage} nel PDF</Button>}

@@ -52,7 +52,7 @@ test("admin dashboard handles user detail, platform settings and nickname manage
   await page.screenshot({ path: "test-results/admin-users.png" });
   await expect(page.getByRole("columnheader", { name: "Ultima visita", exact: true })).toBeVisible();
   const expectedVisit = await page.evaluate(value => new Date(value).toLocaleString("it-IT"), user.lastVisitAt);
-  await expect(page.getByRole("row").filter({ hasText: user.email }).getByRole("cell").nth(2)).toHaveText(expectedVisit);
+  await expect(page.getByRole("row").filter({ hasText: user.email }).getByRole("cell").nth(1)).toHaveText(expectedVisit);
   await page.getByRole("button", { name: "Gestisci", exact: true }).click();
   const detail = page.getByRole("region", { name: "Dettaglio utente" });
   await expect(detail).toContainText("Medicina"); await expect(detail).toContainText("Tariffa non configurata");

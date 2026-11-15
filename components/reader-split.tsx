@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionTooltip } from "@/components/ui/tooltip";
 import { Children, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { MobileReaderTony } from "./mobile-reader-tony";
@@ -81,7 +82,7 @@ export function ReaderSplit({ children, clean = false }: { children: ReactNode; 
 
   return <div ref={container} className={`study-grid reader-split${collapsed ? " chat-collapsed" : ""}${dragging ? " is-resizing" : ""}${mobileChatOpen || clean ? " mobile-chat-open" : ""}`} style={{ "--desktop-chat-size": `${sizes.desktop * 100}%`, "--mobile-chat-size": "50%" } as CSSProperties}>
     {panels[0]}
-    <div className="reader-splitter" role="separator" tabIndex={0} aria-label="Ridimensiona chat" aria-orientation={mobile ? "horizontal" : "vertical"} aria-controls={chatId} aria-valuemin={0} aria-valuemax={mobile ? 80 : 70} aria-valuenow={Math.round(fraction * 100)} aria-valuetext={collapsed ? "Chat chiusa" : `Chat al ${Math.round(fraction * 100)}%`} title="Trascina per ridimensionare la chat. Doppio clic per aprirla o chiuderla."
+    <ActionTooltip label="Trascina per ridimensionare la chat. Doppio clic per aprirla o chiuderla."><div className="reader-splitter" role="separator" tabIndex={0} aria-label="Ridimensiona chat" aria-orientation={mobile ? "horizontal" : "vertical"} aria-controls={chatId} aria-valuemin={0} aria-valuemax={mobile ? 80 : 70} aria-valuenow={Math.round(fraction * 100)} aria-valuetext={collapsed ? "Chat chiusa" : `Chat al ${Math.round(fraction * 100)}%`}
       onDoubleClick={event => { if (!(event.target as HTMLElement).closest("button")) toggle(); }}
       onPointerDown={event => {
         if (event.button !== 0) return;
@@ -118,7 +119,7 @@ export function ReaderSplit({ children, clean = false }: { children: ReactNode; 
       }}>
       <span className="reader-splitter-line" aria-hidden="true" />
       <button type="button" className="reader-splitter-toggle" aria-label={collapsed ? "Apri chat" : "Chiudi chat"} aria-expanded={!collapsed} aria-controls={chatId} onClick={event => { if (!moved.current || event.detail === 0) toggle(); moved.current = false; }}><Icon size={14} aria-hidden="true" /></button>
-    </div>
+    </div></ActionTooltip>
     <div id={chatId} className="reader-chat-slot" hidden={collapsed}>{panels[1]}</div>
     {mobile && <MobileReaderTony open={mobileChatOpen} onToggle={toggle} controls={chatId} />}
   </div>;

@@ -4,3 +4,6 @@
 @media(max-width:700px){.shell .dashboard button.menu{display:inline-flex}.dashboard{padding:22px 14px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.metrics>div{padding:15px}.metrics strong{font-size:22px}.detail{padding:16px}.flags{grid-template-columns:repeat(2,minmax(0,1fr))}.controls>button{flex:1}.rates input{width:80px}.detail>header button{font-size:11px}.costProviders{grid-template-columns:minmax(0,1fr)}.costCard{padding:18px}}
 .shell .users{background:transparent}.shell .toolbar{margin-top:0}.loadingPanel{min-height:min(65dvh,540px);display:flex;align-items:stretch}.loadingPanel>div{height:auto;min-height:320px;background-color:transparent}.mobileNavigation{display:contents}@media(max-width:700px){.shell .dashboard{padding-top:12px}.shell .toolbar{margin-top:0}.loadingPanel{min-height:calc(100dvh - 170px)}}
 .users>.tableScroll{background:var(--card)}
+.search .sort { flex:0 1 230px; min-width:200px; }
+.lastVisit { display:inline-flex; align-items:center; gap:8px; }
+.onlineDot { display:inline-block; flex-shrink:0; width:8px; height:8px; border-radius:50%; background:#22c55e; box-shadow:0 0 0 3px #22c55e20; }

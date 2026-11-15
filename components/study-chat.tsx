@@ -132,6 +132,7 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
       const success = await controller.send({ id, page, name: documentName, question: submittedQuestion, scope: wholeDocument ? "document" : "slide", quizIntent });
       if (!mounted.current) return;
       if (success) setQuestion("");
+      return success;
     } finally {
       lock.current = false;
     }
@@ -153,7 +154,7 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
     <div className="chat-scroll-area" ref={scrollArea} onScroll={event => { readingPosition.current = event.currentTarget.scrollTop; }}>
       <p className="chat-scope-hint" id={scopeHintId} aria-live="polite">{wholeDocument ? "Le domande riguardano tutto il PDF corrente, tenendo conto delle pagine lette e delle domande precedenti." : "Le domande riguardano questa slide, tenendo conto delle pagine lette e delle domande precedenti nel PDF."}</p>
       <SelectionNotes key={`${id}:${page}`} documentId={id} page={page} disabled={disabled || !configured}><div className="chat-messages">
-        {explanation ? <ExplanationMessage explanation={explanation} page={page} disabled={busy || disabled || !configured} onDeepen={topic => void send(`Spiega in modo piu approfondito questo argomento della slide: ${topic}. Aggiungi i passaggi intermedi e un esempio concreto.`)} /> : <div className="chat-analysis-empty">
+        {explanation ? <ExplanationMessage explanation={explanation} page={page} /> : <div className="chat-analysis-empty">
           <span className="chat-analysis-icon"><Sparkles size={25} strokeWidth={1.6} /></span>
           <h2>Partiamo da questa pagina.</h2>
           <p>Una spiegazione completa per capire i concetti. Poi puoi approfondirli con il tutor.</p>
@@ -165,7 +166,7 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
           {!configured && <p className="chat-analysis-configure">Configura OpenAI dalle impostazioni della lettura per iniziare.</p>}
         </div>}
         <div className="chat-conversation" aria-live="polite" aria-relevant="additions text">
-          {conversation.filter(message => !message.quiz).map((message, index) => <article className={`chat-message ${message.role}`} key={`conversation-${index}`}><ChatMessageAuthor role={message.role} name={authorName} photoURL={user?.photoURL} />{message.artifact ? <StudyArtifactView key={message.artifact.id} artifact={message.artifact} documentId={id} page={page} onNavigatePage={onNavigatePage} onSaved={messages => controller.receiveMessages(id, page, messages)} /> : message.visualization ? <ConceptModelView model={message.visualization} /> : message.role === "assistant" ? <MarkdownContent>{message.content}</MarkdownContent> : <p>{message.content}</p>}{message.role === "assistant" && !message.visualization && !message.artifact && <Button variant="ghost" size="sm" className="deepen-button" disabled={busy || disabled || !configured} onClick={() => void send(`Approfondisci questa spiegazione con passaggi ed esempi: ${message.content.slice(0, 2800)}`)}><Sparkles size={14} /> Approfondisci</Button>}</article>)}
+          {conversation.filter(message => !message.quiz).map((message, index) => <article className={`chat-message ${message.role}`} key={`conversation-${index}`}><ChatMessageAuthor role={message.role} name={authorName} photoURL={user?.photoURL} />{message.artifact ? <StudyArtifactView key={message.artifact.id} artifact={message.artifact} documentId={id} page={page} onNavigatePage={onNavigatePage} onSaved={messages => controller.receiveMessages(id, page, messages)} /> : message.visualization ? <ConceptModelView model={message.visualization} /> : message.role === "assistant" ? <MarkdownContent>{message.content}</MarkdownContent> : <p>{message.content}</p>}</article>)}
           {pendingQuestion && <article className="chat-message user is-pending"><ChatMessageAuthor role="user" name={authorName} photoURL={user?.photoURL} /><p>{pendingQuestion}</p></article>}
           {session?.streamingText && session.kind !== "quiz" && <article className="chat-message assistant is-streaming"><ChatMessageAuthor /><MarkdownContent>{session.streamingText}</MarkdownContent></article>}
           {busy && session?.kind === "visualization" && <div className="chat-generation-skeleton" role="status" aria-label="Generazione del materiale in corso"><Sparkles size={28} /><span>{session.materialKind === "image" || session.request?.artifactKind === "image" ? "Sto generando l'immagine..." : "Sto creando il materiale..."}</span></div>}

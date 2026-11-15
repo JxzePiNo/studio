@@ -119,3 +119,7 @@
   .friendsListCard .personActions { flex-shrink:0; margin-left:auto; }
   .personCopy small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 }
+.onlinePulse { position:absolute; bottom:1px; right:1px; width:9px; height:9px; border:2px solid var(--card); border-radius:50%; background:#22c55e; pointer-events:none; }
+.onlinePulse::after { content:""; position:absolute; inset:-2px; border:2px solid #22c55e; border-radius:50%; animation:onlinePulse 1.8s ease-out infinite; }
+@keyframes onlinePulse { from { transform:scale(1); opacity:.8; } to { transform:scale(2.2); opacity:0; } }
+@media(prefers-reduced-motion:reduce) { .onlinePulse::after { animation:none; } }

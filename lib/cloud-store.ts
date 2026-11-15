@@ -7,13 +7,15 @@ import type { DocumentReference } from "firebase-admin/firestore";
 import { randomUUID } from "node:crypto";
 import { documentSnapshots, pdfBytes, rememberDocument } from "./content-cache";
 import { services, userRoot, userId } from "./firebase-server";
-import type { StudyDocument, SlideData } from "./types";
+import type { StudyDocument, DocumentSummary, SlideData } from "./types";
 
 function checkId(id: string) { if (!/^[a-zA-Z0-9-]{1,100}$/.test(id)) throw Object.assign(new Error("Documento non valido."), { status: 400 }); }
 async function ref(id: string) { checkId(id); return documentReference(id); }
 function missing() { return Object.assign(new Error("Documento non trovato."), { code: "ENOENT" }); }
 async function visibleDocument(document: StudyDocument): Promise<StudyDocument> {
   const uid = await userId();
+  const preference = await services().db.collection("users").doc(uid).collection("studyPreferences").doc(document.id).get();
+  document = { ...document, excludedFromStudy: preference.get("excludedFromStudy") === true };
   const space = document.folderId ? (await services().db.collection("sharedWorkspaces").doc(document.folderId).get()).data() : undefined;
   const since = space?.ownerId !== uid ? space?.chatSince?.[uid] || 0 : 0;
   const visible = { ...document, slides: Object.fromEntries(Object.entries(document.slides).map(([page, slide]) => [page, { ...slide, ...(slide.chat ? { chat: sharedChatView(slide.chat, uid, space?.ownerId || uid, since) } : {}) }])) };
@@ -41,13 +43,20 @@ export async function list() {
   const spaces = await collaborativeWorkspaces(true);
   const ids = new Set(spaces.map(space => space.id));
   const documents = await Promise.all(all.map(async doc => {
-    const data = doc.data()!;
-    if (!ids.has(data.folderId)) return data;
+    const preference = await root.collection("studyPreferences").doc(doc.id).get();
+    const data = { ...doc.data()!, excludedFromStudy: preference.get("excludedFromStudy") === true } as DocumentSummary;
+    if (!data.folderId || !ids.has(data.folderId)) return data;
     const state = await root.collection("readingStates").doc(doc.id).get();
     const owner = doc.ref.parent.parent!.id === root.id;
     return { ...data, currentPage: state.get("currentPage") || (owner ? data.currentPage : 1), readPages: state.get("readPages") ?? (owner ? data.readPages || 0 : 0) };
   }));
   return documents.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+export async function setStudyExclusion(id: string, excludedFromStudy: boolean) {
+  const document = await (await ref(id)).get();
+  if (!document.exists || document.get("deleting")) throw missing();
+  await (await userRoot()).collection("studyPreferences").doc(id).set({ excludedFromStudy });
+  return { id, excludedFromStudy };
 }
 export async function readMetadata(id: string) {
   const snapshot = await (await ref(id)).get();
@@ -158,8 +167,9 @@ export async function updateSlide(id: string, page: number, change: (slide: Slid
 
 export async function versionedRead(id: string, etag?: string | null) {
   const result = await readVersionedSnapshot(await ref(id), etag);
-  const { slides: _slides, ...metadata } = await visibleDocument({ ...result.metadata, slides: {} } as StudyDocument);
-  return { ...result, metadata, document: result.document ? await visibleDocument(result.document) : null };
+  const visible = await visibleDocument(result.document || { ...result.metadata, slides: {} } as StudyDocument);
+  const { slides: _slides, ...metadata } = visible;
+  return { ...result, metadata, document: result.document ? visible : null };
 }
 export async function readVersionedSnapshot(r: DocumentReference, etag?: string | null) {
   const meta = await r.get();

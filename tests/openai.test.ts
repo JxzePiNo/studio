@@ -51,6 +51,8 @@ test("OpenAI integration with a mocked network", async t => {
       assert.equal(body.text.format.name, "slide_explanation");
       assert.equal(body.text.format.schema.additionalProperties, false);
       assert.ok(body.text.format.schema.properties.glossary);
+      assert.match(body.instructions, /indipendentemente dalla lingua/);
+      assert.match(body.instructions, /formule e concetti o prerequisiti/);
       const file = body.input[0].content.find((item: { type: string }) => item.type === "input_file");
       assert.equal(file.filename, "slide-7.pdf");
       assert.equal(file.file_data, `data:application/pdf;base64,${Buffer.from(pdf).toString("base64")}`);
@@ -61,11 +63,11 @@ test("OpenAI integration with a mocked network", async t => {
     assert.equal(calls, 1);
   });
 
-  await t.test("omits the English glossary for an Italian slide", async () => {
+  await t.test("preserves the glossary for an Italian slide", async () => {
     globalThis.fetch = async () => modelResponse(outputText({ ...explanation, language: "it" }));
     const result = await explainSlide(new Uint8Array([1]), 1);
     assert.equal(result.language, "it");
-    assert.deepEqual(result.glossary, []);
+    assert.deepEqual(result.glossary, explanation.glossary);
   });
 
   await t.test("classifies introductory pages in the same request without generating a lesson", async () => {

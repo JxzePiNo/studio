@@ -97,7 +97,8 @@ export async function trackedFetch(url: string, init: RequestInit): Promise<Resp
   const response = await fetch(url, init);
   const method = init.method?.toUpperCase() || "GET";
   if (response.ok && method !== "GET") {
-    const documentId = url.match(/^\/api\/documents\/([^/]+)/)?.[1];
+    const documentId = url === "/api/documents/bulk" ? undefined : url.match(/^\/api\/documents\/([^/]+)/)?.[1];
+    const bulk = url === "/api/documents/bulk" ? await response.clone().json() as { action: string; succeeded: string[] } : null;
     let patchedDocument = false;
     if (method === "PATCH" && /^\/api\/documents\/[^/]+$/.test(url) && new Headers(init.headers).get("Prefer") === "return=minimal") {
       const previous = await get(`${uid}:${url}`);
@@ -113,6 +114,7 @@ export async function trackedFetch(url: string, init: RequestInit): Promise<Resp
       }
     }
     const paths = patchedDocument ? [] : [url];
+    if (bulk) for (const id of bulk.succeeded) paths.push(`/api/documents/${id}`, `/api/documents/${id}/quiz`, ...(bulk.action === "delete" ? [`/api/documents/${id}/pdf`] : []));
     if (url.startsWith("/api/documents")) paths.push("/api/documents");
     if (url.startsWith("/api/folders")) paths.push("/api/folders", "/api/documents");
     if (documentId) {
@@ -126,7 +128,7 @@ export async function trackedFetch(url: string, init: RequestInit): Promise<Resp
       if (Array.isArray(documents)) for (const document of documents) if (document.folderId === folderId) paths.push(`/api/documents/${document.id}`, `/api/documents/${document.id}/pdf`, `/api/documents/${document.id}/quiz`);
     }
     if (url.startsWith("/api/study-sessions") || url.endsWith("/read-range")) paths.push(`/api/study-sessions?day=${studyDay()}`);
-    await Promise.all([...new Set(paths.flatMap(path => path.endsWith("/quiz") ? [path, `${path}::quiz-index`] : [path]))].map(path => method === "DELETE" ? remove(`${uid}:${path}`) : expire(`${uid}:${path}`)));
+    await Promise.all([...new Set(paths.flatMap(path => path.endsWith("/quiz") ? [path, `${path}::quiz-index`] : [path]))].map(path => method === "DELETE" || bulk?.action === "delete" ? remove(`${uid}:${path}`) : expire(`${uid}:${path}`)));
   }
   return response;
 }

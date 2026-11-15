@@ -30,6 +30,11 @@ export async function readDocumentMetadata(id: string): Promise<Omit<StudyDocume
   const { slides: _slides, ...metadata } = await readDocument(id);
   return metadata;
 }
+export async function setDocumentStudyExclusion(id: string, excludedFromStudy: boolean) {
+  if (cloudEnabled()) return cloud.setStudyExclusion(id, excludedFromStudy);
+  await updateDocument(id, document => { document.excludedFromStudy = excludedFromStudy; });
+  return { id, excludedFromStudy };
+}
 async function saveDocument(doc: StudyDocument) {
   const dir = documentDir(doc.id);
   const temp = path.join(dir, `${randomUUID()}.tmp`);

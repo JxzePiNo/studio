@@ -1,4 +1,5 @@
 "use client";
+import { ActionTooltip } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -64,7 +65,7 @@ export function FriendsProfileEditor({ name, onClose }: { name?: string; onClose
       <form className={styles.profileForm} onSubmit={async event => { event.preventDefault(); if (saving) return; setSaving(true); setError(""); try { await saveProfile(program, undefined, displayName, { university, nickname, photoURL: photo }); onClose(); } catch (cause) { setError((cause as Error).message); } finally { setSaving(false); } }}>
         <div className={styles.profilePhotoControl}>
           <FriendAvatar large name={displayName} photoURL={photo || user?.photoURL || ""} />
-          <label className={styles.photoPencil} aria-disabled={saving} title="Cambia foto profilo"><Pencil size={14} aria-hidden="true" /><input className={styles.photoFileInput} aria-label="Cambia foto profilo" type="file" accept="image/*" disabled={saving} onChange={async event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; if (!file) return; setSaving(true); try { setPhoto(await profilePhoto(file)); setError(""); } catch (cause) { setError((cause as Error).message); } finally { setSaving(false); } }} /></label>
+          <ActionTooltip label="Cambia foto profilo"><label className={styles.photoPencil} aria-disabled={saving}><Pencil size={14} aria-hidden="true" /><input className={styles.photoFileInput} aria-label="Cambia foto profilo" type="file" accept="image/*" disabled={saving} onChange={async event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; if (!file) return; setSaving(true); try { setPhoto(await profilePhoto(file)); setError(""); } catch (cause) { setError((cause as Error).message); } finally { setSaving(false); } }} /></label></ActionTooltip>
         </div>
         <label>Nome e cognome<Input value={displayName} onChange={event => setName(event.target.value)} maxLength={80} required /></label>
         <label htmlFor="friends-program">Corso di studi</label><StudyProgramPicker id="friends-program" value={program} onChange={setProgram} />

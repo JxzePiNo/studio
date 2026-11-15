@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionTooltip } from "@/components/ui/tooltip";
 import { useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
@@ -44,8 +45,8 @@ export function BottomPanel({ children }: { children: ReactNode }) {
           else if (event.key === "Home") setHeight(collapsedHeight);
           else if (event.key === "End") resize(maxHeight());
           else toggle();
-        }}><span /><small>{collapsed ? "Le parole della slide" : "Trascina per ridimensionare"}</small></div>
-      <button onClick={toggle} aria-label={collapsed ? "Mostra pannello inferiore" : "Abbassa pannello inferiore"} aria-expanded={!collapsed} aria-controls="reader-bottom-content" title={collapsed ? "Mostra parole e traduzioni" : "Abbassa per ingrandire il PDF"}>{collapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
+        }}><span /><small>{collapsed ? "Glossario della slide" : "Trascina per ridimensionare"}</small></div>
+      <ActionTooltip label={collapsed ? "Mostra il glossario della slide" : "Abbassa per ingrandire il PDF"}><button onClick={toggle} aria-label={collapsed ? "Mostra pannello inferiore" : "Abbassa pannello inferiore"} aria-expanded={!collapsed} aria-controls="reader-bottom-content">{collapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button></ActionTooltip>
     </div>
     <div id="reader-bottom-content" className="bottom-panel-content" hidden={collapsed}>{children}</div>
   </div>;

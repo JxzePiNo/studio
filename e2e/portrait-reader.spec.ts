@@ -10,8 +10,10 @@ for (const width of [1280, 390]) test(`toolbar navigates and completes portrait 
     await page.goto(`/esami/${folder.id}/documenti/${doc.id}`);
     await expect(page.locator(".slide-panel")).toHaveClass(/portrait-pdf/);
     const toolbar = page.getByRole("toolbar", { name: "Comandi del PDF" });
-    const complete = toolbar.getByRole("button", { name: "Completata", exact: true });
+    const complete = toolbar.getByRole("button", { name: "Completa la slide e vai avanti", exact: true });
     await expect(complete).toBeVisible();
+    await complete.focus();
+    await expect(page.getByRole("tooltip")).toContainText("Completa la slide e vai avanti");
     await expect(toolbar.getByRole("spinbutton", { name: "Numero della slide" })).toHaveValue("1");
     await toolbar.getByRole("button", { name: "Adatta automaticamente il PDF" }).click();
     await expect.poll(async () => page.locator(".slide-stage canvas").evaluate(element => Math.abs(element.getBoundingClientRect().width - element.parentElement!.clientWidth))).toBeLessThan(2);

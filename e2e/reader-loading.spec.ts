@@ -37,7 +37,7 @@ test("reader appears before the PDF arrives, with Tony and rotating barista acti
     await expect(skeleton).toHaveCount(0);
     for (const theme of ["light", "dark"]) {
       await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
-      for (const name of ["Pulisci schermata", "Crea materiale"]) {
+      for (const name of ["Espandi la lettura: PDF e chat senza controlli", "Crea materiale"]) {
         const button = page.getByRole("button", { name, exact: true });
         const accent = await button.evaluate(element => {
           const sample = document.createElement("span"); sample.style.backgroundColor = "var(--accent)"; element.append(sample);

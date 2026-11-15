@@ -1,0 +1,7 @@
+.entries { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr)); gap:16px; margin:14px 0 0; }
+.entry { min-width:0; padding:12px; border:1px solid var(--border); border-radius:10px; background:var(--card); overflow-wrap:anywhere; }
+.entry dt { color:var(--primary); font-weight:600; font-size:13px; }
+.entry dd { margin:7px 0 0; color:var(--foreground); font-size:12px; line-height:1.6; }
+.entry p { margin:0; font-size:inherit; line-height:inherit; }
+.entry .context { margin-top:7px; color:var(--muted-foreground); }
+.glossary :global(.katex-display) { max-width:100%; overflow-x:auto; overflow-y:hidden; margin:8px 0; }

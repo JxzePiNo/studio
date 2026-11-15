@@ -105,14 +105,20 @@ test("presence expires, accounts for other visible tabs and conceals statistics 
   const db = memoryFirestore(), alice = new FriendsService(db, "alice", now), bob = new FriendsService(db, "bob", now);
   for (const [service, name] of [[alice, "Alice"], [bob, "Bob"]] as const) await service.saveSettings({ action: "settings", enabled: true, discoverable: true, shareActivity: true }, identity(name));
   await alice.relationship("bob", "request"); await bob.relationship("alice", "accept");
+  const oldVisit = now - 3 * 86400000;
+  await db.collection("users").doc("bob").collection("metrics").doc("activity").set({ lastVisitAt: new Date(oldVisit).toISOString() });
+  assert.equal((await alice.overview("day")).friends[0].lastSeen, oldVisit);
   await bob.presence("one", true, true); await bob.presence("two", true, false); await bob.presence("one", false, false);
   assert.equal((await alice.overview("day")).friends[0].status, "online");
   assert.equal((await alice.activity()).online[0].id, "bob");
   assert.equal((await alice.activity()).studying.length, 0);
   assert.equal((await new FriendsService(db, "alice", now + 91000).activity()).online.length, 0);
   assert.equal((await new FriendsService(db, "alice", now + 91000).overview("day")).friends[0].status, "offline");
+  assert.equal((await new FriendsService(db, "alice", now + 91000).overview("day")).friends[0].lastSeen, now);
+  await new FriendsService(db, "bob", now + 100000).presence("two", false, false);
+  assert.equal((await new FriendsService(db, "alice", now + 3600000).overview("day")).friends[0].lastSeen, now + 100000);
   await bob.saveSettings({ action: "settings", enabled: true, discoverable: true, shareActivity: false }, identity("Bob"));
-  const view = await alice.overview("day"); assert.equal(view.friends[0].status, undefined); assert.deepEqual(view.leaderboard.map(person => person.id), ["alice"]);
+  const view = await alice.overview("day"); assert.equal(view.friends[0].status, undefined); assert.equal(view.friends[0].lastSeen, undefined); assert.deepEqual(view.leaderboard.map(person => person.id), ["alice"]);
   assert.equal(friendsActionSchema.safeParse({ action: "presence", tabId: crypto.randomUUID(), active: true, studying: true, userId: "bob" }).success, false);
 });
 test("daily/monthly rankings clip overlapping sessions and use Italian midnight", () => {

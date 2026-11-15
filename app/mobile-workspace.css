@@ -12,6 +12,8 @@
   .mobile-bottom-navigation > button,.mobile-bottom-navigation .mobile-account-trigger { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:48px; height:100%; width:100%; padding:5px 0; border-radius:999px; font-size:10px; font-weight:500; color:var(--muted-foreground); }
   .mobile-bottom-navigation > button[aria-current="page"],.mobile-account-trigger[data-state="open"] { color:var(--primary); background:var(--accent); }
   .mobile-bottom-navigation > .sidebar-profile { min-width:0; width:100%; margin:0; padding:0; border:0; }
+  .mobile-bottom-navigation[data-calendar="true"] { grid-template-columns:repeat(6,minmax(0,1fr)); }
+  .mobile-bottom-navigation[data-calendar="true"] > button { font-size:9px; }
   .mobile-bottom-navigation button:focus-visible { outline:2px solid var(--ring); outline-offset:-2px; }
   .reader-active { height:100dvh; min-height:0; overflow:hidden; }
   .reader-active .main-shell { position:fixed; inset:0; width:100%; height:100dvh; min-height:0; padding:0; overflow:hidden; }

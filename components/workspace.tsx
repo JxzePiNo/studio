@@ -1,5 +1,7 @@
 "use client";
 
+import { SlideGlossary } from "./slide-glossary";
+import { ActionTooltip } from "@/components/ui/tooltip";
 import { UPLOAD_ACCEPT } from "@/lib/upload-formats";
 import { useBackgroundUploads, UploadIsland, UploadNotifications } from "./background-uploads";
 import { retryAnalysis } from "@/lib/analysis-retry";
@@ -8,7 +10,7 @@ import { cachedApi, cachedPdf, invalidateApiCache } from "@/lib/browser-data-cac
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { House, Clock3, Users, ArrowLeft, ArrowRight, FileText, FolderOpen, Languages, LoaderCircle, Plus, Search, Upload, X, Minimize } from "lucide-react";
+import { House, Clock3, CalendarDays, Users, ArrowLeft, ArrowRight, FileText, FolderOpen, LoaderCircle, Plus, Search, Upload, X, Minimize } from "lucide-react";
 import { authHeaders, firebaseEnabled } from "@/lib/firebase-client";
 import { formatCourseName } from "@/lib/course-name";
 import { examColor, examAccentColor } from "@/lib/exam-colors";
@@ -19,6 +21,7 @@ import { FriendsSection } from "./friends-section";
 import { FriendsActivity } from "./friends-activity";
 import { MobileNavigation } from "./mobile-navigation";
 import { SidebarProfile } from "./sidebar-profile";
+import { StudyCalendar } from "./study-calendar";
 import { StudySessionsView } from "./study-sessions-view";
 import { ExamOverview } from "./exam-overview";
 import { Button } from "./ui/button";
@@ -66,9 +69,16 @@ function resetMobilePageScroll() {
 type BatchProgress = { id: string; startedAt: number; total: number; completed: number; current: number | null; active: number[]; status: "running" | "stopping" | "stopped" | "completed" | "error" };
 
 export default function Workspace() {
+  const [incomingFriendRequests, setIncomingFriendRequests] = useState(0);
+  const [initialFriendRequests, setInitialFriendRequests] = useState(false);
+  const reportIncomingRequests = useCallback((count: number, initial: boolean) => {
+    setIncomingFriendRequests(count);
+    if (initial) setInitialFriendRequests(count > 0);
+  }, []);
   const [friendsTab, setFriendsTab] = useState("friends");
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
-  const [section, setSection] = useState<"study" | "exams" | "sessions" | "friends">("study");
+  const [section, setSection] = useState<"study" | "exams" | "sessions" | "friends" | "calendar">("study");
+  const [calendarRefreshing, setCalendarRefreshing] = useState(false);
   const [selectedStudyDay, setSelectedStudyDay] = useState("");
   const [folders, setFolders] = useState<ExamFolder[]>([]);
   const [folderId, setFolderId] = useState("");
@@ -312,6 +322,22 @@ export default function Workspace() {
     if (window.location.pathname !== "/esami" || window.location.search) window.history.pushState(null, "", "/esami");
     setSection("exams"); setSelectedStudyDay(""); setFolderId(""); setQuery(""); setSidebar(false);
   }
+  async function refreshStudyCalendar() {
+    setCalendarRefreshing(true);
+    try {
+      await Promise.all([invalidateApiCache("/api/documents"), invalidateApiCache("/api/folders"), invalidateApiCache(`/api/study-sessions?day=${studySession.todayDate}`)]);
+      await Promise.all([refresh(), studySession.reloadHistory()]);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Impossibile aggiornare il calendario."); }
+    finally { setCalendarRefreshing(false); }
+  }
+  function openCalendar() {
+    if (busy) return;
+    if (docRef.current) { void closeDocument().then(openCalendar); return; }
+    resetMobilePageScroll();
+    if (window.location.pathname !== "/calendario" || window.location.search) window.history.pushState(null, "", "/calendario");
+    setSection("calendar"); setSelectedStudyDay(""); setFolderId(""); setSidebar(false);
+    void studySession.reloadHistory();
+  }
   function openSessions(day = "") {
     if (busy) return;
     resetMobilePageScroll();
@@ -343,7 +369,7 @@ export default function Workspace() {
     const match = parsedRoute.pathname.match(/^\/esami\/([^/]+)(?:\/documenti\/([^/]+))?\/?$/);
     restoringRoute.current = true;
     try {
-      setSection(["/amici", "/inviti"].includes(parsedRoute.pathname) ? "friends" : sessionsRoute ? "sessions" : parsedRoute.pathname === "/esami" ? "exams" : "study");
+      setSection(["/amici", "/inviti"].includes(parsedRoute.pathname) ? "friends" : sessionsRoute ? "sessions" : parsedRoute.pathname === "/calendario" ? "calendar" : parsedRoute.pathname === "/esami" ? "exams" : "study");
       setFriendsTab(parsedRoute.pathname === "/inviti" || parsedRoute.searchParams.get("tab") === "inviti" ? "invites" : "friends");
       if (parsedRoute.pathname === "/inviti") window.history.replaceState(null, "", "/amici?tab=inviti");
       setSelectedStudyDay(sessionsRoute ? parsedRoute.searchParams.get("giorno") || "" : "");
@@ -556,8 +582,9 @@ export default function Workspace() {
 
   const studyDock = (<div className={`${sessionStyles.dock} study-activity-dock`}>
       <StudySessionBar suppressed={readerClean && !!doc} portrait={!!doc && portrait} session={studySession} document={doc ? { name: doc.name, read: Object.values(doc.slides).filter(slide => slide.read).length, total: doc.pages } : undefined} />
-      <FriendsActivity running={studySession.running} onOpen={openFriends} />
-      <NotificationCenter events={[...islandJobs.map(job => `analysis:${job.id}:${job.status}`), ...chatController.notifications.map(item => `chat:${item.key}`), ...uploads.jobs.map(job => `upload:${job.id}:${job.status}`)]}>{hideNotifications => <>
+      <FriendsActivity running={studySession.running} onOpen={openFriends} onIncomingChange={reportIncomingRequests} />
+      <NotificationCenter autoOpenOnEntry={initialFriendRequests} events={[...(incomingFriendRequests ? [`friends:${incomingFriendRequests}`] : []), ...islandJobs.map(job => `analysis:${job.id}:${job.status}`), ...chatController.notifications.map(item => `chat:${item.key}`), ...uploads.jobs.map(job => `upload:${job.id}:${job.status}`)]}>{hideNotifications => <>
+      {incomingFriendRequests > 0 && <Button variant="outline" onClick={() => { hideNotifications(); openFriends(); }}>{incomingFriendRequests} {incomingFriendRequests === 1 ? "richiesta di amicizia ricevuta" : "richieste di amicizia ricevute"}. Apri richieste</Button>}
       {islandJobs.length > 0 && <AnalysisIsland jobs={islandJobs} embedded onHide={hideNotifications} />}
       <UploadNotifications controller={uploads} onOpen={id => { hideNotifications(); void openDocument(id); }} />
       <ChatNotifications controller={chatController} onHide={hideNotifications} onOpenQuiz={(id, quizId) => { hideNotifications(); const course = library.find(item => item.id === id)?.folderId; if (!course) return; if (docRef.current || opening) void closeDocument(); setSection("study"); setFolderId(course); setQuery(""); changeLocation(course); if (quizId) setQuizToOpen({ documentId: id, quizId }); }} onOpen={(id, target) => { hideNotifications(); void (async () => {
@@ -565,7 +592,7 @@ export default function Workspace() {
         if (docRef.current?.id === id) navigate(Math.min(Math.max(1, target), docRef.current.pages));
       })(); }} />
       </>}</NotificationCenter>
-      <GeneratedMaterials items={chatController.generations.filter(item => item.documentId === doc?.id || library.some(file => file.id === item.documentId))} onSaved={chatController.receiveMessages} onNavigatePage={async (item, target) => { if (docRef.current?.id !== item.documentId) await openDocument(item.documentId); if (docRef.current?.id === item.documentId) { setMapReturn({ documentId: item.documentId, page: item.page }); navigate(target); } }} />
+      <GeneratedMaterials key={folderId} items={chatController.generations.filter(item => section === "study" && !!folderId && (item.documentId === doc?.id || library.some(file => file.id === item.documentId && file.folderId === folderId)))} onSaved={chatController.receiveMessages} onNavigatePage={async (item, target) => { if (docRef.current?.id !== item.documentId) await openDocument(item.documentId); if (docRef.current?.id === item.documentId) { setMapReturn({ documentId: item.documentId, page: item.page }); navigate(target); } }} />
     </div>);
 
   return <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell ${doc || opening ? "reader-active" : ""} ${readerClean && doc ? "reader-clean" : ""} ${pdfOnly && doc ? "reader-pdf-only" : ""}`} onDragOver={e => { e.preventDefault(); if (folderId && !busy && e.dataTransfer.types.includes("Files")) setDragging(true); }} onDrop={e => { e.preventDefault(); if (!folderId && e.dataTransfer.files.length) setError("Apri un esame prima di caricare un file."); }}>
@@ -573,7 +600,7 @@ export default function Workspace() {
     {!doc && !opening && <Sidebar>
       <SidebarHeader><a className="studio-brand" href="/" onClick={event => { event.preventDefault(); openFolder(""); }} aria-label="Studio, pagina iniziale">studio<span>.</span></a></SidebarHeader>
       <SidebarContent>
-      <nav className="sidebar-study-nav" aria-label="Studio"><SidebarMenu><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "study" && !folderId} aria-current={section === "study" && !folderId ? "page" : undefined} onClick={() => openFolder("")} disabled={busy}><House size={18} /><span>Home</span></SidebarMenuButton></SidebarMenuItem><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "sessions"} aria-current={section === "sessions" ? "page" : undefined} onClick={() => openSessions()} disabled={busy}><Clock3 size={18} /><span>Sessioni di studio</span></SidebarMenuButton></SidebarMenuItem><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "friends"} aria-current={section === "friends" ? "page" : undefined} onClick={openFriends} disabled={busy}><Users size={18} /><span>Amici</span></SidebarMenuButton></SidebarMenuItem></SidebarMenu></nav>
+      <nav className="sidebar-study-nav" aria-label="Studio"><SidebarMenu><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "study" && !folderId} aria-current={section === "study" && !folderId ? "page" : undefined} onClick={() => openFolder("")} disabled={busy}><House size={18} /><span>Home</span></SidebarMenuButton></SidebarMenuItem><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "calendar"} aria-current={section === "calendar" ? "page" : undefined} onClick={openCalendar} disabled={busy}><CalendarDays size={18} /><span>Calendario</span></SidebarMenuButton></SidebarMenuItem><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "sessions"} aria-current={section === "sessions" ? "page" : undefined} onClick={() => openSessions()} disabled={busy}><Clock3 size={18} /><span>Sessioni di studio</span></SidebarMenuButton></SidebarMenuItem><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "friends"} aria-current={section === "friends" ? "page" : undefined} onClick={openFriends} disabled={busy}><Users size={18} /><span>Amici</span></SidebarMenuButton></SidebarMenuItem></SidebarMenu></nav>
       <div className="sidebar-create-exam"><Button className="new-document" aria-label="Crea esame" onClick={() => { setSidebar(false); setCreatingFolder(true); }} disabled={busy}><Plus size={18} /> Crea esame</Button></div>
       <nav className="exam-folders" aria-label="Esami"><div className="section-label"><button type="button" className="sidebar-exams-home" aria-current={section === "exams" ? "page" : undefined} disabled={busy} onClick={openExams}><span>I tuoi esami</span><span>{folders.filter(folder => !folder.archived).length}</span></button></div>
       <SidebarMenu>{folders.filter(folder => !folder.archived).map(folder => <SidebarMenuItem key={folder.id}><CourseContextMenu folder={folder} disabled={busy} onAction={action => { if (action === "open") openFolder(folder.id); else { openFolder(""); setRequestedCourseAction({ folderId: folder.id, action, requestId: Date.now() }); } }}><SidebarMenuButton disabled={busy} isActive={folderId === folder.id} className={folderId === folder.id ? "folder-item active" : "folder-item"} data-exam-color={examColor(folder)} style={{ "--course-accent": examAccentColor(folder) } as React.CSSProperties} aria-current={folderId === folder.id ? "page" : undefined} onClick={() => { openFolder(folder.id); }}><span className="folder-icon"><FolderOpen size={19} strokeWidth={1.8} /></span><span className="folder-name">{formatCourseName(folder.name)}</span><small>{library.filter(d => d.folderId === folder.id).length}</small></SidebarMenuButton></CourseContextMenu></SidebarMenuItem>)}</SidebarMenu>
@@ -610,6 +637,7 @@ export default function Workspace() {
       {(section === "study" || section === "exams") && !doc && !opening && <ExamOverview examsOnly={section === "exams"} dialogOnly={!!folderId} requestedCourseAction={requestedCourseAction} onCourseActionHandled={() => setRequestedCourseAction(undefined)} onDeleted={id => { setFolders(items => items.filter(item => item.id !== id)); setLibrary(items => items.filter(item => item.folderId !== id)); if (folderId === id) openFolder(""); void refresh(); }} isCourseBusy={id => uploads.jobs.some(job => job.folderId === id && ["queued", "preparing", "uploading", "processing"].includes(job.status)) || pendingWrites.current > 0 || courseAnalysis.jobs.some(job => job.folderId === id && ["checking", "running", "stopping"].includes(job.status)) || (!!readerJobDocument.current && analysisLock.current && library.some(item => item.id === readerJobDocument.current && item.folderId === id)) || Object.entries(chatController.sessions).some(([key, value]) => value.status === "pending" && library.some(item => item.folderId === id && key.startsWith(`${item.id}:`)))} onActivityDaySelect={openSessions} activity={studySession.activity} today={studySession.todayDate} folders={folders} documents={library} onOpen={openFolder} onCreate={() => { setSidebar(false); setCreatingFolder(true); }} onUpdated={folder => { setFolders(current => current.map(f => f.id === folder.id ? folder : f)); if (folder.archived && folderId === folder.id) openFolder(""); }} />}
       {section === "study" && !folderId && !doc && !opening && <SharedMaterials home />}
       {section === "friends" && !doc && !opening && <FriendsSection initialTab={friendsTab} onTabChange={setFriendsTab} />}
+      {section === "calendar" && !doc && !opening && <StudyCalendar folders={folders} documents={library} sessions={studySession.sessions} loading={studySession.loadingHistory || calendarRefreshing} historyError={studySession.errorHistory} onRefresh={() => { void refreshStudyCalendar(); }} onSaved={folder => setFolders(current => current.map(item => item.id === folder.id ? folder : item))} onOpen={openFolder} />}
       {section === "sessions" && !doc && !opening && <StudySessionsView sessions={studySession.sessions} activity={studySession.activity} today={studySession.todayDate} loading={studySession.loadingHistory} error={studySession.errorHistory} onRetry={() => void studySession.reloadHistory()} selectedDay={selectedStudyDay || null} onSelectDay={day => openSessions(day || "")} />}
       {section === "study" && folderId && <div className={`welcome ${homeStyles.courseWorkspace}`} hidden={!!doc || !!opening}>
         <CourseHeader onSettings={() => setRequestedCourseAction({ folderId, action: "settings", requestId: Date.now() })} folder={folders.find(f => f.id === folderId) || { id: folderId, name: "Esame", createdAt: "" }} />
@@ -618,7 +646,7 @@ export default function Workspace() {
         <section className="upload-zone upload-banner" aria-label="Aggiungi file" onDrop={e => { e.preventDefault(); setDragging(false); void uploadFiles(e.dataTransfer.files); }}><span className="upload-symbol"><Upload size={22} strokeWidth={1.5} /></span><div className="upload-banner-copy"><h2>Aggiungi file</h2><p>Trascina qui PDF o immagini PNG e JPEG · Fino a 500 MB per file</p></div><Button variant="default" className="primary-button" disabled={busy} onClick={() => input.current?.click()}>{busy ? <LoaderCircle className="spin" size={17} /> : <Plus size={17} />}{busy ? "Caricamento in corso…" : "Scegli i file"}</Button></section>
         </div>
         <div className={`dashboard-columns ${folderId ? "" : "without-upload"}`}><section className="materials-card"><div className="card-heading"><div><h2>{folderId ? "Materiali dell’esame" : "I tuoi materiali"}</h2><p>Slide, spiegazioni e conversazioni. Tutto nello stesso posto.</p></div><div className="materials-search-field"><label className="sr-only" htmlFor={`materials-search-${folderId}`}>Cerca un materiale</label><div className="materials-search"><Search size={16} aria-hidden="true" /><Input id={`materials-search-${folderId}`} aria-label="Cerca un materiale" placeholder="Cerca nei materiali" value={query} onChange={e => setQuery(e.target.value)} /></div></div></div>
-        {library.some(d => !folderId || d.folderId === folderId) ? <MaterialList key={folderId} documents={library.filter(d => d.folderId === folderId)} folder={folders.find(f => f.id === folderId) || { id: folderId, name: "", createdAt: "" }} query={query} busy={busy} openQuiz={quizToOpen} onQuizOpened={() => setQuizToOpen(null)} pendingQuizzes={id => Object.entries(chatController.sessions).filter(([, task]) => task.kind === "quiz" && task.documentId === id && task.status !== "completed").map(([key, task]) => ({ key, status: task.status === "pending" ? "pending" : "error", error: task.error, onRetry: () => chatController.retry(key) }))} isDocumentBusy={id => Object.values(chatController.sessions).some(task => task.documentId === id && task.status === "pending")} onDeleted={id => { setLibrary(items => items.filter(item => item.id !== id)); void refresh(); }} onReadUpdated={async () => { await refresh(); await studySession.reloadHistory(); }} analysisRunning={courseAnalysis.running} onOpen={id => void openDocument(id)} onRenamed={updated => setLibrary(current => current.map(item => item.id === updated.id ? { ...item, name: updated.name, originalName: updated.originalName } : item))} onOrdered={updated => setFolders(current => current.map(f => f.id === updated.id ? updated : f))} /> : <div className="materials-empty"><span className="empty-document-icon"><FileText size={28} strokeWidth={1.5} /></span><h3>Il tuo prossimo passo inizia qui.</h3><p>{folderId ? "Carica le slide di questo esame per iniziare a studiare." : "Crea o apri un esame, poi aggiungi le tue slide."}</p>{!folderId && <Button variant="outline" className="secondary-button" onClick={() => { setSidebar(false); setCreatingFolder(true); }}><Plus size={16} /> Crea il primo esame</Button>}</div>}
+        {library.some(d => !folderId || d.folderId === folderId) ? <MaterialList key={folderId} documents={library.filter(d => d.folderId === folderId)} folder={folders.find(f => f.id === folderId) || { id: folderId, name: "", createdAt: "" }} query={query} busy={busy} openQuiz={quizToOpen} onQuizOpened={() => setQuizToOpen(null)} pendingQuizzes={id => Object.entries(chatController.sessions).filter(([, task]) => task.kind === "quiz" && task.documentId === id && task.status !== "completed").map(([key, task]) => ({ key, status: task.status === "pending" ? "pending" : "error", error: task.error, onRetry: () => chatController.retry(key) }))} isDocumentBusy={id => Object.values(chatController.sessions).some(task => task.documentId === id && task.status === "pending")} onDeleted={id => { setLibrary(items => items.filter(item => item.id !== id)); void refresh(); }} onBulkDeleted={ids => setLibrary(current => current.filter(item => !ids.includes(item.id)))} onBulkStudyChanged={(ids, excludedFromStudy) => setLibrary(current => current.map(item => ids.includes(item.id) ? { ...item, excludedFromStudy } : item))} onStudyChanged={(id, excludedFromStudy) => setLibrary(current => current.map(item => item.id === id ? { ...item, excludedFromStudy } : item))} onReadUpdated={async () => { await refresh(); await studySession.reloadHistory(); }} analysisRunning={courseAnalysis.running} onOpen={id => void openDocument(id)} onRenamed={updated => setLibrary(current => current.map(item => item.id === updated.id ? { ...item, name: updated.name, originalName: updated.originalName } : item))} onOrdered={updated => setFolders(current => current.map(f => f.id === updated.id ? updated : f))} /> : <div className="materials-empty"><span className="empty-document-icon"><FileText size={28} strokeWidth={1.5} /></span><h3>Il tuo prossimo passo inizia qui.</h3><p>{folderId ? "Carica le slide di questo esame per iniziare a studiare." : "Crea o apri un esame, poi aggiungi le tue slide."}</p>{!folderId && <Button variant="outline" className="secondary-button" onClick={() => { setSidebar(false); setCreatingFolder(true); }}><Plus size={16} /> Crea il primo esame</Button>}</div>}
         </section></div>
 
       </div>}
@@ -627,7 +655,7 @@ export default function Workspace() {
       </>}
       {doc && <>{readerClean && <Button variant="outline" size="icon" className="reader-clean-toggle" aria-label="Mostra tutti i controlli" title="Mostra tutti i controlli" onClick={() => setReaderClean(false)}><Minimize size={19} /></Button>}
         <ReaderSplit clean={readerClean}><section className={`slide-panel${portrait ? " portrait-pdf" : ""}`} style={{ position: "relative" }}><div className={`slide-stage ${activeSlide?.read ? "is-read" : ""}`} ref={viewer}>{pdf && <PdfCanvas pdf={pdf} page={page} zoom={zoom} fitHeight={!(autoFit ? portrait : fitWidth)} onOrientationChange={setPortrait} />}{busy && <div className="viewer-busy"><LoaderCircle className="spin" /> Apertura documento…</div>}</div><BottomPanel key={doc.id}>
-          <div className="glossary"><div className="glossary-heading"><span><Languages size={17} /> Le parole della slide</span><span className="language-tag">EN <ArrowRight size={10} /> IT</span></div>{explanation?.glossary.length ? <div className="glossary-words">{explanation.glossary.map(g => <div key={g.word} className="glossary-word" title={g.context}><strong>{g.word}</strong><span>{g.translation}</span><small>{g.context}</small></div>)}</div> : <p>{explanation ? explanation.language === "en" ? "Nessun termine da tradurre individuato in questa slide." : "Questa slide non è in inglese. Puoi concentrarti sui concetti." : "Quando spieghi una slide in inglese, trovi qui i termini importanti con la traduzione italiana."}</p>}</div>
+          <SlideGlossary explanation={explanation} />
           </BottomPanel>
         </section>
         <aside className="explanation-panel reader-chat-panel" style={{ "--reader-text-size": `${textSize}px` } as React.CSSProperties} aria-label="Tutor della slide"><h1 className="sr-only">{doc.name.replace(/\.pdf$/i, "")}</h1><StudyChat onNavigatePage={target => { if (target !== page) setMapReturn({ documentId: doc.id, page }); navigate(target); }} onReturnToMap={mapReturn?.documentId === doc.id && mapReturn.page !== page ? () => { navigate(mapReturn.page); setMapReturn(null); } : undefined} controller={chatController} documentName={doc.name} courseName={folders.find(folder => folder.id === doc.folderId)?.name} key={`${doc.id}:${page}`} id={doc.id} page={page} folder={doc.folderId} initial={activeSlide?.chat || []} explanation={explanation} onAnalyze={() => void analyze()} onAnalyzeAll={() => void analyzeAll()} analyzing={currentAnalyzing} batchRunning={!!batchRunning && batch?.id === doc.id} analysisBusy={selectedDocumentAnalyzing || !!analyzing || !!batchRunning} configured={configured} disabled={busy} analysisProgress={batch?.id === doc.id ? { completed: batch.completed, total: batch.total, current: batch.current, active: batch.active, status: batch.status } : undefined} onStopAnalysis={stopAnalysis} />
@@ -635,7 +663,7 @@ export default function Workspace() {
       </>}
     </main>
     {dragging && <div className="drop-overlay" onDragLeave={e => { if (e.currentTarget === e.target) setDragging(false); }} onDrop={e => { e.preventDefault(); setDragging(false); void uploadFiles(e.dataTransfer.files); }}><Upload size={46} /><h2>Fai spazio a una nuova idea.</h2><p>Rilascia il PDF per iniziare.</p></div>}
-    {!doc && !opening && <MobileNavigation section={section} home={() => openFolder("")} exams={openExams} sessions={() => openSessions()} friends={openFriends} disabled={busy} />}
+    {!doc && !opening && <MobileNavigation section={section} calendar={openCalendar} home={() => openFolder("")} exams={openExams} sessions={() => openSessions()} friends={openFriends} disabled={busy} />}
     {shareTarget && <ShareDialog key={`${shareTarget.kind}:${shareTarget.id}`} target={shareTarget} onClose={() => setShareTarget(null)} />}
     <NewExamDialog folders={folders} open={creatingFolder} onOpenChange={setCreatingFolder} onCreated={async folder => { setFolders(current => [...current.filter(f => f.id !== folder.id), folder]); await refresh(); }} />
     {settings && doc && <ReaderSettingsDialog zoom={zoom} onZoomChange={changeZoom} textSize={textSize} onTextSizeChange={changeTextSize} configured={configured} name={doc.name} page={page} notes={activeSlide?.notes || ""} noteStatus={noteStatus} onNotesChange={saveNotes} hasExplanation={!!explanation} disabled={busy || selectedDocumentAnalyzing || !!analyzing || !!batchRunning} onRegenerate={() => { setSettings(false); void analyze(true); }} onResetZoom={() => changeZoom(1, false)} onClose={() => { flushNotes(); setSettings(false); }} />}

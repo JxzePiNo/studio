@@ -1,4 +1,5 @@
 "use client";
+import { ActionTooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { TonyMascot } from "./mascot/tony-mascot";
@@ -25,8 +26,8 @@ export function MobileReaderTony({ open, onToggle, controls }: { open: boolean; 
     return () => { window.removeEventListener("resize", resize); window.visualViewport?.removeEventListener("resize", resize); };
   }, []);
 
-  return createPortal(<button ref={button} type="button" className="mobile-reader-tony" data-chat-open={open} style={position ? { left: position.x, top: position.y, right: "auto", bottom: "auto" } : open ? { top: viewportHeight / 2 - 32, bottom: "auto" } : undefined}
-    aria-label={open ? "Chiudi chat con Tony" : "Apri chat con Tony"} aria-expanded={open} aria-controls={controls} title="Trascina Tony per spostarlo. Tocca per aprire o chiudere la chat."
+  return createPortal(<ActionTooltip label="Trascina Tony per spostarlo. Tocca per aprire o chiudere la chat."><button ref={button} type="button" className="mobile-reader-tony" data-chat-open={open} style={position ? { left: position.x, top: position.y, right: "auto", bottom: "auto" } : open ? { top: viewportHeight / 2 - 32, bottom: "auto" } : undefined}
+    aria-label={open ? "Chiudi chat con Tony" : "Apri chat con Tony"} aria-expanded={open} aria-controls={controls}
     onDragStart={event => event.preventDefault()}
     onPointerDown={event => {
       if (event.button !== 0) return;
@@ -59,5 +60,5 @@ export function MobileReaderTony({ open, onToggle, controls }: { open: boolean; 
       event.preventDefault(); event.stopPropagation();
       const bounds = button.current!.getBoundingClientRect();
       const next = clamp({ x: bounds.left + step.x, y: bounds.top + step.y }); setPosition(next); save(next);
-    }}><TonyMascot size={60} animated={false} showName={false} /></button>, document.body);
+    }}><TonyMascot size={60} animated={false} showName={false} /></button></ActionTooltip>, document.body);
 }

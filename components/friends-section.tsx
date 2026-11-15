@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Activity, Check, ChevronDown, Eye, Search, Settings2, UserPlus, Users, X } from "lucide-react";
+import { friendPresenceLabel } from "@/lib/friends-presence";
 import { friendsChanged, friendsRequest } from "@/lib/friends-client";
 import type { FriendPerson, FriendsOverview, FriendsPeriod, SocialSettings } from "@/lib/friends-types";
 import { useStudyProfile } from "./study-profile-provider";
@@ -18,10 +19,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import styles from "./friends.module.css";
 
 function Person({ person, children, menu }: { person: FriendPerson; children?: React.ReactNode; menu?: React.ReactNode }) {
-  return <li className={styles.person}><FriendAvatar name={person.name} photoURL={person.photoURL} /><div className={styles.personCopy}><strong>{person.name}</strong>{person.nickname && <span>@{person.nickname}</span>}<small>{[person.university, person.studyProgram].filter(Boolean).join(" · ")}</small>{person.status && <span className={styles.status} data-studying={person.status === "studying"}>{person.status !== "offline" && <i className={styles.liveDot} />}{person.status === "studying" ? "Sta studiando" : person.status === "online" ? "Online" : "Offline"}</span>}</div>{(children || menu) && <div className={styles.personActions}>{children}{menu}</div>}</li>;
+  return <li className={styles.person}><FriendAvatar name={person.name} photoURL={person.photoURL} /><div className={styles.personCopy}><strong>{person.name}</strong>{person.nickname && <span>@{person.nickname}</span>}<small>{[person.university, person.studyProgram].filter(Boolean).join(" · ")}</small>{person.status && <span className={styles.status} data-studying={person.status === "studying"}>{person.status !== "offline" && <i className={styles.liveDot} />}{friendPresenceLabel(person)}</span>}</div>{(children || menu) && <div className={styles.personActions}>{children}{menu}</div>}</li>;
 }
-function FriendRequests({ title, people, actions }: { title: string; people: FriendPerson[]; actions: (person: FriendPerson) => React.ReactNode }) {
-  const [expanded, setExpanded] = useState(false);
+function FriendRequests({ title, people, actions, initiallyExpanded = false }: { title: string; people: FriendPerson[]; actions: (person: FriendPerson) => React.ReactNode; initiallyExpanded?: boolean }) {
+  const [expanded, setExpanded] = useState(initiallyExpanded);
   const id = useId();
   if (!people.length) return null;
   return <section className={`${styles.card} ${styles.requestCard}`} aria-label={title}>
@@ -140,7 +141,7 @@ export function FriendsSection({ initialTab = "friends", onTabChange }: { initia
           {sharedId && <div className={styles.card} aria-label="Profilo condiviso"><h2>Profilo condiviso</h2>
             {sharedError ? <p role="alert">{sharedError} <Button variant="ghost" size="sm" onClick={() => setSharedRetry(value => value + 1)}>Riprova</Button></p> : !shared ? <p role="status">Caricamento profilo…</p> : shared.self ? <p>Questo è il tuo profilo. Condividi il link con un amico!</p> : !shared.person ? <p>Questo profilo non è disponibile.</p> : <ul className={styles.list}><Person person={shared.person}>{shared.person.relationship === "friend" ? <span className={styles.pill}><Check size={13} /> Amici</span> : shared.person.relationship === "incoming" ? requestActions(shared.person) : shared.person.relationship === "outgoing" ? <span className={styles.pill}>Richiesta inviata</span> : <Button size="sm" disabled={busy} onClick={() => relationship(shared.person!, "request")}><UserPlus size={15} /> Aggiungi agli amici</Button>}</Person></ul>}
           </div>}
-          <FriendRequests title="Richieste ricevute" people={data.incoming} actions={requestActions} />
+          <FriendRequests initiallyExpanded title="Richieste ricevute" people={data.incoming} actions={requestActions} />
           <form className={styles.search} role="search" onSubmit={event => { event.preventDefault(); setQuery(term.trim()); setRevision(value => value + 1); }}><label className="sr-only" htmlFor="friend-search">Nome o username</label><Input id="friend-search" value={term} onChange={event => setTerm(event.target.value)} maxLength={80} placeholder="Cerca per nome o @username" /><Button type="submit"><Search size={16} /> Cerca</Button></form>
           <div className={`${styles.card} ${styles.friendsListCard}`}><h2>I tuoi amici</h2><ul className={styles.list}><li className={`${styles.person} ${styles.tonyFriend}`}><TonyMascot size={data.friends.length ? 64 : 96} animated showName={false} /><div className={styles.personCopy}><strong>Tony del bar</strong><span>{data.friends.length ? "Sempre qui a studiare con te." : "Non ti preoccupare, saremo per sempre amici."}</span></div></li>{data.friends.map(person => <Person key={person.id} person={person}><FriendActions person={person} friend busy={busy} onAction={mutate} /></Person>)}</ul></div>
           {query ? <div className={styles.card}><div className={styles.searchHeading}><h2>{query ? `Risultati per “${query}”` : "Risultati"}</h2>{query && <Button variant="ghost" size="sm" onClick={() => { setQuery(""); setTerm(""); }}>Chiudi ricerca</Button>}</div>

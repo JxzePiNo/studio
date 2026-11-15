@@ -1,4 +1,7 @@
 "use client";
+import { compareAdminUsers, isAdminUserOnline, type AdminUserOrder } from "@/lib/admin-user-order";
+import { ActionTooltip } from "./ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useEffect, useRef, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import { Download, House, Play, RefreshCw, Users, Settings2, Tags, ScrollText, Wallet } from "lucide-react";
@@ -39,6 +42,9 @@ export default function AdminDashboard() {
   const [detail, setDetail] = useState<AdminDetail | null>(null), [document, setDocument] = useState<AdminDocument | null>(null);
   const [tab, setTab] = useState("users"), [search, setSearch] = useState(""), [modelName, setModelName] = useState("");
   const [error, setError] = useState(""), [status, setStatus] = useState(""), [busy, setBusy] = useState(false);
+  const [userOrder, setUserOrder] = useState<AdminUserOrder>("lastVisit");
+  const [presenceNow, setPresenceNow] = useState(() => Date.now());
+  useEffect(() => { const timer = setInterval(() => setPresenceNow(Date.now()), 30000); return () => clearInterval(timer); }, []);
   const [confirmation, setConfirmation] = useState("");
   const selection = useRef(0), lock = useRef(false);
   useEffect(() => { if (!firebaseEnabled) return; return onAuthStateChanged(browserAuth(), user => { setSignedIn(!!user); setSessionId(user?.uid || ""); setReady(true); setData(null); setDetail(null); setDocument(null); }); }, []);
@@ -49,9 +55,10 @@ export default function AdminDashboard() {
     return () => controller.abort();
   }, [ready, signedIn, sessionId]);
   async function run(action: () => Promise<void>) { if (lock.current) return; lock.current = true; setBusy(true); setError(""); setStatus(""); try { await action(); } catch (cause) { setError((cause as Error).message); } finally { lock.current = false; setBusy(false); } }
-  async function loadUsers(cursor?: string) {
+  async function loadUsers(cursor?: string, order = userOrder) {
     const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : search.includes("@") ? `?email=${encodeURIComponent(search.trim())}` : "";
-    const value = await api<AdminOverview>(`/api/admin${query}`); setData(value); setConfig(value.config);
+    const suffix = order === "lastVisit" ? "" : `${query ? "&" : "?"}sort=${order}`;
+    const value = await api<AdminOverview>(`/api/admin${query}${suffix}`); setData(value); setConfig(value.config);
   }
   async function selectUser(uid: string) { const revision = ++selection.current; setDocument(null); setConfirmation(""); const value = await api<AdminDetail>(`/api/admin/users/${encodeURIComponent(uid)}`); if (revision === selection.current) setDetail(value); }
   async function manage(body: unknown) { if (!detail) return; await api(`/api/admin/users/${detail.uid}`, body); await selectUser(detail.uid); await loadUsers(); setStatus("Operazione completata."); }
@@ -73,7 +80,7 @@ export default function AdminDashboard() {
     if (!response.ok) await readApiResponse(response);
     const url = URL.createObjectURL(await response.blob()), link = window.document.createElement("a"); link.href = url; link.download = `${id}.pdf`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  const visibleUsers = data?.users.filter(user => search.includes("@") || `${user.name} ${user.email} ${user.uid}`.toLowerCase().includes(search.toLowerCase())) || [];
+  const visibleUsers = (data?.users.filter(user => search.includes("@") || `${user.name} ${user.email} ${user.uid}`.toLowerCase().includes(search.toLowerCase())) || []).sort((a, b) => compareAdminUsers(a, b, userOrder));
   const sections = [{ key: "users", label: "Utenti", icon: Users }, { key: "costs", label: "Costi", icon: Wallet }, { key: "platform", label: "Piattaforma", icon: Settings2 }, { key: "nicknames", label: "Soprannomi", icon: Tags }, { key: "welcome", label: "Anteprima benvenuto", icon: Play }, { key: "audit", label: "Registro admin", icon: ScrollText }];
   const content = welcomePreview && data && signedIn ? <AdminWelcomePreview data={welcomePreview} onClose={() => setWelcomePreview(null)} /> : <SidebarProvider openMobile={sidebar} onOpenMobileChange={setSidebar}><div className={`app-shell admin-shell ${styles.shell}`}>
     <Sidebar>
@@ -91,8 +98,8 @@ export default function AdminDashboard() {
       {tab === "users" && <>
         <div className={styles.metrics}>{[["Utenti in questa pagina", data.users.length], ["File caricati", data.users.reduce((sum, user) => sum + user.files.count, 0)], ["Token registrati", data.users.reduce((sum, user) => sum + tokenCount(user.usage), 0)], ["Domande registrate", data.users.reduce((sum, user) => sum + (user.activity?.questions || 0), 0)]].map(([label, value]) => <div key={label}><span>{label}</span><strong>{number(Number(value))}</strong></div>)}</div>
         <p className={styles.hint}>Totali relativi agli utenti della pagina. I consumi e il registro domande iniziano dall'attivazione del monitoraggio; lo storico precedente non è ricostruibile. Le conversazioni ancora salvate sono consultabili nei file.</p>
-        <form className={styles.search} onSubmit={event => { event.preventDefault(); void run(() => loadUsers()); }}><label>Cerca per nome, UID o email<input value={search} onChange={event => setSearch(event.target.value)} placeholder="Email completa per cercare in tutti gli utenti" /></label><Button disabled={busy}>Cerca</Button></form>
-        <div className={styles.tableScroll}><table><thead><tr><th>Utente</th><th>Stato</th><th>Ultima visita</th><th>File / pagine</th><th>Token</th><th>Domande</th><th /></tr></thead><tbody>{visibleUsers.map(user => <tr key={user.uid}><td><strong>{user.name || "Senza nome"}</strong><small>{user.email}</small></td><td>{user.disabled ? "Sospeso" : "Attivo"}</td><td>{user.lastVisitAt ? date(user.lastVisitAt) : "Visita non ancora registrata"}</td><td>{user.files.count} / {number(user.files.pages)}<small>{(user.files.bytes / 1024 / 1024).toFixed(1)} MB</small></td><td>{user.usage ? number(tokenCount(user.usage)) : "Non disponibili"}</td><td>{user.activity?.questions ?? "—"}</td><td><Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => selectUser(user.uid))}>Gestisci</Button></td></tr>)}</tbody></table></div>
+        <form className={styles.search} onSubmit={event => { event.preventDefault(); void run(() => loadUsers()); }}><label>Cerca per nome, UID o email<input value={search} onChange={event => setSearch(event.target.value)} placeholder="Email completa per cercare in tutti gli utenti" /></label><Button disabled={busy}>Cerca</Button><label className={styles.sort}>Ordina per<Select value={userOrder} onValueChange={value => { const order = value as AdminUserOrder; setUserOrder(order); void run(() => loadUsers(undefined, order)); }} disabled={busy}><SelectTrigger aria-label="Ordina utenti"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="lastVisit">Ultimo accesso</SelectItem><SelectItem value="oldestVisit">Accesso meno recente</SelectItem><SelectItem value="name">Nome</SelectItem><SelectItem value="created">Registrazione più recente</SelectItem></SelectContent></Select></label></form>
+        <div className={styles.tableScroll}><table><thead><tr><th>Utente</th><th>Ultima visita</th><th>File / pagine</th><th>Token</th><th>Domande</th><th /></tr></thead><tbody>{visibleUsers.map(user => <tr key={user.uid}><td><strong>{user.name || "Senza nome"}</strong><small>{user.email}</small>{user.disabled && <small>Sospeso</small>}</td><td><span className={styles.lastVisit}>{user.lastVisitAt ? date(user.lastVisitAt) : "Visita non ancora registrata"}{isAdminUserOnline(user.lastVisitAt, presenceNow) && <ActionTooltip label="Online adesso"><span className={styles.onlineDot} role="img" aria-label="Online adesso" /></ActionTooltip>}</span></td><td>{user.files.count} / {number(user.files.pages)}<small>{(user.files.bytes / 1024 / 1024).toFixed(1)} MB</small></td><td>{user.usage ? number(tokenCount(user.usage)) : "Non disponibili"}</td><td>{user.activity?.questions ?? "—"}</td><td><Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => selectUser(user.uid))}>Gestisci</Button></td></tr>)}</tbody></table></div>
         {!visibleUsers.length && <p>Nessun utente trovato.</p>}{data.cursor && <Button variant="outline" disabled={busy} onClick={() => void run(() => loadUsers(data.cursor!))}>Pagina utenti successiva</Button>}
         {detail && <section className={styles.detail} aria-label="Dettaglio utente"><header><div><h2>{detail.user.name || detail.user.email}</h2><p>{detail.user.email} · {detail.uid}</p></div><Button variant="ghost" onClick={() => { selection.current++; setDetail(null); setDocument(null); }}>Chiudi dettaglio</Button><Button variant="outline" onClick={() => exportJson(detail, `utente-${detail.uid}`)}><Download size={14} /> Esporta dati caricati</Button></header>
           <div className={styles.userMeta}><span>Registrazione: {date(detail.user.createdAt)}</span><span>Ultima visita: {detail.user.lastVisitAt ? date(detail.user.lastVisitAt) : "Non ancora registrata"}</span><span>Ultimo login: {date(detail.user.lastLoginAt)}</span><span>Email {detail.user.verified ? "verificata" : "non verificata"}</span><span>Percorso: {detail.profile.studyProgram || "Non indicato"}</span></div>

@@ -56,7 +56,7 @@ test("reader toolbar restores after clean view and reading settings persist", as
   });
   await page.goto("/esami/prefs-course/documenti/prefs-a");
   await expect(page.locator(".slide-stage canvas")).toBeVisible();
-  await page.getByRole("button", { name: "Pulisci schermata", exact: true }).click();
+  await page.getByRole("button", { name: "Espandi la lettura: PDF e chat senza controlli", exact: true }).click();
   await expect(page.getByRole("toolbar", { name: "Comandi del PDF" })).toBeHidden();
   await expect(page.getByRole("complementary", { name: "Tutor della slide" })).toBeVisible();
   await page.getByRole("button", { name: "Mostra tutti i controlli", exact: true }).click();

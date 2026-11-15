@@ -136,12 +136,7 @@ test("la spiegazione salvata apre la chat come primo messaggio e si aggiorna sen
     await expect(seed).toContainText(explanation.overview);
     await expect(seed).toContainText(explanation.example);
     await expect(page.locator(".chat-message.assistant").first()).toHaveAttribute("data-source", "analysis");
-    await seed.locator(".concept").hover();
-    const deepen = seed.locator(".concept").getByRole("button", { name: "Approfondisci" });
-    await expect(deepen).toHaveCSS("opacity", "1");
-    const deepened = page.waitForRequest(r => r.url().endsWith(`/api/documents/${document.id}/chat`));
-    await deepen.click();
-    expect((await deepened).postDataJSON().question).toContain("Dati nuovi");
+    await expect(page.getByRole("button", { name: "Approfondisci", exact: true })).toHaveCount(0);
     await expect(page.locator(".chat-thinking")).toHaveCount(0);
     await page.getByRole("textbox", { name: "Domanda al tutor", exact: true }).fill("Come controllo che il modello generalizzi?");
     await page.getByRole("button", { name: "Invia domanda", exact: true }).click();

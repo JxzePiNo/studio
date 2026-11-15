@@ -37,7 +37,7 @@ test("PDF study saves automatically and clean view restores the controls", async
     await expect(toolbar).toBeVisible();
     await toolbar.getByRole("button", { name: "Mostra PDF e chat", exact: true }).click();
     await expect(page.getByRole("complementary", { name: "Tutor della slide" })).toBeVisible();
-    await toolbar.getByRole("button", { name: "Pulisci schermata", exact: true }).click();
+    await toolbar.getByRole("button", { name: "Espandi la lettura: PDF e chat senza controlli", exact: true }).click();
     await expect(page.locator(".slide-stage canvas")).toBeVisible();
     await expect(page.getByRole("button", { name: "Torna alla biblioteca", exact: true })).toBeHidden();
     await expect(page.getByRole("region", { name: "Riepilogo studio", exact: true })).toHaveCount(0);

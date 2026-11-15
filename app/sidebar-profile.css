@@ -191,7 +191,7 @@
   .workspace-topbar { position:fixed; top:8px; left:8px; right:8px; z-index:48; display:flex; align-items:center; gap:4px; pointer-events:none; }
   .workspace-topbar > * { pointer-events:auto; }
   .workspace-topbar .workspace-back.ui-button { position:static; flex-shrink:0; margin:0; }
-  .workspace-topbar > .study-activity-dock { display:contents; }
+  .workspace-topbar > .study-activity-dock { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; gap:8px; width:max-content; }
   .workspace-topbar > .standalone-menu { position:static; flex-shrink:0; margin:0 0 0 auto; }
 }
 .nickname-settings h3 { margin:0 0 6px; font-size:15px; }

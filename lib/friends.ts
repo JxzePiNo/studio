@@ -3,6 +3,7 @@ import type { Firestore } from "@google-cloud/firestore";
 import { z } from "zod";
 import type { FriendPerson, FriendsOverview, FriendsPeriod, SocialSettings } from "./friends-types";
 import { canonicalUniversity, normalizeUniversity } from "./universities";
+import { lastKnownPlatformVisit } from "./platform-visits";
 
 const uidSchema = z.string().min(1).max(128).regex(/^[^/]+$/);
 export const friendsActionSchema = z.discriminatedUnion("action", [
@@ -169,18 +170,21 @@ export class FriendsService {
     const profile = await this.profile();
     if (!profile?.enabled || !profile.shareActivity) return { enabled: false };
     const ref = this.profiles().doc(this.uid).collection("presence").doc(tabId);
-    if (!active) await ref.delete();
-    else {
+    if (active) {
       // Expired tabs never show online; clean them on the next heartbeat too.
       const stale = await ref.parent.where("lastSeen", "<", this.now - 90000).limit(20).get();
       await Promise.all(stale.docs.map(doc => doc.ref.delete()));
-      await this.db.runTransaction(async tx => {
-        const previous = (await tx.get(ref)).data();
-        const onlineSince = previous && previous.lastSeen >= this.now - 90000 && Number.isFinite(previous.onlineSince)
-          ? previous.onlineSince : this.now;
-        tx.set(ref, { lastSeen: this.now, onlineSince, studying });
-      });
     }
+    const history = this.profiles().doc(this.uid).collection("presenceHistory").doc("latest");
+    await this.db.runTransaction(async tx => {
+      const [tab, saved] = await Promise.all([tx.get(ref), tx.get(history)]);
+      const previous = tab.data();
+      tx.set(history, { lastSeen: Math.max(this.now, Number(saved.get("lastSeen")) || 0) });
+      if (!active) { tx.delete(ref); return; }
+      const onlineSince = previous && previous.lastSeen >= this.now - 90000 && Number.isFinite(previous.onlineSince)
+        ? previous.onlineSince : this.now;
+      tx.set(ref, { lastSeen: this.now, onlineSince, studying });
+    });
     return { enabled: true };
   }
   private async status(id: string, profile: Profile): Promise<FriendPerson["status"]> {
@@ -213,6 +217,16 @@ export class FriendsService {
       const person = { ...this.person(id, profile), requestedAt: edge.createdAt };
       if (edge.status === "pending") { (edge.requester === this.uid ? result.outgoing : result.incoming).push(person); return; }
       person.status = await this.status(id, profile);
+      if (person.status === "offline") {
+        const history = await this.profiles().doc(id).collection("presenceHistory").doc("latest").get();
+        let lastSeen = history.get("lastSeen");
+        if (typeof lastSeen !== "number" || !Number.isFinite(lastSeen)) {
+          const activity = await this.db.collection("users").doc(id).collection("metrics").doc("activity").get();
+          const visit = lastKnownPlatformVisit(activity.data());
+          lastSeen = visit ? Date.parse(visit) : undefined;
+        }
+        if (typeof lastSeen === "number" && Number.isFinite(lastSeen)) Object.assign(person, { lastSeen });
+      }
       result.friends.push(person);
       if (profile.shareActivity) result.leaderboard.push({ ...person, ...await this.score(id, period) });
     }));

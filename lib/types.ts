@@ -17,6 +17,8 @@ export interface SlideData {
 }
 export interface MaterialProvenance { university: string; studyProgram: string; authorName: string }
 export interface StudyDocument {
+  /** Personal choice: reference materials do not contribute to study workload. */
+  excludedFromStudy?: boolean;
   provenance?: MaterialProvenance;
   sharedBlobId?: string;
   sharedVisuals?: Record<string, string>;

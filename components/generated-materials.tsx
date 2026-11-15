@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionTooltip } from "@/components/ui/tooltip";
 import { useState, type ReactNode } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -44,7 +45,7 @@ export function GeneratedMaterials({ items, onNavigatePage, onSaved }: { items: 
   const label = !one ? "Generazioni" : one.artifact.kind === "image" ? "Apri Immagine" : one.artifact.kind === "diagram" ? "Apri Schema" : "Apri Mappa";
   return <>
     <Popover.Root modal open={open && items.length > 1} onOpenChange={next => { if (next && one) setSelectedId(one.artifact.id); else setOpen(next); }}>
-      <Popover.Trigger asChild><button className={styles.trigger} aria-label={one ? label : `Generazioni, ${items.length} materiali`} title={label}><Icon size={15} aria-hidden="true" /><span>{label}</span>{!one && <i className={notificationStyles.badge} aria-hidden="true">{items.length}</i>}</button></Popover.Trigger>
+      <Popover.Trigger asChild><ActionTooltip label={label}><button className={styles.trigger} aria-label={one ? label : `Generazioni, ${items.length} materiali`}><Icon size={15} aria-hidden="true" /><span>{label}</span>{!one && <i className={notificationStyles.badge} aria-hidden="true">{items.length}</i>}</button></ActionTooltip></Popover.Trigger>
       <Popover.Portal><Popover.Content side="bottom" align="end" sideOffset={10} collisionPadding={14} className={notificationStyles.dialog} aria-label="Materiali generati">
         <header className={notificationStyles.heading}><h2>Le tue generazioni</h2><Popover.Close asChild><button aria-label="Chiudi generazioni"><X size={18} /></button></Popover.Close></header>
         <div className={notificationStyles.tony}><TonyMascot size={72} showName={false} /><div className={notificationStyles.speech}><strong>Tony del bar</strong><p>Mappe, immagini e schemi pronti. Scegli cosa vuoi aprire.</p></div></div>

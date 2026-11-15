@@ -80,7 +80,7 @@ test("il piano dell’esame calcola il carico giornaliero e resta salvato", asyn
     await dialog.getByRole("button", { name: "Data dell’esame", exact: true }).click();
     await chooseCalendarDate(page, date);
     await dialog.getByLabel("Pagine all’ora", { exact: false }).fill("10");
-    await expect(dialog.locator(".plan-preview")).toContainText("3 pagine caricate");
+    await expect(dialog.locator(".plan-preview")).toContainText("3 pagine incluse nello studio");
     const saved = page.waitForResponse(r => r.url().endsWith(`/api/folders/${folder.id}`) && r.request().method() === "PATCH");
     await dialog.getByRole("button", { name: "Salva impostazioni", exact: true }).click();
     expect((await saved).status()).toBe(200);

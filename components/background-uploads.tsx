@@ -1,4 +1,5 @@
 "use client";
+import { ActionTooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { Check, LoaderCircle, Upload, X } from "lucide-react";
 import { directUpload } from "@/lib/direct-upload";
@@ -64,5 +65,5 @@ export function UploadIsland({ controller, summaryHidden }: { controller: Upload
   const items = controller.jobs.filter(active), job = items.find(item => item.status !== "queued") || items[0];
   const { phrase } = useTonyPhrase("upload", 9000, !job);
   if (!job) return null;
-  return <button className={styles.island} style={{ top: summaryHidden ? 58 : 116 }} onClick={() => window.dispatchEvent(new Event("studio-open-notifications"))} aria-label="Mostra caricamenti in background"><LoaderCircle size={17} className="spin" /><span><strong>{job.name}</strong><small>{labels[job.status]}{job.status === "uploading" ? ` · ${Math.floor(job.loaded / Math.max(1, job.size) * 100)}%` : ""}{items.length > 1 ? ` · altri ${items.length - 1} in coda` : ""}</small><progress max={job.size || 1} value={job.status === "uploading" ? job.loaded : undefined} aria-label="Trasferimento file" /><small className={styles.quip} title={phrase}>Tony: {phrase}</small></span></button>;
+  return <button className={styles.island} style={{ top: summaryHidden ? 58 : 116 }} onClick={() => window.dispatchEvent(new Event("studio-open-notifications"))} aria-label="Mostra caricamenti in background"><LoaderCircle size={17} className="spin" /><span><strong>{job.name}</strong><small>{labels[job.status]}{job.status === "uploading" ? ` · ${Math.floor(job.loaded / Math.max(1, job.size) * 100)}%` : ""}{items.length > 1 ? ` · altri ${items.length - 1} in coda` : ""}</small><progress max={job.size || 1} value={job.status === "uploading" ? job.loaded : undefined} aria-label="Trasferimento file" /><ActionTooltip label={phrase}><small className={styles.quip}>Tony: {phrase}</small></ActionTooltip></span></button>;
 }

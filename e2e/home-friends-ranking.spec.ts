@@ -17,6 +17,8 @@ for (const width of [1280, 390]) test(`central friends menu shows podium or pers
   const home = page.getByRole("region", { name: "Classifica amici nella home", exact: true });
   const calendar = page.getByRole("region", { name: "Attività di lettura annuale", exact: true });
   await expect(home).toBeVisible(); await expect(calendar).toBeVisible();
+  const dock = (await page.locator(".workspace-topbar .study-activity-dock").boundingBox())!;
+  expect(Math.abs(dock.x + dock.width / 2 - width / 2)).toBeLessThan(2);
   const left = (await home.boundingBox())!, right = (await calendar.boundingBox())!;
   if (width === 1280) { expect(Math.abs(left.width - right.width)).toBeLessThan(2); expect(left.x + left.width).toBeLessThan(right.x); }
   else expect(left.y + left.height).toBeLessThanOrEqual(right.y);
@@ -24,7 +26,7 @@ for (const width of [1280, 390]) test(`central friends menu shows podium or pers
   const menu = page.getByRole("dialog", { name: "Amici online", exact: true });
   const list = menu.getByRole("list", { name: "Classifica degli amici", exact: true });
   await expect(list.getByRole("listitem")).toHaveCount(3);
-  await expect(list.locator('[data-self="true"]')).toContainText("Studente 2");
+  await expect(list.locator('[data-self="true"]')).toContainText("studente2");
   await expect(list).toHaveCSS("display", "flex");
   await expect(page.getByRole("button", { name: "Pagine", exact: true })).toHaveCount(0);
   const self = list.locator('[data-self="true"]');
@@ -38,9 +40,9 @@ for (const width of [1280, 390]) test(`central friends menu shows podium or pers
   await page.screenshot({ path: `test-results/friends-podium-${width}.png`, fullPage: true });
   selfPlace = 6;
   await menu.getByRole("tab", { name: "Mese", exact: true }).click();
-  await expect(list.locator('[data-self="true"]')).toContainText("Studente 6");
-  await expect(list.getByRole("listitem").first()).toContainText("Studente 5");
-  await expect(list.getByRole("listitem").last()).toContainText("Studente 7");
+  await expect(list.locator('[data-self="true"]')).toContainText("studente6");
+  await expect(list.getByRole("listitem").first()).toContainText("studente5");
+  await expect(list.getByRole("listitem").last()).toContainText("studente7");
   await expect(list).not.toHaveCSS("display", "flex");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `test-results/friends-personal-ranking-${width}.png`, fullPage: true });

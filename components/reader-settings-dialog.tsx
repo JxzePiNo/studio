@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionTooltip } from "@/components/ui/tooltip";
 import { useId, type CSSProperties } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Check, RotateCcw, Sparkles, X } from "lucide-react";
@@ -33,7 +34,7 @@ export function ReaderSettingsDialog({ zoom, onZoomChange, textSize, onTextSizeC
       <Dialog.Content className={`plan-dialog ${styles.shell}`}>
         <Dialog.Close asChild><Button variant="ghost" size="icon" className="plan-dialog-close" aria-label="Chiudi impostazioni"><X size={18} /></Button></Dialog.Close>
         <Dialog.Title>Impostazioni della lettura</Dialog.Title>
-        <Dialog.Description className={styles.description}><span title={name}>{name}</span><span className={styles.page}>Slide {page}</span></Dialog.Description>
+        <Dialog.Description className={styles.description}><ActionTooltip label={name}><span>{name}</span></ActionTooltip><span className={styles.page}>Slide {page}</span></Dialog.Description>
 
         <div className={`plan-form ${styles.form}`}>
           <section className={styles.section} aria-labelledby={`${id}-display`}>

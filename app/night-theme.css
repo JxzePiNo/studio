@@ -46,7 +46,7 @@ html[data-theme="dark"] :is(.upload-zone, .document-analysis, .keyboard-tip, .la
 html[data-theme="dark"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select) { color: var(--foreground); background-color: var(--background); border-color: var(--border); }
 html[data-theme="dark"] :is(input, textarea)::placeholder { color: var(--muted-foreground); }
 html[data-theme="dark"] :is(.reader-active .overview, .reader-active .concept p, .reader-active .example-box p, .reader-active .chat-analysis-message .overview, .reader-active .markdown-content.overview, .settings-section > p, .glossary > p, .glossary-word > span, .glossary-word small, .batch-progress > div, .batch-progress > small, .settings-modal p) { color: var(--muted-foreground); }
-html[data-theme="dark"] :is(.glossary-word strong, .batch-progress strong, .deepen-button) { color: var(--primary); }
+html[data-theme="dark"] :is(.glossary-word strong, .batch-progress strong) { color: var(--primary); }
 html[data-theme="dark"] :is(kbd, code, pre) { color: var(--foreground); background-color: var(--muted); border-color: var(--border); }
 html[data-theme="dark"] :is(.modal-backdrop, .account-profile-overlay, .plan-overlay) { background: #050810ad; }
 html[data-theme="dark"] .viewer-busy { background: #10151fe6; color: var(--foreground); }
