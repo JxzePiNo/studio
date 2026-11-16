@@ -11,7 +11,9 @@ export async function GET(request: Request) {
   const denied = await requestGuard(request); if (denied) return denied;
   try {
     if (!cloudEnabled()) return NextResponse.json({ messages: [] }, { headers });
-    return NextResponse.json({ messages: await new FriendsService(services().db, await userId()).incomingMessages() }, { headers });
+    const service = new FriendsService(services().db, await userId());
+    const targetId = new URL(request.url).searchParams.get("friend");
+    return NextResponse.json({ messages: targetId !== null ? await service.conversation(targetId) : await service.incomingMessages() }, { headers });
   } catch (error) { return apiError(error); }
 }
 export async function POST(request: Request) {

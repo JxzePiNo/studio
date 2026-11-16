@@ -11,13 +11,11 @@ async function setup() {
   for (const [service, name] of [[alice, "Alice"], [bob, "Bob"]] as const) await service.ensureProfile({ name, nickname: name.toLowerCase(), university: "Roma", studyProgram: "Informatica" });
   return { db, alice, bob };
 }
-test("only accepted online friends receive private messages, with authenticated sender and idempotent retries", async () => {
+test("accepted friends receive offline messages, with authenticated sender and idempotent retries", async () => {
   const { db, alice, bob } = await setup();
   const id = randomUUID();
   await assert.rejects(alice.sendMessage(id, "bob", "Ciao!"), { status: 403 });
   await alice.relationship("bob", "request"); await bob.relationship("alice", "accept");
-  await assert.rejects(alice.sendMessage(id, "bob", "Ciao!"), { status: 409 });
-  await bob.presence("tab", true, false);
   await alice.sendMessage(id, "bob", "Studiamo insieme?");
   await alice.sendMessage(id, "bob", "Studiamo insieme?");
   assert.deepEqual(await alice.incomingMessages(), []);
@@ -31,6 +29,29 @@ test("only accepted online friends receive private messages, with authenticated 
   await bob.block("alice", true);
   assert.deepEqual(await bob.incomingMessages(), []);
   await assert.rejects(new FriendsService(db, "alice", now + 4000).sendMessage(randomUUID(), "bob", "Bloccato"), { status: 403 });
+});
+
+test("chat history includes both directions and read messages, independently of activity privacy", async () => {
+  const { db, alice, bob } = await setup();
+  await assert.rejects(alice.conversation("bob"), { status: 403 });
+  await alice.relationship("bob", "request"); await bob.relationship("alice", "accept");
+  await bob.saveSettings({ action: "settings", enabled: true, discoverable: false, shareActivity: false }, { name: "Bob", nickname: "bob", university: "Roma", studyProgram: "Informatica" });
+  const first = randomUUID(), reply = randomUUID();
+  await alice.sendMessage(first, "bob", "Ci sei?");
+  await bob.readMessages([first]);
+  await new FriendsService(db, "bob", now + 1000).sendMessage(reply, "alice", "Ti rispondo più tardi");
+  const history = await alice.conversation("bob");
+  assert.deepEqual(history, [
+    { id: first, text: "Ci sei?", sentAt: now, outgoing: true, read: true },
+    { id: reply, text: "Ti rispondo più tardi", sentAt: now + 1000, outgoing: false, read: false },
+  ]);
+  assert.deepEqual((await bob.conversation("alice")).map(message => message.outgoing), [false, true]);
+  await assert.rejects(new FriendsService(db, "stranger", now).conversation("bob"), { status: 403 });
+  await assert.rejects(alice.conversation("bad/id"));
+  await assert.rejects(alice.conversation("alice"));
+  await bob.block("alice", true);
+  await assert.rejects(alice.conversation("bob"), { status: 403 });
+  await assert.rejects(bob.conversation("alice"), { status: 403 });
 });
 test("message validation bounds content and rejects impersonation and malformed acknowledgements", () => {
   const valid = { action: "send", id: randomUUID(), targetId: "bob", text: " Ciao " };

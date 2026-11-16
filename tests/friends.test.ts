@@ -128,7 +128,7 @@ test("daily/monthly rankings clip overlapping sessions and use Italian midnight"
   assert.deepEqual(studyScore(sessions, [{ day: "2026-07-13", pages: [1, 2] }, { day: "2026-07-12", pages: [1] }], "day", time), { durationMs: 1800000, pages: 2 });
 });
 
-test("a running session studies immediately, and continuous online presence studies after five minutes", async () => {
+test("only a running session shows studying; continuous platform presence stays online", async () => {
   const db = memoryFirestore();
   const alice = new FriendsService(db, "alice", now);
   const bob = new FriendsService(db, "bob", now);
@@ -141,9 +141,14 @@ test("a running session studies immediately, and continuous online presence stud
   for (let elapsed = 30000; elapsed <= 300000; elapsed += 30000) {
     await new FriendsService(db, "bob", now + elapsed).presence("tab", true, false);
     const status = (await new FriendsService(db, "alice", now + elapsed).overview("day")).friends[0].status;
-    assert.equal(status, elapsed < 300000 ? "online" : "studying");
+    assert.equal(status, "online");
   }
-  assert.equal((await new FriendsService(db, "alice", now + 300000).activity()).studying[0].id, "bob");
+  const activity = await new FriendsService(db, "alice", now + 300000).activity();
+  assert.equal(activity.online[0].id, "bob");
+  assert.equal(activity.studying.length, 0);
+  // Presence saved by older clients must not turn into studying with time either.
+  await db.collection("socialProfiles").doc("bob").collection("presence").doc("tab").set({ lastSeen: now + 300000, onlineSince: now, studying: false });
+  assert.equal((await new FriendsService(db, "alice", now + 300000).overview("day")).friends[0].status, "online");
   assert.equal((await new FriendsService(db, "alice", now + 391000).activity()).online.length, 0);
   await new FriendsService(db, "bob", now + 400000).presence("tab", true, false);
   assert.equal((await new FriendsService(db, "alice", now + 400000).overview("day")).friends[0].status, "online");

@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { FriendPerson, FriendsOverview, FriendsPeriod, SocialSettings } from "./friends-types";
 import { canonicalUniversity, normalizeUniversity } from "./universities";
 import { lastKnownPlatformVisit } from "./platform-visits";
-import type { FriendMessage } from "./friend-messages";
+import type { ChatMessage, FriendMessage } from "./friend-messages";
 
 const uidSchema = z.string().min(1).max(128).regex(/^[^/]+$/);
 export const friendsActionSchema = z.discriminatedUnion("action", [
@@ -60,10 +60,9 @@ export class FriendsService {
     const inbox = this.db.collection("users").doc(targetId).collection("friendMessages").doc(id);
     const limit = this.db.collection("socialMessageLimits").doc(this.uid);
     await this.db.runTransaction(async tx => {
-      const [edge, block, me, target, presence, previous, rate] = await Promise.all([
+      const [edge, block, me, target, previous, rate] = await Promise.all([
         tx.get(this.edges().doc(pairId(this.uid, targetId))), tx.get(this.db.collection("socialBlocks").doc(pairId(this.uid, targetId))),
         tx.get(this.profiles().doc(this.uid)), tx.get(this.profiles().doc(targetId)),
-        tx.get(this.profiles().doc(targetId).collection("presence").where("lastSeen", ">=", this.now - 90000).limit(1)),
         tx.get(inbox), tx.get(limit),
       ]);
       if (edge.get("status") !== "accepted" || block.get("blockers")?.length || !me.get("enabled") || !target.get("enabled")) throw fail("Puoi scrivere solo ai tuoi amici disponibili.", 403);
@@ -71,12 +70,27 @@ export class FriendsService {
         if (previous.get("senderId") !== this.uid) throw fail("Messaggio non valido.", 409);
         return;
       }
-      if (!target.get("shareActivity") || presence.empty) throw fail("Questo amico non è più online. Riprova quando torna disponibile.", 409);
       if (this.now - (Number(rate.get("sentAt")) || 0) < 2000) throw fail("Attendi un momento prima di inviare un altro messaggio.", 409);
       tx.set(inbox, { senderId: this.uid, text, sentAt: this.now, read: false });
       tx.set(limit, { sentAt: this.now });
     });
     return { ok: true };
+  }
+  async conversation(targetId: string): Promise<ChatMessage[]> {
+    if (!uidSchema.safeParse(targetId).success || targetId === this.uid) throw fail("Scegli un amico a cui scrivere.");
+    const [edge, blocked, me, target] = await Promise.all([
+      this.edges().doc(pairId(this.uid, targetId)).get(), this.blockedIds(), this.profile(), this.profile(targetId),
+    ]);
+    if (edge.get("status") !== "accepted" || blocked.has(targetId) || !me?.enabled || !target?.enabled) throw fail("Puoi leggere solo le chat con i tuoi amici disponibili.", 403);
+    // Read the existing inboxes so messages sent before chats were introduced remain visible.
+    const [incoming, outgoing] = await Promise.all([
+      this.db.collection("users").doc(this.uid).collection("friendMessages").where("senderId", "==", targetId).get(),
+      this.db.collection("users").doc(targetId).collection("friendMessages").where("senderId", "==", this.uid).get(),
+    ]);
+    return [
+      ...incoming.docs.map(doc => ({ id: doc.id, text: doc.get("text") as string, sentAt: doc.get("sentAt") as number, outgoing: false, read: doc.get("read") === true })),
+      ...outgoing.docs.map(doc => ({ id: doc.id, text: doc.get("text") as string, sentAt: doc.get("sentAt") as number, outgoing: true, read: doc.get("read") === true })),
+    ].sort((a, b) => a.sentAt - b.sentAt || a.id.localeCompare(b.id));
   }
   async incomingMessages(): Promise<FriendMessage[]> {
     const [inbox, edges, blocked, me] = await Promise.all([
@@ -225,21 +239,17 @@ export class FriendsService {
     }
     const history = this.profiles().doc(this.uid).collection("presenceHistory").doc("latest");
     await this.db.runTransaction(async tx => {
-      const [tab, saved] = await Promise.all([tx.get(ref), tx.get(history)]);
-      const previous = tab.data();
+      const saved = await tx.get(history);
       tx.set(history, { lastSeen: Math.max(this.now, Number(saved.get("lastSeen")) || 0) });
       if (!active) { tx.delete(ref); return; }
-      const onlineSince = previous && previous.lastSeen >= this.now - 90000 && Number.isFinite(previous.onlineSince)
-        ? previous.onlineSince : this.now;
-      tx.set(ref, { lastSeen: this.now, onlineSince, studying });
+      tx.set(ref, { lastSeen: this.now, studying });
     });
     return { enabled: true };
   }
   private async status(id: string, profile: Profile): Promise<FriendPerson["status"]> {
     if (!profile.enabled || !profile.shareActivity) return undefined;
     const tabs = await this.profiles().doc(id).collection("presence").where("lastSeen", ">=", this.now - 90000).get();
-    return tabs.empty ? "offline" : tabs.docs.some(doc => doc.get("studying") === true ||
-      (Number.isFinite(doc.get("onlineSince")) && this.now - doc.get("onlineSince") >= 5 * 60000)) ? "studying" : "online";
+    return tabs.empty ? "offline" : tabs.docs.some(doc => doc.get("studying") === true) ? "studying" : "online";
   }
   private async score(id: string, period: FriendsPeriod) {
     const root = this.db.collection("users").doc(id);

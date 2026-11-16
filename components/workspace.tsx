@@ -1,6 +1,7 @@
 "use client";
 
 import { FriendMessageNotifications, useFriendMessages } from "./friend-messages";
+import { FriendChats } from "./friend-chats";
 import { TonyTour } from "./tony-tour";
 import { useTonyTours } from "./tony-tour-provider";
 import { useStudyProfile } from "./study-profile-provider";
@@ -16,7 +17,7 @@ import { cachedApi, cachedPdf, invalidateApiCache } from "@/lib/browser-data-cac
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { House, Clock3, CalendarDays, Users, ArrowLeft, ArrowRight, FileText, FolderOpen, LoaderCircle, Plus, Search, Upload, X, Minimize } from "lucide-react";
+import { House, Clock3, CalendarDays, Users, MessageCircle, ArrowLeft, ArrowRight, FileText, FolderOpen, LoaderCircle, Plus, Search, Upload, X, Minimize } from "lucide-react";
 import { authHeaders, firebaseEnabled } from "@/lib/firebase-client";
 import { formatCourseName } from "@/lib/course-name";
 import { examColor, examAccentColor } from "@/lib/exam-colors";
@@ -87,7 +88,8 @@ export default function Workspace() {
   }, []);
   const [friendsTab, setFriendsTab] = useState("friends");
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
-  const [section, setSection] = useState<"study" | "exams" | "sessions" | "friends" | "calendar">("study");
+  const [section, setSection] = useState<"study" | "exams" | "sessions" | "friends" | "calendar" | "chats">("study");
+  const [selectedChatId, setSelectedChatId] = useState("");
   const [calendarRefreshing, setCalendarRefreshing] = useState(false);
   const [selectedStudyDay, setSelectedStudyDay] = useState("");
   const [folders, setFolders] = useState<ExamFolder[]>([]);
@@ -363,6 +365,20 @@ export default function Workspace() {
     if (window.location.pathname !== "/amici" || window.location.search) window.history.pushState(null, "", "/amici");
     setFriendsTab("friends"); setSection("friends"); setFolderId(""); setSidebar(false);
   }
+  function openChats(friendId = "") {
+    if (busy) return;
+    if (docRef.current) { void closeDocument().then(() => openChats(friendId)); return; }
+    resetMobilePageScroll();
+    const path = `/chat${friendId ? `?amico=${encodeURIComponent(friendId)}` : ""}`;
+    if (`${window.location.pathname}${window.location.search}` !== path) window.history.pushState(null, "", path);
+    setSelectedChatId(friendId); setSection("chats"); setFolderId(""); setSidebar(false);
+  }
+  const openChatRef = useRef(openChats); openChatRef.current = openChats;
+  useEffect(() => {
+    const reply = (event: Event) => { const id = (event as CustomEvent<{ id: string }>).detail?.id; if (id) openChatRef.current(id); };
+    window.addEventListener("studio-message-friend", reply);
+    return () => window.removeEventListener("studio-message-friend", reply);
+  }, []);
   const restoreRoute = useRef<(path: string) => Promise<void>>(async () => {});
   const restoringRoute = useRef(false);
   useEffect(() => {
@@ -379,7 +395,8 @@ export default function Workspace() {
     const match = parsedRoute.pathname.match(/^\/esami\/([^/]+)(?:\/documenti\/([^/]+))?\/?$/);
     restoringRoute.current = true;
     try {
-      setSection(["/amici", "/inviti"].includes(parsedRoute.pathname) ? "friends" : sessionsRoute ? "sessions" : parsedRoute.pathname === "/calendario" ? "calendar" : parsedRoute.pathname === "/esami" ? "exams" : "study");
+      setSection(["/amici", "/inviti"].includes(parsedRoute.pathname) ? "friends" : parsedRoute.pathname === "/chat" ? "chats" : sessionsRoute ? "sessions" : parsedRoute.pathname === "/calendario" ? "calendar" : parsedRoute.pathname === "/esami" ? "exams" : "study");
+      setSelectedChatId(parsedRoute.pathname === "/chat" ? parsedRoute.searchParams.get("amico") || "" : "");
       setFriendsTab(parsedRoute.pathname === "/inviti" || parsedRoute.searchParams.get("tab") === "inviti" ? "invites" : "friends");
       if (parsedRoute.pathname === "/inviti") window.history.replaceState(null, "", "/amici?tab=inviti");
       setSelectedStudyDay(sessionsRoute ? parsedRoute.searchParams.get("giorno") || "" : "");
@@ -636,6 +653,7 @@ export default function Workspace() {
       <SidebarHeader><a className="studio-brand" href="/" onClick={event => { event.preventDefault(); openFolder(""); }} aria-label="Studio, pagina iniziale">studio<span>.</span></a></SidebarHeader>
       <SidebarContent>
       <nav className="sidebar-study-nav" aria-label="Studio"><SidebarMenu><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "study" && !folderId} aria-current={section === "study" && !folderId ? "page" : undefined} onClick={() => openFolder("")} disabled={busy}><House size={18} /><span>Home</span></SidebarMenuButton></SidebarMenuItem><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "calendar"} aria-current={section === "calendar" ? "page" : undefined} onClick={openCalendar} disabled={busy}><CalendarDays size={18} /><span>Calendario</span></SidebarMenuButton></SidebarMenuItem><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "sessions"} aria-current={section === "sessions" ? "page" : undefined} onClick={() => openSessions()} disabled={busy}><Clock3 size={18} /><span>Sessioni di studio</span></SidebarMenuButton></SidebarMenuItem><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "friends"} aria-current={section === "friends" ? "page" : undefined} onClick={openFriends} disabled={busy}><Users size={18} /><span>Amici</span></SidebarMenuButton></SidebarMenuItem></SidebarMenu></nav>
+      <nav className="sidebar-study-nav" aria-label="Messaggi"><SidebarMenu><SidebarMenuItem><SidebarMenuButton className="sidebar-session-link" isActive={section === "chats"} aria-current={section === "chats" ? "page" : undefined} onClick={() => openChats()} disabled={busy}><MessageCircle size={18} /><span>Chat</span>{friendMessages.messages.length > 0 && <span aria-label={`${friendMessages.messages.length} messaggi non letti`}>({friendMessages.messages.length})</span>}</SidebarMenuButton></SidebarMenuItem></SidebarMenu></nav>
       <div className="sidebar-create-exam"><Button className="new-document" aria-label="Crea esame" onClick={() => { setSidebar(false); setCreatingFolder(true); }} disabled={busy}><Plus size={18} /> Crea esame</Button></div>
       <nav className="exam-folders" aria-label="Esami"><div className="section-label"><button type="button" className="sidebar-exams-home" aria-current={section === "exams" ? "page" : undefined} disabled={busy} onClick={openExams}><span>I tuoi esami</span><span>{folders.filter(folder => !folder.archived).length}</span></button></div>
       <SidebarMenu>{folders.filter(folder => !folder.archived).map(folder => <SidebarMenuItem key={folder.id}><CourseContextMenu folder={folder} disabled={busy} onAction={action => { if (action === "open") openFolder(folder.id); else { openFolder(""); setRequestedCourseAction({ folderId: folder.id, action, requestId: Date.now() }); } }}><SidebarMenuButton disabled={busy} isActive={folderId === folder.id} className={folderId === folder.id ? "folder-item active" : "folder-item"} data-exam-color={examColor(folder)} style={{ "--course-accent": examAccentColor(folder) } as React.CSSProperties} aria-current={folderId === folder.id ? "page" : undefined} onClick={() => { openFolder(folder.id); }}><span className="folder-icon"><FolderOpen size={19} strokeWidth={1.8} /></span><span className="folder-name">{formatCourseName(folder.name)}</span><small>{library.filter(d => d.folderId === folder.id).length}</small></SidebarMenuButton></CourseContextMenu></SidebarMenuItem>)}</SidebarMenu>
@@ -672,6 +690,7 @@ export default function Workspace() {
       {(section === "study" || section === "exams") && !doc && !opening && <ExamOverview examsOnly={section === "exams"} dialogOnly={!!folderId} requestedCourseAction={requestedCourseAction} onCourseActionHandled={() => setRequestedCourseAction(undefined)} onDeleted={id => { setFolders(items => items.filter(item => item.id !== id)); setLibrary(items => items.filter(item => item.folderId !== id)); if (folderId === id) openFolder(""); void refresh(); }} isCourseBusy={id => uploads.jobs.some(job => job.folderId === id && ["queued", "preparing", "uploading", "processing"].includes(job.status)) || pendingWrites.current > 0 || courseAnalysis.jobs.some(job => job.folderId === id && ["checking", "running", "stopping"].includes(job.status)) || (!!readerJobDocument.current && analysisLock.current && library.some(item => item.id === readerJobDocument.current && item.folderId === id)) || Object.entries(chatController.sessions).some(([key, value]) => value.status === "pending" && library.some(item => item.folderId === id && key.startsWith(`${item.id}:`)))} onActivityDaySelect={openSessions} activity={studySession.activity} today={studySession.todayDate} folders={folders} documents={library} onOpen={openFolder} onCreate={() => { setSidebar(false); setCreatingFolder(true); }} onUpdated={folder => { setFolders(current => current.map(f => f.id === folder.id ? folder : f)); if (folder.archived && folderId === folder.id) openFolder(""); }} />}
       {section === "study" && !folderId && !doc && !opening && <SharedMaterials home />}
       {section === "friends" && !doc && !opening && <FriendsSection initialTab={friendsTab} onTabChange={setFriendsTab} />}
+      {section === "chats" && !doc && !opening && <FriendChats selectedId={selectedChatId} onSelect={openChats} unread={friendMessages.messages} onOpenFriends={openFriends} />}
       {section === "calendar" && !doc && !opening && <StudyCalendar folders={folders} documents={library} sessions={studySession.sessions} loading={studySession.loadingHistory || calendarRefreshing} historyError={studySession.errorHistory} onRefresh={() => { void refreshStudyCalendar(); }} onSaved={folder => setFolders(current => current.map(item => item.id === folder.id ? folder : item))} onOpen={openFolder} />}
       {section === "sessions" && !doc && !opening && <StudySessionsView sessions={studySession.sessions} activity={studySession.activity} today={studySession.todayDate} loading={studySession.loadingHistory} error={studySession.errorHistory} onRetry={() => void studySession.reloadHistory()} selectedDay={selectedStudyDay || null} onSelectDay={day => openSessions(day || "")} />}
       {section === "study" && folderId && <div className={`welcome ${homeStyles.courseWorkspace}`} hidden={!!doc || !!opening}>

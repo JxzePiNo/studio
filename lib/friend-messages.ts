@@ -5,3 +5,4 @@ export const friendMessageActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("read"), ids: z.array(z.string().uuid()).min(1).max(50) }).strict(),
 ]);
 export type FriendMessage = { id: string; sender: { id: string; name: string; nickname: string; photoURL?: string }; text: string; sentAt: number };
+export type ChatMessage = { id: string; text: string; sentAt: number; outgoing: boolean; read: boolean };

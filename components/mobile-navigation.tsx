@@ -2,7 +2,7 @@
 import { House, Clock3, Users, GraduationCap, CalendarDays } from "lucide-react";
 import { SidebarProfile } from "./sidebar-profile";
 
-export function MobileNavigation({ section, home, exams, sessions, friends, calendar, disabled, admin = false, onSignOut }: { section?: "study" | "exams" | "sessions" | "friends" | "calendar"; calendar?: () => void; home: () => void; exams: () => void; sessions: () => void; friends: () => void; disabled?: boolean; admin?: boolean; onSignOut?: () => void }) {
+export function MobileNavigation({ section, home, exams, sessions, friends, calendar, disabled, admin = false, onSignOut }: { section?: "study" | "exams" | "sessions" | "friends" | "calendar" | "chats"; calendar?: () => void; home: () => void; exams: () => void; sessions: () => void; friends: () => void; disabled?: boolean; admin?: boolean; onSignOut?: () => void }) {
   return <nav className="mobile-bottom-navigation" data-calendar={!!calendar} aria-label="Navigazione principale">
     <button type="button" aria-current={section === "study" ? "page" : undefined} disabled={disabled} onClick={home}><House size={20} /><span>Home</span></button>
     <button type="button" data-tour="exams" aria-current={section === "exams" ? "page" : undefined} disabled={disabled} onClick={exams}><GraduationCap size={20} /><span>Esami</span></button>
