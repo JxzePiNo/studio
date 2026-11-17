@@ -1,4 +1,5 @@
 .reader-active .markdown-content { min-width:0; color:var(--foreground); font-size:var(--reader-text-size,16px); line-height:1.8; overflow-wrap:anywhere; }
+.reader-active .markdown-content.markdown-inline { font-size:inherit; line-height:inherit; color:inherit; }
 .reader-active .markdown-content :is(p,li) { font-size:inherit; line-height:1.8; white-space:normal; }
 .reader-active .chat-message .markdown-content p { margin:0 0 14px; }
 .reader-active .markdown-content > :first-child { margin-top:0; }

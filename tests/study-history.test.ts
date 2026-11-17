@@ -57,6 +57,19 @@ test("history validates dates, duration, document selectors and unknown fields",
   assert.equal(savedSessionInputSchema.safeParse({ id: randomUUID(), startedAt: "2026-11-10T10:00:00Z", endedAt: "2026-11-10T10:00:01Z", day: "2026-11-10", durationMs: 100000, pages: [] }).success, false);
 });
 
+test("daily history includes all checkpoints even when a study day exceeds 500 sessions", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "studio-history-daily-"));
+  const previous = process.env.DATA_DIR;
+  process.env.DATA_DIR = root; process.env.NEXT_PUBLIC_FIREBASE_ENABLED = "false";
+  try {
+    const start = Date.parse("2026-11-10T08:00:00Z");
+    const sessions = Array.from({ length: 510 }, (_, index) => ({ id: randomUUID(), day: "2026-11-10", startedAt: new Date(start + index * 60000).toISOString(), endedAt: new Date(start + (index + 1) * 60000).toISOString(), durationMs: 60000, pages: [], pagesRead: 0, documents: [] }));
+    await writeFile(path.join(root, "study-sessions.json"), JSON.stringify({ sessions, days: {} }));
+    assert.equal((await getStudyHistory("2026-11-10")).sessions.length, 510);
+    assert.equal((await getStudyHistory("2026-11-12")).sessions.length, 500);
+  } finally { if (previous === undefined) delete process.env.DATA_DIR; else process.env.DATA_DIR = previous; await rm(root, { recursive: true, force: true }); }
+});
+
 test("bulk session merge unions overlap and pages atomically, preserves activity, and deletion is idempotent", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "studio-history-bulk-"));
   const previous = process.env.DATA_DIR;

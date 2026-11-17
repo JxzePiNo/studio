@@ -55,7 +55,9 @@ test("chat uses the current study profile and analysis as its opening context wi
       assert.match(text, /Pagine originali allegate, in ordine: 2, 3/);
       assert.ok(body.instructions.includes("esposizione, non padronanza"));
     }
-    return Response.json({ id: `response_${calls}`, object: "response", status: "completed", output: [{ id: `message_${calls}`, type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: "Un approfondimento tecnico con ipotesi e derivazione.", annotations: [] }] }] });
+    assert.equal(body.text.format.name, "tutor_answer");
+    assert.match(body.instructions, /verdict deve essere yes o no/);
+    return Response.json({ id: `response_${calls}`, object: "response", status: "completed", output: [{ id: `message_${calls}`, type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: JSON.stringify({ verdict: "open", segments: [{ kind: "markdown", content: "Un approfondimento tecnico con ipotesi e derivazione." }] }), annotations: [] }] }] });
   };
   async function ask(scope = "slide", page = 1, attachments?: { name: string; data: string }[]) {
     const response = await POST(new Request(`http://127.0.0.1/api/documents/${doc.id}/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ page, question: "Approfondisci la derivazione.", scope, attachments }) }), { params: Promise.resolve({ id: doc.id }) });

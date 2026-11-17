@@ -5,6 +5,7 @@ import { requestGuard, apiError } from "@/lib/http";
 import { readDocument } from "@/lib/store";
 import { meteredFetch } from "@/lib/ai-metering";
 import { openaiError } from "@/lib/openai";
+import { validateGeneratedMath } from "@/lib/validated-math-output";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -27,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { signal: request.signal });
     const explanation = response.output_text || response.output.filter(item => item.type === "message").flatMap(item => item.content.filter(part => part.type === "output_text").map(part => part.text)).join("");
     if (response.status !== "completed" || !explanation.trim()) return NextResponse.json({ error: "Spiegazione incompleta. Riprova." }, { status: 502 });
-    return NextResponse.json({ explanation });
+    return NextResponse.json({ explanation: await validateGeneratedMath(explanation, client, request.signal) });
   } catch (error) {
     const known = openaiError(error);
     return known ? NextResponse.json({ error: known.error }, { status: known.status }) : apiError(error);

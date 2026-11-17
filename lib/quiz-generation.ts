@@ -9,6 +9,8 @@ import { quizGenerationSchema, validateGeneratedQuiz, type QuizConfig, type Stud
 import type { StudyDocument } from "./types";
 import { PDFDocument } from "pdf-lib";
 import { quizAcademicInstructions, quizDifficulty } from "./quiz-difficulty";
+import { validateGeneratedMath } from "./validated-math-output";
+import { MathValidationError } from "./math-validation";
 
 export async function generateQuiz(document: StudyDocument, pdf: Uint8Array, config: QuizConfig, studyContext: string, signal?: AbortSignal, support: AttachmentContent[] = []): Promise<StudyQuiz> {
   config = { ...config, difficulty: quizDifficulty(config, studyContext) };
@@ -42,13 +44,14 @@ export async function generateQuiz(document: StudyDocument, pdf: Uint8Array, con
       });
       if (response.output.some(item => item.type === "message" && item.content.some(part => part.type === "refusal"))) throw new Error("Il modello non può generare questo quiz. Prova a modificare la richiesta.");
       if (response.status !== "completed" || !response.output_parsed) throw Object.assign(new Error("Generazione del quiz incompleta. Riprova o riduci il numero di domande."), { status: 502 });
+      const checked = await validateGeneratedMath(response.output_parsed, client, signal);
       let generated;
-      try { generated = validateGeneratedQuiz(response.output_parsed, config, document.pages); }
+      try { generated = validateGeneratedQuiz(checked, config, document.pages); }
       catch (error) { throw Object.assign(new Error((error as Error).message), { status: 502 }); }
       return { ...generated, id: randomUUID(), documentId: document.id, documentName: document.name, topics: config.topics, difficulty: config.difficulty, ...(config.timing ? { timing: config.timing } : {}), createdAt: new Date().toISOString() };
     } catch (error) {
       // Only retry invalid generated content, never authentication, billing or network errors.
-      if (signal?.aborted || !(error instanceof Error) || !("status" in error) || error.status !== 502 || error instanceof OpenAI.APIError || attempt === 2) throw error;
+      if (signal?.aborted || error instanceof MathValidationError || !(error instanceof Error) || !("status" in error) || error.status !== 502 || error instanceof OpenAI.APIError || attempt === 2) throw error;
       correction = `La generazione precedente non ha superato i controlli: ${error.message} Rigenera il quiz completo: esattamente ${config.count} domande, di cui ${config.count - config.openCount - config.trueFalseCount} multiple-choice, ${config.openCount} open e ${config.trueFalseCount} true-false. Ogni page deve essere un indice fisico del PDF allegato tra 1 e ${pages}, NON il numero stampato nella pagina. Non aggiungere tipi non richiesti e non inventare riferimenti.`;
     }
   }

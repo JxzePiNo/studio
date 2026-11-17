@@ -7,6 +7,10 @@ import { meteredFetch } from "@/lib/ai-metering";
 import { NextResponse } from "next/server";
 import { PDFDocument } from "pdf-lib";
 import OpenAI from "openai";
+import { zodTextFormat } from "openai/helpers/zod";
+import { tutorAnswerInstructions, tutorAnswerSchema, renderTutorAnswer } from "@/lib/tutor-answer";
+import { validateGeneratedMath } from "@/lib/validated-math-output";
+import { checkedMarkdown, MathValidationError } from "@/lib/math-validation";
 import { z } from "zod";
 import { apiError, requestGuard } from "@/lib/http";
 import { listDocuments, readDocument, readPdf, updateSlide } from "@/lib/store";
@@ -84,6 +88,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         ...support.content,
       ] }],
     };
+    parameters.instructions += `\n${tutorAnswerInstructions}`;
+    parameters.text = { format: zodTextFormat(tutorAnswerSchema, "tutor_answer") };
     const finish = async (response: OpenAI.Responses.Response, signal = request.signal) => {
     const material = response.output.find(item => item.type === "function_call" && item.name === "create_material");
     if (response.status === "completed" && material?.type === "function_call") {
@@ -102,8 +108,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const outputText = response.output_text || response.output.filter(item => item.type === "message").flatMap(item => item.content.filter(part => part.type === "output_text").map(part => part.text)).join("");
     if (response.status !== "completed" || !outputText.trim()) return NextResponse.json({ error: "Risposta incompleta. Riprova." }, { status: 502 });
+    let structured: unknown;
+    try { structured = JSON.parse(outputText); }
+    catch { throw new MathValidationError(["Risposta strutturata non valida."]); }
+    const answer = tutorAnswerSchema.safeParse(structured);
+    if (!answer.success) throw new MathValidationError(["Risposta strutturata incompleta."]);
+    const draft = renderTutorAnswer({ ...answer.data, verdict: "open" });
+    const body = checkedMarkdown(await validateGeneratedMath(draft, client, signal));
+    const content = renderTutorAnswer({ verdict: answer.data.verdict, segments: [{ kind: "markdown", content: body }] });
     signal.throwIfAborted();
-    const messages = [userMessage, { role: "assistant" as const, content: outputText }];
+    const messages = [userMessage, { role: "assistant" as const, content }];
     const updated = await updateSlide(id, page, slide => ({ ...slide, chat: boundedChatHistory([...(slide.chat || []), ...messages]) }));
     return NextResponse.json(updated.chat);
     };
@@ -126,7 +140,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           let quizStarted = false;
           for await (const event of upstream) {
             if (abort.signal.aborted) break;
-            if (event.type === "response.output_text.delta") emit("delta", { text: event.delta });
+            // Buffer untrusted JSON and formulas until the complete answer has
+            // passed validation. Tool progress events can still be sent live.
             if (event.type === "response.output_item.added" && event.item.type === "function_call" && event.item.name === "create_material") emit("material-start", { arguments: "", kind: "pending" });
             if (event.type === "response.function_call_arguments.done") {
               const item = (() => { try { return JSON.parse(event.arguments); } catch { return null; } })();

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { dataRoot, readDocument, readPdf } from "./store";
 import { cloudEnabled, userRoot } from "./firebase-server";
 import { findSavedQuiz, readQuizExplanation, saveQuizExplanation } from "./quiz-store";
+import { validateGeneratedMath } from "./validated-math-output";
 
 const pending = new Map<string, Promise<string>>();
 export async function explainQuizAnswer(documentId: string, quizId: string, questionIndex: number, selectedIndex: number) {
@@ -33,8 +34,9 @@ export async function explainQuizAnswer(documentId: string, quizId: string, ques
     });
     const explanation = response.output_text?.trim();
     if (response.status !== "completed" || !explanation) throw Object.assign(new Error("Approfondimento incompleto. Riprova."), { status: 502 });
-    await saveQuizExplanation(documentId, quizId, key, explanation);
-    return explanation;
+    const checked = await validateGeneratedMath(explanation, client);
+    await saveQuizExplanation(documentId, quizId, key, checked);
+    return checked;
   })();
   pending.set(pendingKey, task);
   try { return await task; } finally { pending.delete(pendingKey); }

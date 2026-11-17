@@ -23,5 +23,14 @@ test("literal math syntax stays untouched in inline code and fenced code blocks"
 test("LaTeX math fences and standalone undelimited expressions render while existing math stays stable", () => {
   assert.equal(prepareMarkdown("```latex\n\\frac{1}{2}\n```"), "$$\n\\frac{1}{2}\n$$");
   assert.equal(prepareMarkdown(String.raw`\frac{1}{2}`), "\n$$\n\\frac{1}{2}\n$$\n");
-  for (const source of [String.raw`$\frac{1}{2}$`, "$$\n\\frac{1}{2}\n$$", "Prezzo: 20 $.", String.raw`La formula usa \frac{a}{b} come rapporto.`]) assert.equal(prepareMarkdown(source), source);
+  for (const source of [String.raw`$\frac{1}{2}$`, "$$\n\\frac{1}{2}\n$$", "Prezzo: 20 $."]) assert.equal(prepareMarkdown(source), source);
+  assert.equal(prepareMarkdown(String.raw`La formula usa \frac{a}{b} come rapporto.`), String.raw`La formula usa $\frac{a}{b}$ come rapporto.`);
+});
+
+test("normalizes escaped, multiline, compact display and undelimited math", () => {
+  assert.equal(prepareMarkdown(String.raw`Formula \\(x^2\\).`), "Formula $x^2$.");
+  assert.equal(prepareMarkdown("Formula \\(x +\ny\\)."), "Formula $x + y$.");
+  assert.equal(prepareMarkdown("Risulta $$x^2$$ quindi."), "Risulta \n$$\nx^2\n$$\n quindi.");
+  assert.equal(prepareMarkdown(String.raw`Parametri \alpha_i e \sqrt{1+\frac{x}{y}}.`), String.raw`Parametri $\alpha_i$ e $\sqrt{1+\frac{x}{y}}$.`);
+  assert.equal(prepareMarkdown(String.raw`\begin{align}x&=1\\ y&=2\end{align}`), "\n$$\n" + String.raw`\begin{aligned}x&=1\\ y&=2\end{aligned}` + "\n$$\n");
 });

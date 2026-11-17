@@ -11,7 +11,7 @@ import { readChatStream, type ChatStreamEvent } from "../lib/chat-stream";
 
 const frame = (event: unknown) => new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
 
-test("chat streams actual deltas before completion, persists once, and reports interrupted output", async t => {
+test("chat buffers unvalidated output, persists once, and reports interrupted output", async t => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "studio-chat-stream-"));
   const previous = { data: process.env.DATA_DIR, enabled: process.env.NEXT_PUBLIC_FIREBASE_ENABLED, key: process.env.OPENAI_API_KEY, fetch: globalThis.fetch };
   process.env.DATA_DIR = directory; process.env.NEXT_PUBLIC_FIREBASE_ENABLED = "false"; process.env.OPENAI_API_KEY = "fake-key-no-network";
@@ -33,19 +33,17 @@ test("chat streams actual deltas before completion, persists once, and reports i
   const response = await ask();
   await upstreamReady;
   const events: ChatStreamEvent[] = [];
-  let first!: () => void;
-  const firstDelta = new Promise<void>(resolve => { first = resolve; });
-  const reading = readChatStream(response, event => { events.push(event); if (event.event === "delta") first(); });
+  const reading = readChatStream(response, event => { events.push(event); });
   upstream.enqueue(frame({ type: "response.output_text.delta", delta: "Una spiegazione " }));
-  await firstDelta;
-  assert.equal(events.length, 1);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(events.length, 0);
   assert.equal((await readDocument(doc.id)).slides[1]?.chat, undefined);
   upstream.enqueue(frame({ type: "response.output_text.delta", delta: "completa." }));
-  upstream.enqueue(frame({ type: "response.completed", response: { id: "response_1", status: "completed", output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Una spiegazione completa.", annotations: [] }] }] } }));
+  upstream.enqueue(frame({ type: "response.completed", response: { id: "response_1", status: "completed", output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: JSON.stringify({ verdict: "yes", segments: [{ kind: "markdown", content: "Una spiegazione completa." }] }), annotations: [] }] }] } }));
   upstream.close();
   await reading;
   const stored = (await readDocument(doc.id)).slides[1].chat!;
-  assert.equal(stored.length, 2); assert.equal(stored[1].content, "Una spiegazione completa.");
+  assert.equal(stored.length, 2); assert.equal(stored[1].content, "Sì.\n\nUna spiegazione completa.");
   assert.deepEqual(events.at(-1), { event: "done", data: { messages: stored } });
 
   upstreamReady = new Promise<void>(resolve => { ready = resolve; });
@@ -56,7 +54,7 @@ test("chat streams actual deltas before completion, persists once, and reports i
   upstream.enqueue(frame({ type: "response.output_text.delta", delta: "Parziale" }));
   upstream.enqueue(frame({ type: "response.incomplete", response: { status: "incomplete" } })); upstream.close();
   await assert.rejects(failedReading);
-  assert.ok(failedEvents.some(event => event.event === "delta"));
+  assert.ok(!failedEvents.some(event => event.event === "delta"));
   assert.ok(!failedEvents.some(event => event.event === "done"));
   assert.deepEqual((await readDocument(doc.id)).slides[1].chat, stored);
 

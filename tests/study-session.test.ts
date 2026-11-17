@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { freshSession, pauseStudyTimer, startStudyTimer, recordStudyPage, restoreSession, sessionElapsed, type StudySession } from "../lib/study-session";
+import { dailyStudyElapsed, freshSession, pauseStudyTimer, startStudyTimer, recordStudyPage, restoreSession, sessionElapsed, type StudySession } from "../lib/study-session";
 
 test("daily reading counts distinct pages and removes unmarked pages without carrying yesterday", () => {
   const morning = new Date(2026, 10, 10, 10).getTime();
@@ -52,4 +52,29 @@ test("pause and resume preserve one session across reload and exclude the pause"
   assert.equal(session.activeId, "one-session");
   assert.deepEqual(session.activePages, ["doc:1"]);
   assert.equal(sessionElapsed(session, start + 62000), 7000);
+});
+
+test("daily timer resumes from 25 minutes after lunch, without counting saved checkpoints twice", () => {
+  const morning = new Date(2026, 10, 10, 8).getTime();
+  const lunch = new Date(2026, 10, 10, 14).getTime();
+  const durationMs = 25 * 60000;
+  const saved = [{ startedAt: new Date(morning).toISOString(), endedAt: new Date(morning + durationMs).toISOString(), durationMs }];
+  assert.equal(dailyStudyElapsed(freshSession(morning), [], morning), 0);
+  const afternoon = startStudyTimer(freshSession(lunch), "afternoon", lunch);
+  assert.equal(dailyStudyElapsed(afternoon, saved, lunch), durationMs);
+  assert.equal(dailyStudyElapsed(afternoon, saved, lunch + 60000), durationMs + 60000);
+  const checkpoint = { startedAt: new Date(lunch).toISOString(), endedAt: new Date(lunch + 60000).toISOString(), durationMs: 60000 };
+  const checked = { ...afternoon, savedElapsedMs: 60000 };
+  assert.equal(dailyStudyElapsed(checked, [...saved, checkpoint], lunch + 90000), durationMs + 90000);
+  const paused = pauseStudyTimer(checked, lunch + 90000);
+  assert.equal(dailyStudyElapsed(paused, [...saved, checkpoint], lunch + 3600000), durationMs + 90000);
+});
+
+test("daily timer clips sessions and merged intervals at local midnight", () => {
+  const midnight = new Date(2026, 10, 11).getTime();
+  const previous = { startedAt: new Date(midnight - 60000).toISOString(), endedAt: new Date(midnight + 60000).toISOString(), durationMs: 120000 };
+  assert.equal(dailyStudyElapsed(freshSession(midnight), [previous], midnight + 120000), 60000);
+  const merged = { ...previous, timeRanges: [[midnight - 60000, midnight], [midnight + 60000, midnight + 90000]] as [number, number][] };
+  assert.equal(dailyStudyElapsed(freshSession(midnight), [merged], midnight + 120000), 30000);
+  assert.equal(dailyStudyElapsed(freshSession(midnight + 86400000), [previous], midnight + 86400000), 0);
 });

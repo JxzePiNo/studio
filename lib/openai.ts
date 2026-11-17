@@ -4,6 +4,7 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { analysisExplanationSchema } from "./schema";
 import { formatStudyContext, graduateTutorInstructions, type TutorStudyContext } from "./tutor-context";
 import { resetMilliseconds, retryAfterMilliseconds } from "./retry-after";
+import { validateGeneratedMath } from "./validated-math-output";
 
 const mathematicalGlossaryInstructions = `Per i simboli usa un approccio da libro di matematica universitario: simbolo (pronuncia o lettura in italiano), poi che cosa rappresenta nel contesto preciso della slide. In glossary.word scrivi il simbolo in LaTeX seguito dalla pronuncia tra parentesi, ad esempio α (alfa), λ (lambda), xᵢ (ics con indice i), ∂f/∂x (derivata parziale di effe rispetto a ics); rendi la notazione con LaTeX, non con questi esempi Unicode. In glossary.translation definisci l'oggetto matematico: scalare, vettore, matrice, insieme, funzione, parametro, variabile, indice oppure operatore. In glossary.context spiega il suo ruolo nella formula e, quando determinabili, dominio, dimensioni o unità di misura e condizioni di utilizzo. Chiarisci anche indici, pedici, apici, accenti, quantificatori e operatori necessari a leggere la formula; distingui simboli simili con significati diversi. Per una formula completa aggiungi come si legge e che relazione esprime; spiega i simboli rilevanti in voci dedicate o nel suo contesto, senza lasciarli impliciti per rispettare il numero indicativo di voci. Anche nella spiegazione principale, alla prima comparsa di una notazione non ovvia, introduci nome e significato prima di usarla nei passaggi. Mantieni rigore e chiarezza, senza dare per scontata la notazione. Non assegnare ai simboli un significato convenzionale se la slide li usa diversamente; se il significato non è ricavabile, dichiaralo invece di inventarlo. Gli esempi di formato non sono voci da aggiungere: includi solo i simboli pertinenti alla slide.`;
 
@@ -41,7 +42,7 @@ export async function explainSlide(bytes: Uint8Array, page: number, context: Tut
     throw Object.assign(new Error(refused ? "L’AI non può analizzare questa pagina. Prova un’altra slide." : "L’AI ha restituito una risposta incompleta. Riprova."), { retryable: !refused });
   }
   const explanation = analysisExplanationSchema.parse(response.output_parsed);
-  return explanation;
+  return analysisExplanationSchema.parse(await validateGeneratedMath(explanation, client));
 }
 
 export function retryableAnalysisError(error: unknown): boolean {

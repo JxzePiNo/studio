@@ -41,14 +41,19 @@ function applyReading(current: ReadingDay | undefined, events: ReadingEvent[]): 
   return { pages: [...pages], ...(current?.importedCount !== undefined ? { importedCount: current.importedCount } : {}) };
 }
 function snapshot(history: StoredHistory, day: string): StudyHistorySnapshot {
-  return { sessions: [...history.sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 500), activity: Object.fromEntries(Object.entries(history.days).map(([date, entry]) => [date, Math.max(entry.pages.length, entry.importedCount || 0)])), todayPages: history.days[day]?.pages || [] };
+  const sorted = [...history.sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  // Checkpoints are saved every minute: a long study day can exceed 500 entries.
+  // Include every interval that could overlap this local day, in any time zone.
+  const cutoff = new Date(`${day}T00:00:00+14:00`).toISOString();
+  const sessions = sorted.filter((session, index) => index < 500 || session.endedAt >= cutoff);
+  return { sessions, activity: Object.fromEntries(Object.entries(history.days).map(([date, entry]) => [date, Math.max(entry.pages.length, entry.importedCount || 0)])), todayPages: history.days[day]?.pages || [] };
 }
 export async function getStudyHistory(day: string): Promise<StudyHistorySnapshot> {
   studyDateSchema.parse(day);
   if (!cloudEnabled()) { await writes.get(destination())?.catch(() => {}); return snapshot(await localRead(), day); }
   const root = await userRoot();
-  const [sessionDocs, dayDocs] = await Promise.all([root.collection("studySessions").orderBy("startedAt", "desc").limit(500).get(), root.collection("readingActivity").get()]);
-  return snapshot({ sessions: sessionDocs.docs.map(doc => doc.data() as SavedStudySession), days: Object.fromEntries(dayDocs.docs.map(doc => [doc.id, doc.data() as ReadingDay])) }, day);
+  const [sessionDocs, todayDocs, dayDocs] = await Promise.all([root.collection("studySessions").orderBy("startedAt", "desc").limit(500).get(), root.collection("studySessions").where("endedAt", ">=", new Date(`${day}T00:00:00+14:00`).toISOString()).get(), root.collection("readingActivity").get()]);
+  return snapshot({ sessions: [...new Map([...sessionDocs.docs, ...todayDocs.docs].map(doc => [doc.id, doc.data() as SavedStudySession])).values()], days: Object.fromEntries(dayDocs.docs.map(doc => [doc.id, doc.data() as ReadingDay])) }, day);
 }
 export async function recordReadingBatch(input: ReadingEvent[]): Promise<void> {
   const events = input.map(event => readingEventSchema.parse(event));

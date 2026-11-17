@@ -3,7 +3,7 @@ import { createExam } from "./exam-helpers";
 import type { ChatMessage, Explanation, StudyDocument } from "../lib/types";
 
 const explanation: Explanation = {
-  title: "La media aritmetica", language: "it",
+  title: "La media aritmetica $\\bar{x}$", language: "it",
   overview: "Una **sintesi** con `n` osservazioni.",
   concepts: [{ title: "Il calcolo", explanation: "1. Somma i valori.\n2. Dividi per il numero di osservazioni." }],
   example: "Con i dati $2, 4, 6$ la media vale $4$.",
@@ -17,6 +17,8 @@ const answer = [
   "> La media usa tutti i dati.", "", "Usa `len(valori)` per contarli.", "",
   "```python", "valori = [2, 4, 6]", "media = sum(valori) / len(valori)", "print(media)", "```", "",
   String.raw`Una formula inline: \(x^2\).`, "", String.raw`\[\bar{x}=\frac{1}{n}\sum_{i=1}^{n} x_i\]`, "",
+  String.raw`Parametri \alpha_i e \frac{1}{2}.`, "", String.raw`Compatta: $$x^2+y^2$$`, "",
+  String.raw`\begin{align}x&=1\\y&=2\end{align}`, "",
   "[Un riferimento](https://example.org/lezione)", "", "[Non eseguire](javascript:alert(1))", "",
   '<script>window.markdownInjected = true</script>', '<img src="x" onerror="window.markdownInjected = true">',
 ].join("\n");
@@ -24,7 +26,7 @@ const answer = [
 test("tutor Markdown renders lists, tables, highlighted code and formulas safely on mobile", async ({ page, request, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.route("**/api/status", route => route.fulfill({ json: { configured: true } }));
-  let saved: StudyDocument;
+  let saved!: StudyDocument;
   await page.route(/\/api\/documents\/[^/]+$/, async route => {
     if (route.request().method() !== "GET") return route.fallback();
     if (!saved) { saved = await (await route.fetch()).json(); saved.slides[1] = { notes: "", explanation }; }
@@ -44,6 +46,7 @@ test("tutor Markdown renders lists, tables, highlighted code and formulas safely
   await page.getByRole("button", { name: `Apri ${doc.name.replace(/\.pdf$/i, "")}`, exact: true }).click();
   try {
     const initial = page.locator(".chat-analysis-message");
+    await expect(initial.locator("h2 .katex")).toHaveCount(1);
     await expect(initial.locator(".overview strong")).toHaveText("sintesi");
     await expect(initial.locator(".concept ol li")).toHaveCount(2);
     await expect(initial.locator(".takeaway .katex")).toHaveCount(1);
@@ -83,7 +86,7 @@ test("tutor Markdown renders lists, tables, highlighted code and formulas safely
     await expect(reply.getByRole("table")).toContainText("Risultato");
     await expect(reply.locator("blockquote")).toContainText("tutti i dati");
     await expect(reply.locator("code.language-python .hljs-built_in").first()).toBeAttached();
-    await expect(reply.locator(".katex")).toHaveCount(2);
+    await expect(reply.locator(".katex")).toHaveCount(6);
     await expect(page.getByRole("button", { name: "Spiega sintesi", exact: true })).toBeVisible();
     await expect(reply.locator(".katex-error")).toHaveCount(0);
     await expect(reply.getByRole("link", { name: "Un riferimento" })).toHaveAttribute("rel", "noopener noreferrer");
@@ -101,12 +104,31 @@ test("tutor Markdown renders lists, tables, highlighted code and formulas safely
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.reload();
     await expect(reply.getByRole("heading", { name: "Un metodo chiaro" })).toBeVisible();
-    await expect(reply.locator(".katex")).toHaveCount(2);
+    await expect(reply.locator(".katex")).toHaveCount(6);
     await page.getByRole("button", { name: "Spiega sintesi", exact: true }).click();
     await expect(note).toContainText("Una sintesi riunisce le informazioni essenziali.");
     expect(termRequests).toBe(1);
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(note).toBeVisible();
     await page.screenshot({ path: "test-results/selection-note-mobile.png" });
+    await page.getByRole("button", { name: "Chiudi spiegazione", exact: true }).click();
+    saved.slides[1].chat = [{ role: "assistant", content: String.raw`Formula vecchia $\comandononvalido{x}$.` }];
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.evaluate(async () => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("studio-data-cache-v1");
+        request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+      });
+      await new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(["entries", "metadata"], "readwrite");
+        transaction.objectStore("entries").clear(); transaction.objectStore("metadata").clear();
+        transaction.oncomplete = () => resolve(); transaction.onerror = () => reject(transaction.error);
+      });
+      database.close();
+    });
+    await page.reload();
+    await expect(reply.getByRole("status")).toContainText("formula non visualizzabile");
+    await expect(reply).not.toContainText("comandononvalido");
+    await expect(reply.locator(".katex-error")).toHaveCount(0);
   } finally { await request.delete(`/api/documents/${doc.id}`); }
 });

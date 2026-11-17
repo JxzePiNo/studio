@@ -7,7 +7,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
 import { Check, Copy } from "lucide-react";
-import { prepareMarkdown } from "@/lib/markdown";
+import { checkedMarkdown } from "@/lib/math-validation";
 import { SelectionNotesContext, noteSource } from "@/lib/selection-notes-context";
 import { annotateTerms } from "@/lib/markdown-notes";
 import type { Root } from "hast";
@@ -41,8 +41,12 @@ const components: Components = {
 const remarkPlugins: Options["remarkPlugins"] = [remarkGfm, remarkMath];
 const rehypePlugins: Options["rehypePlugins"] = [[rehypeKatex, { strict: "ignore", trust: false }], [rehypeHighlight, { detect: false }]];
 
-export const MarkdownContent = memo(function MarkdownContent({ children, className = "" }: { children: string; className?: string }) {
+export const MarkdownContent = memo(function MarkdownContent({ children, className = "", inline = false }: { children: string; className?: string; inline?: boolean }) {
   const annotations = useContext(SelectionNotesContext);
+  const prepared = useMemo(() => {
+    try { return { markdown: checkedMarkdown(children) }; }
+    catch { return { error: "Questa risposta contiene una formula non visualizzabile. Chiedi al tutor di riformularla." }; }
+  }, [children]);
   const source = noteSource(children);
   const plugins = useMemo<Options["rehypePlugins"]>(() => {
     const notes = annotations?.notes.filter(note => note.source === source) || [];
@@ -52,5 +56,7 @@ export const MarkdownContent = memo(function MarkdownContent({ children, classNa
     const id = node?.properties["data-note-id"];
     return typeof id === "string" && annotations ? <button type="button" className="chat-term-chip" onClick={() => annotations.open(id)} aria-label={`Spiega ${String(children)}`}>{children}</button> : <span {...props}>{children}</span>;
   } }), [annotations]);
-  return <div className={`markdown-content ${className}`} data-note-source={annotations ? source : undefined}><ReactMarkdown skipHtml remarkPlugins={remarkPlugins} rehypePlugins={plugins} components={annotations ? renderers : components}>{prepareMarkdown(children)}</ReactMarkdown></div>;
+  const Wrapper = inline ? "span" : "div";
+  const selected = annotations ? renderers : components;
+  return <Wrapper className={`markdown-content ${inline ? "markdown-inline" : ""} ${className}`} data-note-source={annotations ? source : undefined}>{prepared.error ? <span role="status">{prepared.error}</span> : <ReactMarkdown skipHtml remarkPlugins={remarkPlugins} rehypePlugins={plugins} components={inline ? { ...selected, p: ({ children }) => <span>{children}</span> } : selected}>{prepared.markdown}</ReactMarkdown>}</Wrapper>;
 });

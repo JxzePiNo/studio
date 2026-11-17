@@ -9,7 +9,7 @@ import { buildSavedSession, type SavedSessionInput, type SavedStudySession, type
 import type { DocumentSummary } from "@/lib/types";
 import { cachedApi } from "@/lib/browser-data-cache";
 import { authHeaders, browserAuth, firebaseEnabled } from "@/lib/firebase-client";
-import { freshSession, pauseStudyTimer, startStudyTimer, recordStudyPage, restoreSession, sessionElapsed, studyDay, type StudySession } from "@/lib/study-session";
+import { dailyStudyElapsed, freshSession, pauseStudyTimer, startStudyTimer, recordStudyPage, restoreSession, sessionElapsed, studyDay, type StudySession } from "@/lib/study-session";
 import styles from "./study-session.module.css";
 
 type PendingAction = { type: "read"; documentId: string; page: number; day: string; read: boolean } | { type: "session"; session: SavedSessionInput } | { type: "import-activity"; activity: Record<string, number> };
@@ -170,7 +170,7 @@ export function useStudySession({ documents = [], reader }: { documents?: Docume
   }, [reader?.id, owner, save, saveActiveSession, endSession]);
   function toggleVisibility() { setHidden(value => { try { localStorage.setItem(`${key.current}:hidden`, String(!value)); } catch {} return !value; }); }
   const hasReadToday = useCallback((id: string, page: number) => current.current.day === studyDay() && current.current.pages.includes(`${id}:${page}`), []);
-  return { today: session.pages.length, todayDate: session.day, activity: session.activity, hasReadToday, elapsed: sessionElapsed(session, now), running: session.startedAt !== null, hasActiveSession: !!session.activeId || session.startedAt !== null, recordRead, commitRead, toggleTimer, endSession, resetTimer: endSession, hidden, toggleVisibility, sessions, loadingHistory, errorHistory, savingHistory, reloadHistory: async () => { await flush(); await reloadHistory(); } };
+  return { today: session.pages.length, todayDate: session.day, activity: session.activity, hasReadToday, elapsed: dailyStudyElapsed(session, sessions, now), running: session.startedAt !== null, hasActiveSession: !!session.activeId || session.startedAt !== null, recordRead, commitRead, toggleTimer, endSession, resetTimer: endSession, hidden, toggleVisibility, sessions, loadingHistory, errorHistory, savingHistory, reloadHistory: async () => { await flush(); await reloadHistory(); } };
 }
 
 export function StudySessionBar({ session, document, portrait = false, suppressed = false }: { suppressed?: boolean; portrait?: boolean; session: ReturnType<typeof useStudySession>; document?: { name: string; read: number; total: number } }) {
