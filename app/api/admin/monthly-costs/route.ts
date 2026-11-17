@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     // Bound concurrency; paginate ALL monthly events, not just the last 50 calls.
     for (let offset = 0; offset < accounts.length; offset += 8) {
       users.push(...await Promise.all(accounts.slice(offset, offset + 8).map(async user => {
-        let row = emptyMonthlyUser({ uid: user.uid, name: user.displayName || "", email: user.email || "" });
+        let row = emptyMonthlyUser({ uid: user.uid, name: user.displayName || "", email: user.email || "", createdAt: user.metadata?.creationTime || null });
         const query = db.collection("users").doc(user.uid).collection("usageEvents").where("at", ">=", period.start).where("at", "<", period.end).orderBy("at").limit(500);
         let page = await query.get();
         for (;;) {

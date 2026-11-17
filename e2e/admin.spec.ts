@@ -55,7 +55,7 @@ test("admin dashboard handles user detail, platform settings and nickname manage
   await expect(page.getByRole("row").filter({ hasText: user.email }).getByRole("cell").nth(1)).toHaveText(expectedVisit);
   await page.getByRole("button", { name: "Gestisci", exact: true }).click();
   const detail = page.getByRole("region", { name: "Dettaglio utente" });
-  await expect(detail).toContainText("Medicina"); await expect(detail).toContainText("0,0008");
+  await expect(detail).toContainText("Medicina"); await expect(detail).toContainText("0,00");
   await expect(detail.getByRole("region", { name: "Costi OpenAI dell'utente" })).toContainText("Costo medio per richiesta AI");
   await detail.getByLabel("Blocca tutte le generazioni AI").check();
   await detail.getByRole("button", { name: "Salva controlli utente", exact: true }).click();

@@ -14,8 +14,8 @@ test("admin shows each user's known cost and distinguishes partial and unavailab
   await page.route("**/api/admin", route => route.fulfill({ json: { users, cursor: null, config: defaultPlatform, audit: [], generatedAt: at } }));
   await page.goto("/admin");
   await expect(page.getByRole("columnheader", { name: "Costo OpenAI stimato", exact: true })).toBeVisible();
-  await expect(page.getByRole("row").filter({ hasText: "text@example.com" })).toContainText("1,94");
-  await expect(page.getByRole("row").filter({ hasText: "partial@example.com" })).toContainText("Almeno 1,94");
+  await expect(page.getByRole("row").filter({ hasText: "text@example.com" })).toContainText("1,76");
+  await expect(page.getByRole("row").filter({ hasText: "partial@example.com" })).toContainText("Almeno 1,76");
   await expect(page.getByRole("row").filter({ hasText: "partial@example.com" })).toContainText("Stima incompleta");
   await expect(page.getByRole("row").filter({ hasText: "none@example.com" })).toContainText("Non disponibile");
   await expect(page.getByRole("row").filter({ hasText: "unknown@example.com" })).toContainText("Non disponibile");

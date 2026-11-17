@@ -16,3 +16,6 @@
 .costTrack[data-tone=medium]>span { background:#c18a19; }
 .costTrack[data-tone=high]>span { background:#c44444; }
 .costTrack[data-tone=unknown] { background:repeating-linear-gradient(135deg,#e8eeea,#e8eeea 6px,#d8e0db 6px,#d8e0db 12px); }
+.forecastHelp { color:var(--muted-foreground); font-size:13px; line-height:1.65; margin:12px 0; }
+.forecastHelp summary { cursor:pointer; font-weight:500; }
+.forecastHelp p { max-width:850px; }

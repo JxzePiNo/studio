@@ -9,5 +9,5 @@ export function AdminUserCost({ usage, rates }: { usage: UsageSummary | null; ra
 }
 
 export function PricingNote() {
-  return <p className={styles.hint}>Costi stimati in EUR dai token registrati: cambio prudenziale fisso 1 USD = 1 EUR, ipotesi di pianificazione e non cambio in tempo reale. Tariffe OpenAI in USD verificate il {pricingCheckedAt}; eventuali tariffe manuali prevalgono per i modelli testuali. Esclude IVA, commissioni di cambio, Firebase e hosting. Lo storico prima del monitoraggio non è ricostruibile. <a className={styles.costLink} href={pricingSource} target="_blank" rel="noopener noreferrer">Listino ufficiale OpenAI</a>.</p>;
+  return <p className={styles.hint}>Costi stimati in EUR dai token registrati: cambio fisso 1 USD = 0,91 EUR, non aggiornato in tempo reale. Importi a due decimali per difetto. Tariffe OpenAI in USD verificate il {pricingCheckedAt}; eventuali tariffe manuali prevalgono per i modelli testuali. Esclude IVA, commissioni di cambio, Firebase e hosting. Lo storico prima del monitoraggio non è ricostruibile. <a className={styles.costLink} href={pricingSource} target="_blank" rel="noopener noreferrer">Listino ufficiale OpenAI</a>.</p>;
 }

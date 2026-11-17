@@ -1,8 +1,8 @@
-/** Fixed planning assumption, deliberately conservative; not a live FX quote. */
-export const eurosPerDollar = 1;
+/** Fixed conversion specified by the administrator; not a live FX quote. */
+export const eurosPerDollar = 0.91;
 export const monthlyUserReferenceEur = 9.99;
 export const usdToEur = (usd: number) => usd * eurosPerDollar;
-export const eurAmount = (value: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 8 }).format(value);
+export const eurAmount = (value: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2, roundingMode: "floor" }).format(value);
 export const euroCost = (usd: number) => eurAmount(usdToEur(usd));
 
 export function costBudget(usd: number | null) {

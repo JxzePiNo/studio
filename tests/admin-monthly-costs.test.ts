@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { initializeApp, deleteApp } from "firebase-admin/app";
 import { services } from "../lib/firebase-server";
-import { currentCostMonth, emptyMonthlyUser, addMonthlyEvent } from "../lib/admin-monthly-costs";
+import { currentCostMonth, emptyMonthlyUser, addMonthlyEvent, monthlyForecast } from "../lib/admin-monthly-costs";
 import { GET } from "../app/api/admin/monthly-costs/route";
 import type { UsageEvent } from "../lib/admin-types";
 
@@ -28,6 +28,30 @@ test("monthly cost excludes previous months/future events and keeps partial cost
   assert.equal(row.calls, 2);
 });
 
+test("forecast uses days since registration, distinguishes full month from month end, and counts inactive days", () => {
+  const row = { ...emptyMonthlyUser({ uid: "a", name: "A", email: "a@test.it", createdAt: "2026-11-15T10:00:00Z" }), usd: 3, calls: 1 };
+  const forecast = monthlyForecast(row, "2026-11-17T12:00:00Z")!;
+  assert.equal(forecast.observedDays, 3);
+  assert.equal(forecast.dailyUsd, 1);
+  assert.equal(forecast.fullMonthUsd, 30);
+  assert.equal(forecast.monthEndUsd, 16);
+  assert.equal(forecast.preliminary, false);
+  const existing = monthlyForecast({ ...row, createdAt: "2025-01-01T00:00:00Z", usd: 17 }, "2026-11-17T12:00:00Z")!;
+  assert.equal(existing.observedDays, 17); assert.equal(existing.fullMonthUsd, 30);
+  assert.equal(monthlyForecast({ ...row, usd: null }, "2026-11-17T12:00:00Z"), null);
+  assert.equal(monthlyForecast({ ...row, createdAt: null }, "2026-11-17T12:00:00Z"), null);
+  assert.equal(monthlyForecast({ ...row, createdAt: "2026-11-18T00:00:00Z" }, "2026-11-17T12:00:00Z"), null);
+  assert.equal(monthlyForecast(row, "2026-11-15T12:00:00Z")!.preliminary, true);
+});
+
+test("forecast handles Italian registration dates, leap months and DST without losing days", () => {
+  const row = { ...emptyMonthlyUser({ uid: "a", name: "A", email: "a@test.it", createdAt: "2028-02-14T23:30:00Z" }), usd: 2 };
+  const forecast = monthlyForecast(row, "2028-02-16T12:00:00Z")!;
+  assert.equal(forecast.observedDays, 2); assert.equal(forecast.monthDays, 29); assert.equal(forecast.fullMonthUsd, 29);
+  const dst = monthlyForecast({ ...row, createdAt: "2026-03-27T23:30:00Z", usd: 3 }, "2026-03-30T12:00:00Z")!;
+  assert.equal(dst.observedDays, 3); assert.equal(dst.fullMonthUsd, 31);
+});
+
 test("monthly admin report authenticates, paginates every user's events and never uses lifetime totals", async () => {
   const previous = process.env.NEXT_PUBLIC_FIREBASE_ENABLED;
   process.env.NEXT_PUBLIC_FIREBASE_ENABLED = "false";
@@ -40,7 +64,7 @@ test("monthly admin report authenticates, paginates every user's events and neve
   auth.verifyIdToken = (async () => ({ uid: "admin", email: "paolucciacopo@gmail.com", email_verified: true })) as unknown as typeof auth.verifyIdToken;
   auth.listUsers = (async (_limit, next) => {
     userPages++;
-    return { users: [{ uid: next ? "empty" : "student", displayName: "Test", email: next ? "empty@example.com" : "student@example.com" }], ...(next ? {} : { pageToken: "page2" }) };
+    return { users: [{ uid: next ? "empty" : "student", displayName: "Test", email: next ? "empty@example.com" : "student@example.com", metadata: { creationTime: "2025-01-01T00:00:00Z" } }], ...(next ? {} : { pageToken: "page2" }) };
   }) as typeof auth.listUsers;
   const period = currentCostMonth();
   const at = new Date(Date.parse(period.start) + 1).toISOString();
@@ -69,6 +93,7 @@ test("monthly admin report authenticates, paginates every user's events and neve
     assert.equal(report.month, period.month); assert.equal(userPages, 2); assert.equal(eventPages, 3);
     assert.equal(report.users[0].calls, 501); assert.ok(Math.abs(report.usd - 200.4) < 1e-8);
     assert.equal(report.users[1].usd, 0); assert.equal(report.users[1].calls, 0);
+    assert.equal(report.users[0].createdAt, "2025-01-01T00:00:00Z");
   } finally {
     auth.verifyIdToken = original.verify; auth.listUsers = original.list; db.collection = original.collection;
     await deleteApp(app);
