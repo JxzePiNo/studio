@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 import path from "node:path";
 const isolated = process.env.STUDIO_E2E_READER === "true";
-const port = isolated ? 3037 : 3030;
+const port = Number(process.env.STUDIO_E2E_PORT || (isolated ? 3037 : 3030));
 export default defineConfig({
   outputDir: isolated ? "test-results-reader" : "test-results",
   testDir: "./e2e",

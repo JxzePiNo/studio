@@ -20,6 +20,7 @@ import { QuizDialog } from "./quiz-dialog";
 import { quizRequestSummary } from "@/lib/quiz";
 import { ExplanationMessage } from "./explanation-message";
 import { SelectionNotes } from "./selection-notes";
+import { RetrievedPassages } from "./retrieved-passages";
 import { chatSessionKey, type BackgroundChatController } from "./background-chat";
 
 interface AnalysisProgress {
@@ -80,6 +81,14 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
   const [quizDialog, setQuizDialog] = useState(false);
   const [modelDialog, setModelDialog] = useState(false);
   const [wholeDocument, setWholeDocument] = useState(false);
+  const [pdfOnly, setPdfOnly] = useState(false);
+  const pdfPreferenceKey = firebaseEnabled && !user ? undefined : `studio:pdf-only:${user?.uid || "local"}:${id}`;
+  useLayoutEffect(() => {
+    let enabled = false;
+    try { enabled = !!pdfPreferenceKey && localStorage.getItem(pdfPreferenceKey) === "true"; } catch {}
+    setPdfOnly(enabled);
+    if (enabled) { setAttachments([]); setAttachmentError(""); }
+  }, [pdfPreferenceKey]);
   const messages = session?.messages || initial;
   const busy = session?.status === "pending";
   const pendingQuestion = busy || session?.streamingText ? session?.question : "";
@@ -135,10 +144,10 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
     setScrollRequest(value => value + 1);
     try {
       setAttachmentError(""); setPreparing(true);
-      const encodedAttachments = await encodeChatAttachments(attachments);
+      const encodedAttachments = await encodeChatAttachments(pdfOnly ? [] : attachments);
       setPreparing(false);
       const quizIntent = /^\s*(?:puoi\s+|mi\s+|per favore\s+)*(?:genera\w*|crea\w*|fammi|prepara\w*|vorrei|voglio)\b[\s\S]{0,100}\bquiz\b/i.test(submittedQuestion) || /^\s*(?:un\s+)?quiz\b/i.test(submittedQuestion);
-      const success = await controller.send({ id, page, name: documentName, question: submittedQuestion, scope: wholeDocument ? "document" : "slide", quizIntent, attachments: encodedAttachments });
+      const success = await controller.send({ id, page, name: documentName, question: submittedQuestion, scope: wholeDocument || pdfOnly ? "document" : "slide", pdfOnly, quizIntent, attachments: encodedAttachments });
       if (!mounted.current) return;
       if (success) { setQuestion(""); setAttachments([]); }
       return success;
@@ -157,14 +166,14 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
       <span className="chat-slide-label">Slide {page}</span>
       <div className="chat-reader-actions">
         <Button variant="outline" size="sm" onClick={() => setQuizDialog(true)} disabled={busy || disabled || !configured} aria-label="Crea quiz"><ClipboardList size={15} /> Quiz</Button>
-        <Button variant="outline" size="sm" className="chat-mode-toggle" aria-pressed={wholeDocument} aria-describedby={scopeHintId} disabled={busy || disabled} onClick={() => setWholeDocument(value => !value)}><FileText size={15} /> Tutto PDF</Button>
+        <Button variant="outline" size="sm" className="chat-mode-toggle" aria-pressed={wholeDocument || pdfOnly} aria-describedby={scopeHintId} disabled={busy || disabled || pdfOnly} onClick={() => setWholeDocument(value => !value)}><FileText size={15} /> Tutto PDF</Button>
         <Button variant="outline" size="sm" className="chat-model-button" aria-label="Crea materiale" title="Crea mappe, immagini e schemi" disabled={busy || disabled} onClick={() => setModelDialog(true)}><Sparkles size={16} /><span>Crea</span></Button>
         {onSettings && <Button variant="outline" size="icon" className="chat-reader-settings" aria-label="Impostazioni della lettura" onClick={onSettings}><Settings2 size={17} /></Button>}
       </div>
     </header>
     {onReturnToMap && <Button variant="outline" size="sm" className="chat-map-return" onClick={onReturnToMap}>Torna alla mappa</Button>}
     <div className="chat-scroll-area" ref={scrollArea} onScroll={event => { readingPosition.current = event.currentTarget.scrollTop; }}>
-      <p className="chat-scope-hint" id={scopeHintId} aria-live="polite">{wholeDocument ? "Le domande riguardano tutto il PDF corrente, tenendo conto delle pagine lette e delle domande precedenti." : "Le domande riguardano questa slide, tenendo conto delle pagine lette e delle domande precedenti nel PDF."}</p>
+      <p className="chat-scope-hint" id={scopeHintId} aria-live="polite">{pdfOnly ? "Cerco i passaggi pertinenti nel PDF e rispondo solo con informazioni verificabili." : wholeDocument ? "Cerco nel PDF i passaggi utili alla tua domanda, tenendo conto dello studio precedente." : "Le domande riguardano questa slide, tenendo conto delle pagine lette e delle domande precedenti nel PDF."}</p>
       <SelectionNotes key={`${id}:${page}`} documentId={id} page={page} disabled={disabled || !configured}><div className="chat-messages">
         {explanation ? <ExplanationMessage explanation={explanation} page={page} /> : <div className="chat-analysis-empty">
           <span className="chat-analysis-icon"><Sparkles size={25} strokeWidth={1.6} /></span>
@@ -178,7 +187,7 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
           {!configured && <p className="chat-analysis-configure">Configura OpenAI dalle impostazioni della lettura per iniziare.</p>}
         </div>}
         <div className="chat-conversation" aria-live="polite" aria-relevant="additions text">
-          {conversation.filter(message => !message.quiz).map((message, index) => <article className={`chat-message ${message.role}`} key={`conversation-${index}`}><ChatMessageAuthor role={message.role} name={authorName} photoURL={user?.photoURL} />{message.artifact ? <StudyArtifactView key={message.artifact.id} artifact={message.artifact} documentId={id} page={page} onNavigatePage={onNavigatePage} onSaved={messages => controller.receiveMessages(id, page, messages)} /> : message.visualization ? <ConceptModelView model={message.visualization} /> : message.role === "assistant" ? <MarkdownContent>{message.content}</MarkdownContent> : <><p>{message.content}</p>{!!message.attachments?.length && <ul className="chat-message-attachments" aria-label="Allegati della domanda">{message.attachments.map((file, i) => <li key={i}><Paperclip size={13} />{file.name}</li>)}</ul>}</>}</article>)}
+          {conversation.filter(message => !message.quiz).map((message, index) => <article className={`chat-message ${message.role}`} key={`conversation-${index}`}><ChatMessageAuthor role={message.role} name={authorName} photoURL={user?.photoURL} />{message.artifact ? <StudyArtifactView key={message.artifact.id} artifact={message.artifact} documentId={id} page={page} onNavigatePage={onNavigatePage} onSaved={messages => controller.receiveMessages(id, page, messages)} /> : message.visualization ? <ConceptModelView model={message.visualization} /> : message.role === "assistant" ? <><MarkdownContent>{message.content}</MarkdownContent><RetrievedPassages passages={message.retrieval} documentId={id} onNavigatePage={onNavigatePage} /></> : <><p>{message.content}</p>{!!message.attachments?.length && <ul className="chat-message-attachments" aria-label="Allegati della domanda">{message.attachments.map((file, i) => <li key={i}><Paperclip size={13} />{file.name}</li>)}</ul>}</>}</article>)}
           {pendingQuestion && <article className="chat-message user is-pending"><ChatMessageAuthor role="user" name={authorName} photoURL={user?.photoURL} /><p>{pendingQuestion}</p></article>}
           {session?.streamingText && session.kind !== "quiz" && <article className="chat-message assistant is-streaming"><ChatMessageAuthor /><MarkdownContent>{session.streamingText}</MarkdownContent></article>}
           {busy && session?.kind === "visualization" && <div className="chat-generation-skeleton" role="status" aria-label="Generazione del materiale in corso"><Sparkles size={28} /><span>{session.materialKind === "image" || session.request?.artifactKind === "image" ? "Sto generando l'immagine..." : "Sto creando il materiale..."}</span></div>}
@@ -187,24 +196,29 @@ export function StudyChat({ id, controller, documentName = "PDF", courseName, pa
       </div></SelectionNotes>
     </div>
     <div className="chat-composer-area"><label className="form-field-label chat-question-label" htmlFor={questionInputId}>Domanda al tutor</label>
+      <div className="chat-pdf-only"><label><input type="checkbox" role="switch" checked={pdfOnly} disabled={busy || preparing || disabled || !pdfPreferenceKey} onChange={event => {
+        const enabled = event.target.checked; setPdfOnly(enabled);
+        if (enabled) { setAttachments([]); setAttachmentError(""); }
+        try { if (pdfPreferenceKey) localStorage.setItem(pdfPreferenceKey, String(enabled)); } catch {}
+      }} /><span>Rispondi solo con informazioni nel PDF</span></label></div>
       {showProgress && <BatchProgress progress={analysisProgress} running={batchRunning} onStop={onStopAnalysis} />}
       {error && <p className="chat-error" id={errorId} role="alert">{error}</p>}
       {error && session?.kind === "visualization" && <Button variant="outline" size="sm" onClick={() => controller.retry(chatSessionKey(id, page))}>Riprova generazione</Button>}
       {attachmentError && <p className="chat-error" role="alert">{attachmentError}</p>}
       {!!attachments.length && <div className="chat-attachments"><ul aria-label="Allegati da inviare">{attachments.map((file, index) => <li key={`${file.name}:${index}`}><Paperclip size={14} /><span>{file.name}</span><ActionTooltip label={`Rimuovi ${file.name}`}><button type="button" aria-label={`Rimuovi allegato ${file.name}`} disabled={busy || preparing} onClick={() => setAttachments(current => current.filter((_, i) => i !== index))}><X size={14} /></button></ActionTooltip></li>)}</ul><small>Gli allegati vengono usati per questa domanda. Massimo 3 file e 3 MB totali.</small></div>}
-      <input type="file" ref={attachmentInput} className="sr-only" accept={CHAT_ATTACHMENT_ACCEPT} multiple aria-label="Allega file alla domanda" disabled={busy || preparing || disabled || !configured} onChange={event => {
+      <input type="file" ref={attachmentInput} className="sr-only" accept={CHAT_ATTACHMENT_ACCEPT} multiple aria-label="Allega file alla domanda" disabled={busy || preparing || disabled || !configured || pdfOnly} onChange={event => {
         const files = [...attachments, ...Array.from(event.target.files || [])]; event.target.value = "";
         if (files.length > MAX_CHAT_ATTACHMENTS || files.reduce((size, file) => size + file.size, 0) > MAX_CHAT_ATTACHMENT_BYTES) { setAttachmentError("Puoi allegare fino a 3 file, per un totale di 3 MB."); return; }
         if (files.some(file => !file.size || !/\.(pdf|png|jpe?g|txt|md)$/i.test(file.name) || file.name.length > 200)) { setAttachmentError("Scegli PDF, immagini PNG/JPEG o file TXT/MD non vuoti, con nomi entro 200 caratteri."); return; }
         setAttachmentError(""); setAttachments(files);
       }} />
       <form className="chat-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
-        <ActionTooltip label="Allega PDF, immagini o testo"><Button type="button" variant="ghost" size="icon" className="chat-attach" aria-label="Aggiungi allegati" disabled={busy || preparing || disabled || !configured || attachments.length >= MAX_CHAT_ATTACHMENTS} onClick={() => attachmentInput.current?.click()}><Paperclip size={18} /></Button></ActionTooltip>
+        <ActionTooltip label="Allega PDF, immagini o testo"><Button type="button" variant="ghost" size="icon" className="chat-attach" aria-label="Aggiungi allegati" disabled={busy || preparing || disabled || !configured || pdfOnly || attachments.length >= MAX_CHAT_ATTACHMENTS} onClick={() => attachmentInput.current?.click()}><Paperclip size={18} /></Button></ActionTooltip>
         <Textarea id={questionInputId} ref={textarea} className="chat-composer-textarea" aria-label="Domanda al tutor" aria-describedby={error ? errorId : undefined} value={question} onChange={event => setQuestion(event.target.value)} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onKeyDown={event => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !composing.current && event.nativeEvent.keyCode !== 229) {
             event.preventDefault(); void send();
           }
-        }} maxLength={4000} rows={1} placeholder={wholeDocument ? "Fai una domanda sul PDF…" : "Fai una domanda su questa pagina…"} disabled={busy || disabled || !configured} required />
+        }} maxLength={4000} rows={1} placeholder={wholeDocument || pdfOnly ? "Fai una domanda sul PDF…" : "Fai una domanda su questa pagina…"} disabled={busy || disabled || !configured} required />
         <Button type="submit" size="icon" className="chat-send" aria-label="Invia domanda" disabled={!canSend}>{busy ? <LoaderCircle size={18} className="spin" aria-hidden="true" /> : <ArrowUp size={20} aria-hidden="true" />}</Button>
       </form>
       <small className="chat-composer-note">Il tutor può commettere errori. Verifica i passaggi importanti.</small>

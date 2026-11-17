@@ -13,7 +13,7 @@ import styles from "./background-chat.module.css";
 
 import type { QuizConfig, StudyQuiz } from "@/lib/quiz";
 
-type ChatRequest = { attachments?: import("@/lib/chat-attachments").ChatAttachmentInput[]; id: string; page: number; name: string; question: string; scope: "document" | "slide" | "studied"; quiz?: QuizConfig; quizIntent?: boolean; visualization?: boolean; artifactKind?: import("@/lib/study-artifact").ArtifactKind };
+type ChatRequest = { pdfOnly?: boolean; attachments?: import("@/lib/chat-attachments").ChatAttachmentInput[]; id: string; page: number; name: string; question: string; scope: "document" | "slide" | "studied"; quiz?: QuizConfig; quizIntent?: boolean; visualization?: boolean; artifactKind?: import("@/lib/study-artifact").ArtifactKind };
 export type BackgroundChatSession = { status: "pending" | "completed" | "error"; question: string; messages?: ChatMessage[]; streamingText?: string; error?: string; revision: number; materialKind?: string; kind?: "chat" | "quiz" | "visualization"; documentId?: string; request?: ChatRequest };
 type ChatNotification = { key: string; id: string; page: number; name: string; error?: string; quizId?: string; kind?: "chat" | "quiz" | "visualization" };
 export const chatSessionKey = (id: string, page: number) => `${id}:${page}`;
@@ -83,7 +83,7 @@ export function useBackgroundChat({ onSaved, onQuizStarted }: { onSaved: (id: st
     try {
       const response = await fetch(`/api/documents/${input.id}/${input.quiz ? "quiz" : input.visualization ? "visualizations" : "chat"}`, {
         method: "POST", headers: { "Content-Type": "application/json", ...(!input.quiz && !input.visualization ? { Accept: "text/event-stream" } : {}), ...await authHeaders() },
-        body: JSON.stringify(input.quiz || { page: input.page, question: input.question, scope: input.scope, ...(input.attachments?.length ? { attachments: input.attachments } : {}), ...(input.visualization ? { kind: input.artifactKind || "map" } : {}) }), signal: controller.signal,
+        body: JSON.stringify(input.quiz || { page: input.page, question: input.question, scope: input.scope, pdfOnly: input.pdfOnly || false, ...(input.attachments?.length ? { attachments: input.attachments } : {}), ...(input.visualization ? { kind: input.artifactKind || "map" } : {}) }), signal: controller.signal,
       });
       let result: ChatMessage[] | StudyQuiz | undefined;
       let streamedQuizId: string | undefined;

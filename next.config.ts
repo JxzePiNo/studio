@@ -3,7 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   distDir: process.env.MARGINE_E2E === "true" ? process.env.STUDIO_E2E_READER === "true" ? ".next-e2e-reader" : ".next-e2e" : ".next",
   turbopack: { root: process.cwd() },
-  serverExternalPackages: ["pdf-lib"],
+  serverExternalPackages: ["pdf-lib", "pdfjs-dist"],
+  outputFileTracingIncludes: {
+    "/api/documents/*/chat": ["./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"],
+  },
   rewrites() {
     if (process.env.NEXT_PUBLIC_FIREBASE_AUTH_PROXY !== "true") return [];
     const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;

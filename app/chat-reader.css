@@ -13,6 +13,24 @@
 .chat-mode-toggle.ui-button[aria-pressed=true] { background:var(--accent); border-color:var(--ring); color:var(--primary); }
 .chat-scroll-area { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; padding:8px 28px 24px; }
 .chat-scope-hint { position:absolute; height:1px; width:1px; padding:0; margin:-1px; clip:rect(0,0,0,0); overflow:hidden; white-space:nowrap; }
+.chat-pdf-only { display:flex; align-items:center; margin:0 0 8px 24px; color:var(--muted-foreground); font-size:11px; }
+.chat-pane .chat-pdf-only label { display:inline-flex; flex-direction:row; flex-wrap:nowrap; align-items:center; gap:8px; cursor:pointer; white-space:nowrap; line-height:20px; }
+.chat-pdf-only input { appearance:none; position:relative; flex-shrink:0; width:24px; height:14px; margin:0; padding:0; border:0; border-radius:999px; background:var(--muted-foreground); cursor:inherit; transition:background .15s; }
+.chat-pdf-only input::before { content:""; position:absolute; top:2px; left:2px; width:10px; height:10px; border-radius:50%; background:#fff; transition:transform .15s; }
+.chat-pdf-only input:checked { background:var(--primary); }
+.chat-pdf-only input:checked::before { transform:translateX(10px); }
+.chat-pdf-only input:focus-visible { outline:2px solid var(--ring); outline-offset:3px; }
+.chat-pdf-only label:has(input:disabled) { opacity:.55; cursor:default; }
+.chat-retrieval { margin-top:14px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; font-size:12px; }
+.chat-retrieval summary { cursor:pointer; font-weight:500; color:var(--foreground); }
+.chat-retrieval ol { max-height:280px; overflow-y:auto; list-style:none; padding:0; margin:10px 0; }
+.chat-retrieval li { padding:10px 0; border-top:1px solid var(--border); }
+.chat-retrieval-source { display:flex; align-items:baseline; justify-content:space-between; gap:12px; color:var(--muted-foreground); }
+.chat-retrieval-source>span:first-child { min-width:0; overflow-wrap:anywhere; }
+.chat-retrieval-source>button,.chat-retrieval-source>span:last-child { flex-shrink:0; }
+.chat-retrieval-source button { color:var(--primary); text-decoration:underline; text-underline-offset:3px; }
+.reader-active .chat-retrieval blockquote { margin:8px 0 0; padding:0 0 0 10px; border-left:2px solid var(--border); white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; line-height:1.6; }
+.chat-retrieval small,.chat-retrieval-empty { color:var(--muted-foreground); font-size:11px; line-height:1.5; }
 .reader-active .chat-messages { display:flex; flex-direction:column; min-height:100%; gap:0; padding:0; }
 .reader-active .chat-analysis-message.chat-message { padding:0; border:0; border-radius:0; background:transparent; margin:0; }
 .reader-active .chat-analysis-message>.chat-message-author { display:flex; font-size:12px; color:var(--muted-foreground); font-weight:500; border:0; margin:0 0 20px; padding:0; }

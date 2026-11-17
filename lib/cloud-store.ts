@@ -8,6 +8,10 @@ import { randomUUID } from "node:crypto";
 import { documentSnapshots, pdfBytes, rememberDocument } from "./content-cache";
 import { services, userRoot, userId } from "./firebase-server";
 import type { StudyDocument, DocumentSummary, SlideData } from "./types";
+import { storePdfBlob, retainPdfBlob, releasePdfBlob, type PdfBlob } from "./pdf-content";
+import { reusePreviousPdfAnalysis } from "./legacy-pdf-analysis";
+import { availableDocumentAnalysis } from "./reuse-document-analysis";
+import { getFolder } from "./folders";
 
 function checkId(id: string) { if (!/^[a-zA-Z0-9-]{1,100}$/.test(id)) throw Object.assign(new Error("Documento non valido."), { status: 400 }); }
 async function ref(id: string) { checkId(id); return documentReference(id); }
@@ -69,20 +73,46 @@ export async function markQuizIndex(id: string) {
   await (await ref(id)).update({ quizIndexVersion: 1 });
 }
 export async function create(name: string, bytes: Uint8Array, pages: number, folderId?: string, id: string = randomUUID()) {
+  const blob = await storePdfBlob(bytes, pages);
+  try { return await createFromBlob(name, blob, folderId, id); }
+  catch (error) { await releasePdfBlob(blob.hash, `unattached/${id}`).catch(() => {}); throw error; }
+}
+export async function createFromBlob(name: string, blob: PdfBlob, folderId?: string, id: string = randomUUID()) {
   const root = folderId ? (await folderReference(folderId)).parent.parent! : await userRoot();
   const profile = await getStudyProfile();
-  const doc: StudyDocument = { id, name, pages, size: bytes.length, createdAt: new Date().toISOString(), currentPage: 1, slides: {}, provenance: { university: profile.university || "", studyProgram: profile.studyProgram, authorName: profile.displayName || "Studente" }, ...(folderId ? { folderId } : {}) };
-  const file = services().bucket.file(`${root.path}/documents/${doc.id}/original.pdf`);
-  await file.save(Buffer.from(bytes), { resumable: false, contentType: "application/pdf" });
-  try {
+  const doc: StudyDocument = { id, name, pages: blob.pages, size: blob.size, contentBlobId: blob.hash, contentHash: blob.hash, createdAt: new Date().toISOString(), currentPage: 1, slides: {}, provenance: { university: profile.university || "", studyProgram: profile.studyProgram, authorName: profile.displayName || "Studente" }, ...(folderId ? { folderId } : {}) };
+  const folder = await getFolder(folderId);
+  doc.slides = await availableDocumentAnalysis(blob.hash, blob.pages, profile.studyProgram, folder?.name);
+  if (Object.keys(doc.slides).length < blob.pages) {
+    const previous = await root.collection("documents").get();
+    await reusePreviousPdfAnalysis({ id, hash: blob.hash, pages: blob.pages, size: blob.size }, previous.docs.filter(source => !source.get("provenance") || source.get("provenance")?.studyProgram === profile.studyProgram).map(source => ({
+      id: source.id, pages: source.get("pages"), size: source.get("size"), contentHash: source.get("contentHash"), deleting: source.get("deleting"),
+      loadBytes: async () => {
+        const blobId = source.get("sharedBlobId") || source.get("contentBlobId");
+        const backing = blobId ? await services().db.collection("sharedBlobs").doc(blobId).get() : undefined;
+        if (blobId && !backing?.exists) throw missing();
+        return (await services().bucket.file(backing?.get("path") || `${source.ref.path}/original.pdf`).download())[0];
+      },
+      saveHash: hash => source.ref.update({ contentHash: hash }),
+      loadSlides: async () => Object.fromEntries((await source.ref.collection("slides").get()).docs.map(slide => [slide.id, slide.data() as SlideData])),
+    })), doc.slides);
+  }
+  // Stage only generated analysis before publishing the document metadata.
+  const entries = Object.entries(doc.slides);
+  console.info("[PDF reuse] Analisi disponibili al caricamento", { documentId: id, hash: blob.hash, analyzedPages: entries.length, pages: blob.pages, fullyAnalyzed: entries.length === blob.pages });
+  for (let offset = 0; offset < entries.length; offset += 50) await Promise.all(entries.slice(offset, offset + 50).map(([page, slide]) => root.collection("documents").doc(id).collection("slides").doc(page).set(slide)));
+  {
     const { slides: _slides, ...meta } = doc;
     const space = folderId ? await services().db.collection("sharedWorkspaces").doc(folderId).get() : undefined;
     await services().db.runTransaction(async tx => {
-      tx.set(root.collection("documents").doc(doc.id), { ...meta, analyzedPages: 0, readPages: 0, quizIndexVersion: 1, contentRevision: randomUUID() });
+      const blobRef = services().db.collection("sharedBlobs").doc(blob.hash);
+      const currentBlob = await tx.get(blobRef);
+      if (!currentBlob.exists || currentBlob.get("deleting")) throw Object.assign(new Error("File in aggiornamento. Riprova tra poco."), { status: 409 });
+      retainPdfBlob(tx, blobRef, root.collection("documents").doc(doc.id).path);
+      tx.set(root.collection("documents").doc(doc.id), { ...meta, analyzedPages: entries.length, readPages: 0, quizIndexVersion: 1, contentRevision: randomUUID() });
       if (space?.exists) tx.set(services().db.collection("collaborativeDocuments").doc(doc.id), { ownerId: root.id, folderId });
     });
   }
-  catch (e) { await file.delete().catch(() => {}); throw e; }
   return doc;
 }
 export async function update(id: string, change: (doc: StudyDocument) => void) {
@@ -192,10 +222,26 @@ export async function pdf(id: string) {
   // Original PDFs are immutable; metadata changes never invalidate these bytes.
   const cached = pdfBytes.get(r.path);
   if (cached) return Buffer.from(cached.value);
-  const blobId = meta.get("sharedBlobId");
+  const blobId = meta.get("sharedBlobId") || meta.get("contentBlobId");
   const blob = blobId ? await services().db.collection("sharedBlobs").doc(blobId).get() : undefined;
   if (blobId && !blob?.exists) throw missing();
   const bytes = (await services().bucket.file(blob?.get("path") || `${r.path}/original.pdf`).download())[0];
+  if (!blobId) {
+    try {
+    const content = await storePdfBlob(bytes, meta.get("pages"));
+    const promoted = await services().db.runTransaction(async tx => {
+      const current = await tx.get(r);
+      if (!current.exists || current.get("deleting") || current.get("sharedBlobId") || current.get("contentBlobId")) return false;
+      const blobRef = services().db.collection("sharedBlobs").doc(content.hash);
+      const backing = await tx.get(blobRef);
+      if (!backing.exists || backing.get("deleting")) return false;
+      retainPdfBlob(tx, blobRef, r.path);
+      tx.update(r, { contentHash: content.hash, contentBlobId: content.hash });
+      return true;
+    });
+    if (promoted) await services().bucket.file(`${r.path}/original.pdf`).delete({ ignoreNotFound: true }).catch(() => {});
+    } catch { /* Lazy indexing must never prevent reading an existing PDF. */ }
+  }
   pdfBytes.set(r.path, { revision: "original", value: Buffer.from(bytes) }, bytes.byteLength);
   return bytes;
 }
@@ -203,12 +249,14 @@ export async function remove(id: string) {
   const r = await ref(id);
   await services().db.runTransaction(async tx => { if (!(await tx.get(r)).exists) throw missing(); tx.update(r, { deleting: true }); });
   documentSnapshots.delete(r.path); pdfBytes.delete(r.path);
-  const retained = (await r.get()).get("sharedBlobId");
+  const removing = await r.get();
+  const retained = removing.get("sharedBlobId");
   // Published originals remain immutable backing blobs for personal copies.
   if (!retained) {
-    await services().bucket.file(`${r.path}/original.pdf`).delete({ ignoreNotFound: true });
+    if (!removing.get("contentBlobId")) await services().bucket.file(`${r.path}/original.pdf`).delete({ ignoreNotFound: true });
     await services().bucket.deleteFiles({ prefix: `${r.path}/visuals/` });
   }
+  if (removing.get("contentBlobId")) await releasePdfBlob(removing.get("contentBlobId"), r.path);
   await services().db.collection("collaborativeDocuments").doc(id).delete();
   await services().db.recursiveDelete(r);
 }

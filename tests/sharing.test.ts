@@ -42,6 +42,18 @@ test("multi-recipient copies preserve provenance, reuse one PDF blob and exclude
   const quiz = (await copy.ref.collection("quizzes").get()).docs[0]; assert.equal(quiz.get("latestResult"), undefined); assert.notEqual(quiz.id, f.quizId);
   assert.equal((await f.bob.import(share.id)).folderId, bob.folderId, "repeated imports are idempotent");
 });
+
+test("publishing a deduplicated PDF preserves its backing blob and shared image lifetime", async () => {
+  const f = await fixture();
+  const hash = "a".repeat(64);
+  const source = f.db.collection("users").doc("alice").collection("documents").doc(f.documentId);
+  await source.update({ contentBlobId: hash, contentHash: hash });
+  await f.db.collection("sharedBlobs").doc(hash).set({ hash, path: `pdf-content/${hash}/original.pdf`, size: 900, pages: 3 });
+  const share = await f.alice.create({ action: "create", kind: "pdf", sourceId: f.documentId, visibility: "direct", mode: "copy", recipientIds: ["bob"], includeChat: false, includeResults: false });
+  assert.equal((await source.get()).get("sharedBlobId"), hash);
+  assert.equal((await f.db.collection("sharedBlobs").doc(hash).get()).get("retained"), true);
+  assert.ok(share.id);
+});
 test("public courses match the original degree, sanitize chats even if requested and can become private", async () => {
   const f = await fixture();
   const share = await f.alice.create({ action: "create", kind: "course", sourceId: f.folderId, visibility: "public", mode: "copy", recipientIds: [], includeChat: true, includeResults: true });

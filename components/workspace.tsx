@@ -156,7 +156,7 @@ export default function Workspace() {
   const [query, setQuery] = useState("");
   const [dragging, setDragging] = useState(false);
   const [noteStatus, setNoteStatus] = useState("Salvato in locale");
-  const uploads = useBackgroundUploads(document => setLibrary(items => [{ ...document, analyzedPages: 0, readPages: 0 }, ...items.filter(item => item.id !== document.id)]));
+  const uploads = useBackgroundUploads(document => setLibrary(items => [{ ...document, analyzedPages: Object.values(document.slides).filter(slide => slide.explanation).length, readPages: 0 }, ...items.filter(item => item.id !== document.id)]));
   const uploadLock = uploads.pending;
   const input = useRef<HTMLInputElement>(null);
   const docRef = useRef<StudyDocument | null>(null);

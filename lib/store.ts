@@ -3,7 +3,11 @@ import { cloudEnabled } from "./firebase-server";
 import * as cloud from "./cloud-store";
 import { documentSnapshots, pdfBytes, rememberDocument } from "./content-cache";
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile, link } from "node:fs/promises";
+import { pdfHash } from "./pdf-content";
+import { getFolder } from "./folders";
+import { availableDocumentAnalysis } from "./reuse-document-analysis";
+import { reusePreviousPdfAnalysis } from "./legacy-pdf-analysis";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { DocumentSummary, StudyDocument, SlideData } from "./types";
@@ -95,10 +99,48 @@ export async function createDocument(name: string, bytes: Uint8Array, pages: num
   if (cloudEnabled()) return cloud.create(name, bytes, pages, folderId, id);
   const profile = await getStudyProfile();
   const doc: StudyDocument = { provenance: { university: profile.university || "", studyProgram: profile.studyProgram, authorName: profile.displayName || "Studente" }, id, name, pages, size: bytes.length, createdAt: new Date().toISOString(), currentPage: 1, slides: {}, ...(folderId ? { folderId } : {}) };
+  doc.contentHash = pdfHash(bytes);
+  const folder = await getFolder(folderId);
+  doc.slides = await availableDocumentAnalysis(doc.contentHash, pages, profile.studyProgram, folder?.name);
+  if (Object.keys(doc.slides).length < pages) {
+    await mkdir(dataRoot(), { recursive: true });
+    const entries = await readdir(dataRoot(), { withFileTypes: true });
+    const previous = await Promise.all(entries.filter(entry => entry.isDirectory() && validId.test(entry.name)).map(async entry => {
+      try { return await readDocument(entry.name); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+    }));
+    await reusePreviousPdfAnalysis({ id, hash: doc.contentHash, pages, size: bytes.length }, previous.flatMap(source => source && (!source.provenance || source.provenance.studyProgram === profile.studyProgram) ? [{
+      id: source.id, pages: source.pages, size: source.size, contentHash: source.contentHash,
+      loadBytes: () => readPdf(source.id),
+      saveHash: (hash: string) => updateDocument(source.id, document => { document.contentHash = hash; }),
+      loadSlides: async () => source.slides,
+    }] : []), doc.slides);
+  }
   await mkdir(documentDir(doc.id), { recursive: true });
   try {
-    await writeFile(path.join(documentDir(doc.id), "original.pdf"), bytes);
+    const blobDir = path.join(dataRoot(), ".pdf-content");
+    await mkdir(blobDir, { recursive: true });
+    const blob = path.join(blobDir, `${doc.contentHash}.pdf`);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await stat(blob);
+        console.info("[PDF reuse] PDF identico già presente nello storage", { documentId: id, hash: doc.contentHash, bytes: bytes.length });
+      }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        const temporary = path.join(blobDir, `${doc.contentHash}.${randomUUID()}.tmp`);
+        try {
+          await writeFile(temporary, bytes);
+          try { await link(temporary, blob); }
+          catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
+        } finally { await rm(temporary, { force: true }); }
+      }
+      try { await link(blob, path.join(documentDir(doc.id), "original.pdf")); break; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT" || attempt >= 3) throw error; }
+    }
     await saveDocument(doc);
+    const analyzedPages = Object.values(doc.slides).filter(slide => slide.explanation).length;
+    console.info("[PDF reuse] Analisi disponibili al caricamento", { documentId: id, analyzedPages, pages, fullyAnalyzed: analyzedPages === pages });
   } catch (error) { await rm(documentDir(doc.id), { recursive: true, force: true }); throw error; }
   return doc;
 }
@@ -121,6 +163,11 @@ export async function listDocuments(): Promise<DocumentSummary[]> {
 export async function deleteDocument(id: string) {
   if (cloudEnabled()) return cloud.remove(id);
   return inDocumentQueue(id, async () => {
+    try {
+      const document = await readDocument(id);
+      const original = await stat(path.join(documentDir(id), "original.pdf"));
+      if (document.contentHash && /^[a-f0-9]{64}$/.test(document.contentHash) && original.nlink <= 2) await rm(path.join(dataRoot(), ".pdf-content", `${document.contentHash}.pdf`), { force: true });
+    } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     // A previous removal may have deleted metadata before the PDF. Retry the
     // validated directory itself so remaining files cannot become orphans.
     await rm(documentDir(id), { recursive: true, force: true });

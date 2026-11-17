@@ -102,6 +102,13 @@ export class SharingService {
             const current = await tx.get(source.ref);
             const existing = current.get("sharedBlobId") as string | undefined;
             if (existing) return existing;
+            const content = current.get("contentBlobId") as string | undefined;
+            if (content) {
+              const blob = await tx.get(this.db.collection("sharedBlobs").doc(content));
+              if (!blob.exists || blob.get("deleting")) throw fail("PDF in aggiornamento. Riprova.", 409);
+              tx.set(blob.ref, { retained: true }, { merge: true });
+              tx.update(source.ref, { sharedBlobId: content }); return content;
+            }
             const id = randomUUID();
             tx.set(this.db.collection("sharedBlobs").doc(id), { path: `${source.ref.path}/original.pdf` });
             tx.update(source.ref, { sharedBlobId: id }); return id;

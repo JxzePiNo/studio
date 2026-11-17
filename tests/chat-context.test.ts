@@ -52,7 +52,7 @@ test("chat uses the current study profile and analysis as its opening context wi
       assert.ok(text.includes("Come funziona l'equilibrio?"));
       assert.ok(text.includes("Concetto gi? letto"));
       assert.ok(!text.includes("Argomento futuro non letto"));
-      assert.match(text, /Pagine originali allegate, in ordine: 2, 3/);
+      assert.match(text, /Pagine originali allegate, in ordine: 3/);
       assert.ok(body.instructions.includes("esposizione, non padronanza"));
     }
     assert.equal(body.text.format.name, "tutor_answer");
@@ -68,7 +68,7 @@ test("chat uses the current study profile and analysis as its opening context wi
   expectedProgram = "Laurea magistrale in matematica";
   await saveStudyProfile({ studyProgram: expectedProgram, onboardingCompleted: true });
   const second = await ask(); assert.equal(second.length, 4);
-  expectedPages = 4;
+  expectedPages = 1;
   const full = await ask("document"); assert.equal(full.length, 6);
   const stored = await readDocument(doc.id);
   assert.deepEqual(stored.slides[1].explanation, explanation);
@@ -78,7 +78,7 @@ test("chat uses the current study profile and analysis as its opening context wi
     d.slides[3] = { notes: "Un appunto personale.", explanation };
     d.slides[4] = { notes: "Argomento futuro non letto", explanation: { ...explanation, title: "Argomento futuro non letto" } };
   });
-  expectedPages = 2;
+  expectedPages = 1;
   checkMemory = true;
   await ask("slide", 3);
   assert.equal(calls, 4);
