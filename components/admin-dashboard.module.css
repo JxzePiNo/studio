@@ -7,3 +7,12 @@
 .search .sort { flex:0 1 230px; min-width:200px; }
 .lastVisit { display:inline-flex; align-items:center; gap:8px; }
 .onlineDot { display:inline-block; flex-shrink:0; width:8px; height:8px; border-radius:50%; background:#22c55e; box-shadow:0 0 0 3px #22c55e20; }
+.dashboard .monthlyTable { background:#fff; color:#17251d; border-color:#dce3df; }
+.dashboard .monthlyTable :is(table,thead,tbody,tr,th,td) { background:#fff; color:#17251d; border-color:#e4e9e6; }
+.dashboard .monthlyTable td small { color:#53645a; }
+.costProgress { min-width:210px; display:grid; gap:6px; font-variant-numeric:tabular-nums; }
+.costTrack { height:9px; overflow:hidden; border-radius:999px; background:#e8eeea; }
+.costTrack>span { display:block; height:100%; border-radius:inherit; background:#27845c; }
+.costTrack[data-tone=medium]>span { background:#c18a19; }
+.costTrack[data-tone=high]>span { background:#c44444; }
+.costTrack[data-tone=unknown] { background:repeating-linear-gradient(135deg,#e8eeea,#e8eeea 6px,#d8e0db 6px,#d8e0db 12px); }

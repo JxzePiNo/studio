@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { cloudEnabled, services, userId } from "./firebase-server";
+import { imageUsageDetails } from "./openai-pricing";
 
 export function usageNumbers(value: unknown) {
   const usage = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  const integer = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+  const validCount = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+  const integer = (value: unknown) => validCount(value) ? value : 0;
   const input = integer(usage.input_tokens), output = integer(usage.output_tokens);
   const cached = Math.min(input, integer((usage.input_tokens_details as Record<string, unknown> | undefined)?.cached_tokens));
-  return { input, output, cached, total: input + output, measured: typeof usage.input_tokens === "number" && typeof usage.output_tokens === "number" };
+  return { input, output, cached, total: input + output, measured: validCount(usage.input_tokens) && validCount(usage.output_tokens) };
 }
 export function tokenCost(usage: { input: number; output: number; cached: number }, rates?: { input: number; cached: number; output: number }) {
   return rates ? ((usage.input - usage.cached) * rates.input + usage.cached * rates.cached + usage.output * rates.output) / 1_000_000 : null;
@@ -19,11 +21,13 @@ export function meteredFetch(feature: string): typeof fetch {
     const nativeFetch = globalThis.fetch;
     if (!cloudEnabled()) return nativeFetch(input, init);
     const uid = await userId();
-    let model = "unknown";
-    try { model = JSON.parse(String(init?.body)).model || model; } catch {}
+    let requestedModel = "unknown";
+    try { requestedModel = JSON.parse(String(init?.body)).model || requestedModel; } catch {}
     const record = async (payload: Record<string, unknown>, status: string, httpStatus: number) => {
       try {
+        const model = typeof payload.model === "string" ? payload.model : requestedModel;
         const usage = usageNumbers(payload.usage);
+        const modalities = imageUsageDetails(payload.usage);
         const root = services().db.collection("users").doc(uid);
         const responseId = typeof payload.id === "string" ? payload.id : null;
         const id = responseId && /^[a-zA-Z0-9_-]{1,150}$/.test(responseId) ? responseId : eventId;
@@ -36,9 +40,9 @@ export function meteredFetch(feature: string): typeof fetch {
           // Store model names as array entries rather than Firestore field paths.
           const key = Buffer.from(model).toString("base64url");
           const previous = models[key] || { model, input: 0, output: 0, cached: 0, total: 0, calls: 0, unknown: 0 };
-          models[key] = { model, input: previous.input + usage.input, output: previous.output + usage.output, cached: previous.cached + usage.cached, total: previous.total + usage.total, calls: previous.calls + 1, unknown: previous.unknown + Number(!usage.measured) };
+          models[key] = { ...previous, model, input: previous.input + usage.input, output: previous.output + usage.output, cached: previous.cached + usage.cached, total: previous.total + usage.total, calls: previous.calls + 1, unknown: previous.unknown + Number(!usage.measured), ...(modalities && usage.measured ? { textInput: (previous.textInput || 0) + modalities.textInput, imageInput: (previous.imageInput || 0) + modalities.imageInput, detailedCalls: (previous.detailedCalls || 0) + 1 } : {}) };
           const at = new Date().toISOString();
-          tx.create(event, { feature, model, ...usage, status, httpStatus, responseId, at, durationMs: Date.now() - started });
+          tx.create(event, { feature, model, ...usage, ...(modalities || {}), status, httpStatus, responseId, at, durationMs: Date.now() - started });
           tx.set(metrics, { models, calls: (before.calls || 0) + 1, errors: (before.errors || 0) + Number(status !== "completed"), firstRecordedAt: before.firstRecordedAt || at, lastRecordedAt: at });
         });
       } catch (error) { console.error("AI metering write failed", { uid, feature, error: error instanceof Error ? error.message : "unknown" }); }

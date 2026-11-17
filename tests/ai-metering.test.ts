@@ -8,6 +8,8 @@ test("usage counts cache as a subset of input, preserves missing usage and compu
   assert.equal(tokenCost(usage, { input: 2, cached: 1, output: 8 }), 0.0032);
   assert.equal(tokenCost(usage), null);
   assert.equal(usageNumbers(null).measured, false);
+  assert.equal(usageNumbers({ input_tokens: -1, output_tokens: 0 }).measured, false);
+  assert.equal(usageNumbers({ input_tokens: NaN, output_tokens: 0 }).measured, false);
   assert.equal(usageNumbers({ input_tokens: 5, output_tokens: 3, input_tokens_details: { cached_tokens: 100 } }).cached, 5);
 });
 

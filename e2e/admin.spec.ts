@@ -55,7 +55,8 @@ test("admin dashboard handles user detail, platform settings and nickname manage
   await expect(page.getByRole("row").filter({ hasText: user.email }).getByRole("cell").nth(1)).toHaveText(expectedVisit);
   await page.getByRole("button", { name: "Gestisci", exact: true }).click();
   const detail = page.getByRole("region", { name: "Dettaglio utente" });
-  await expect(detail).toContainText("Medicina"); await expect(detail).toContainText("Tariffa non configurata");
+  await expect(detail).toContainText("Medicina"); await expect(detail).toContainText("0,0008");
+  await expect(detail.getByRole("region", { name: "Costi OpenAI dell'utente" })).toContainText("Costo medio per richiesta AI");
   await detail.getByLabel("Blocca tutte le generazioni AI").check();
   await detail.getByRole("button", { name: "Salva controlli utente", exact: true }).click();
   await expect.poll(() => savedControls).toBe(true);
@@ -67,12 +68,10 @@ test("admin dashboard handles user detail, platform settings and nickname manage
   await page.screenshot({ path: "test-results/admin-platform.png" });
   await page.getByRole("button", { name: "Soprannomi", exact: true }).click();
   await expect(page.getByRole("region", { name: "Gestione soprannomi", exact: true })).toBeVisible();
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "Apri menu", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Apri menu account", exact: true })).toBeInViewport();
   await page.getByRole("navigation", { name: "Sezioni amministrazione" }).getByRole("button", { name: "Registro admin", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Registro operazioni admin" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Chiudi menu", exact: true })).toBeHidden();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("navigation", { name: "Navigazione principale" }).getByRole("button", { name: "Account", exact: true })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
