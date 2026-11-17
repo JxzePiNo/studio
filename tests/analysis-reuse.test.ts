@@ -17,7 +17,7 @@ test("identical renamed PDFs reuse analysis across concurrent requests, preservi
     for (const [key, value] of Object.entries({ DATA_DIR: previous.data, NEXT_PUBLIC_FIREBASE_ENABLED: previous.enabled, OPENAI_API_KEY: previous.key })) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
     await rm(directory, { recursive: true, force: true });
   });
-  const pdf = await PDFDocument.create(); pdf.addPage(); const bytes = await pdf.save();
+  const pdf = await PDFDocument.create(); pdf.addPage().drawText("Contenuto didattico da spiegare.", { size: 12 }); const bytes = await pdf.save();
   const first = await createDocument("Privato-A.pdf", bytes, 1), second = await createDocument("Altro-nome.pdf", bytes, 1);
   await updateSlide(first.id, 1, slide => ({ ...slide, notes: "PRIVATE_NOTES", read: true, chat: [{ role: "user", content: "PRIVATE_CHAT" }] }));
   let calls = 0;

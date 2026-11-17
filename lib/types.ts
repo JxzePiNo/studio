@@ -1,5 +1,5 @@
 export interface Explanation {
-  pageKind?: "content" | "cover" | "index" | "title";
+  pageKind?: "content" | "cover" | "index" | "title" | "blank";
   title: string;
   language: "en" | "it" | "other";
   overview: string;

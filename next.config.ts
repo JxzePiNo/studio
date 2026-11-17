@@ -3,9 +3,16 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   distDir: process.env.MARGINE_E2E === "true" ? process.env.STUDIO_E2E_READER === "true" ? ".next-e2e-reader" : ".next-e2e" : ".next",
   turbopack: { root: process.cwd() },
-  serverExternalPackages: ["pdf-lib", "pdfjs-dist"],
+  serverExternalPackages: ["pdf-lib", "pdfjs-dist", "@napi-rs/canvas", "tesseract.js", "tesseract.js-core", "@tesseract.js-data/eng", "@tesseract.js-data/ita"],
   outputFileTracingIncludes: {
     "/api/documents/*/chat": ["./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"],
+    "/api/documents/*/analyze": [
+      "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+      "./node_modules/tesseract.js/src/**/*",
+      "./node_modules/tesseract.js-core/**/*",
+      "./node_modules/@tesseract.js-data/{eng,ita}/4.0.0_best_int/*.gz",
+      "./node_modules/@napi-rs/canvas*/**/*",
+    ],
   },
   rewrites() {
     if (process.env.NEXT_PUBLIC_FIREBASE_AUTH_PROXY !== "true") return [];

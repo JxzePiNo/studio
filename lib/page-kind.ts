@@ -10,4 +10,4 @@ export function introductoryPageKind(explanation: Explanation) {
   return null;
 }
 
-export const pageKindLabels = { cover: "Copertina", index: "Indice", title: "Solo titolo" };
+export const pageKindLabels = { cover: "Copertina", index: "Indice", title: "Solo titolo", blank: "Pagina bianca" };

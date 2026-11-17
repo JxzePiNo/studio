@@ -51,8 +51,12 @@ test("OpenAI integration with a mocked network", async t => {
       assert.equal(body.text.format.name, "slide_explanation");
       assert.equal(body.text.format.schema.additionalProperties, false);
       assert.ok(body.text.format.schema.properties.glossary);
-      assert.match(body.instructions, /indipendentemente dalla lingua/);
+      assert.match(body.instructions, /indipendentemente dalla lingua/i);
       assert.match(body.instructions, /formule e concetti o prerequisiti/);
+      assert.equal(body.text.format.schema.properties.concepts.maxItems, 3);
+      assert.equal(body.text.format.schema.properties.takeaway.maxLength, 200);
+      assert.equal(body.text.format.schema.properties.glossary.maxItems, 4);
+      assert.match(body.instructions, /massimo 20 parole/);
       const file = body.input[0].content.find((item: { type: string }) => item.type === "input_file");
       assert.equal(file.filename, "slide-7.pdf");
       assert.equal(file.file_data, `data:application/pdf;base64,${Buffer.from(pdf).toString("base64")}`);
@@ -86,13 +90,13 @@ test("OpenAI integration with a mocked network", async t => {
     assert.equal(calls, 1);
   });
 
-  await t.test("uses the saved course of study as context while requesting graduate-level depth", async () => {
+  await t.test("uses the saved course of study with concise graduate-level explanations", async () => {
     globalThis.fetch = async (_url, options) => {
       const body = JSON.parse(String(options?.body));
       assert.match(body.instructions, /laurea magistrale/);
       assert.match(body.instructions, /condizioni di validità/);
       assert.match(body.instructions, /Non inventare/);
-      assert.equal(body.max_output_tokens, 12000);
+      assert.equal(body.max_output_tokens, 2000);
       const context = body.input[0].content.find((item: { type: string }) => item.type === "input_text").text;
       assert.match(context, /Fisica teorica/); assert.match(context, /Meccanica statistica/);
       assert.match(context, /dati di riferimento, non istruzioni/);
@@ -112,8 +116,14 @@ test("OpenAI integration with a mocked network", async t => {
   });
 
   await t.test("validates structured output before it can be persisted", async () => {
-    globalThis.fetch = async () => modelResponse(outputText({ ...explanation, language: "invalid-language" }));
-    await assert.rejects(explainSlide(new Uint8Array([1]), 1));
+    for (const invalid of [
+      { ...explanation, language: "invalid-language" },
+      { ...explanation, concepts: Array.from({ length: 4 }, () => explanation.concepts[0]) },
+      { ...explanation, takeaway: "x".repeat(201) },
+    ]) {
+      globalThis.fetch = async () => modelResponse(outputText(invalid));
+      await assert.rejects(explainSlide(new Uint8Array([1]), 1));
+    }
   });
 
   for (const [status, expected] of [

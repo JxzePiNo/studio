@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { extractAnalysisPage } from "@/lib/analysis-pdf";
+import { filterAnalysisPage } from "@/lib/analysis-page-filter";
 import { z } from "zod";
 import { readDocument, readPdf, updateSlide, updateDocument } from "@/lib/store";
 import { explainSlide, openaiError, retryableAnalysisError, analysisRetryHeaders, analysisPromptSignature } from "@/lib/openai";
@@ -47,8 +48,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const context = { studyProgram: profile.studyProgram, courseName: folder?.name, documentName: "Materiale PDF" };
       const key = analysisKey(hash, page, process.env.OPENAI_MODEL || "gpt-4.1-mini", analysisPromptSignature, context);
       const result = await sharedAnalysis(key, async () => {
-        if (!process.env.OPENAI_API_KEY?.trim()) throw Object.assign(new Error("Aggiungi OPENAI_API_KEY in .env.local e riavvia il server per generare le spiegazioni."), { status: 503, retryable: false });
         const single = await extractAnalysisPage(`${session}:${id}`, page, () => readPdf(id));
+        // Explicit regeneration also lets the user override a local classification.
+        const filtered = !regenerate ? await filterAnalysisPage(single) : undefined;
+        if (filtered) return filtered;
+        if (!process.env.OPENAI_API_KEY?.trim()) throw Object.assign(new Error("Aggiungi OPENAI_API_KEY in .env.local e riavvia il server per generare le spiegazioni."), { status: 503, retryable: false });
         return explainSlide(single, page, context);
       }, regenerate);
       explanation = result.explanation; generatedAt = result.generatedAt;

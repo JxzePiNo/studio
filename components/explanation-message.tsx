@@ -24,7 +24,7 @@ function ExpandedExplanation({ explanation, page }: ExplanationMessageProps) {
       <div className="explanation-kicker"><span className="eyebrow">FACCIAMO CHIAREZZA</span></div>
       <h2><MarkdownContent inline>{explanation.title}</MarkdownContent></h2>
       <div className="explanation-topic"><MarkdownContent className="overview">{explanation.overview}</MarkdownContent></div>
-      <div className="concepts-heading">I CONCETTI CHIAVE</div>
+      {explanation.concepts.length > 0 && <div className="concepts-heading">I CONCETTI CHIAVE</div>}
       {explanation.concepts.map((concept, index) => <div className="concept" key={index}><span>{String(index + 1).padStart(2, "0")}</span><div><h3><MarkdownContent inline>{concept.title}</MarkdownContent></h3><MarkdownContent>{concept.explanation}</MarkdownContent></div></div>)}
       {explanation.example && <div className="example-box"><span><BookOpen size={15} /> UN ESEMPIO CONCRETO</span><MarkdownContent>{explanation.example}</MarkdownContent></div>}
       {explanation.takeaway && <div className="takeaway"><Sparkles size={19} aria-hidden="true" /><div><span>Da ricordare</span><MarkdownContent>{explanation.takeaway}</MarkdownContent></div></div>}

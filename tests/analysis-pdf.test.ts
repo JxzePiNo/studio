@@ -42,7 +42,7 @@ test("70 parallel analysis API calls persist every page and preserve notes and r
     for (const [key, value] of Object.entries({ DATA_DIR: previous.data, NEXT_PUBLIC_FIREBASE_ENABLED: previous.enabled, OPENAI_API_KEY: previous.key })) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
     await rm(directory, { recursive: true, force: true });
   });
-  const original = await PDFDocument.create(); for (let index = 0; index < 700; index++) original.addPage();
+  const original = await PDFDocument.create(); for (let index = 0; index < 700; index++) original.addPage().drawText("Contenuto didattico da spiegare.", { size: 12 });
   const document = await createDocument("Libro.pdf", await original.save(), 700);
   await updateDocument(document.id, doc => { doc.slides[1] = { notes: "Appunti personali", read: true }; });
   let calls = 0;
