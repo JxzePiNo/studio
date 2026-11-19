@@ -635,7 +635,7 @@ export default function Workspace() {
       <StudySessionBar suppressed={readerClean && !!doc} portrait={!!doc && portrait} session={studySession} document={doc ? { name: doc.name, read: Object.values(doc.slides).filter(slide => slide.read).length, total: doc.pages } : undefined} />
       <FriendsActivity running={studySession.running} onOpen={openFriends} onIncomingChange={reportIncomingRequests} />
       <NotificationCenter autoOpenOnEntry={initialFriendRequests} events={[...friendMessages.messages.map(message => `message:${message.id}`), ...(incomingFriendRequests ? [`friends:${incomingFriendRequests}`] : []), ...islandJobs.map(job => `analysis:${job.id}:${job.status}`), ...chatController.notifications.map(item => `chat:${item.key}`), ...uploads.jobs.map(job => `upload:${job.id}:${job.status}`)]}>{hideNotifications => <>
-      <FriendMessageNotifications inbox={friendMessages} onReply={hideNotifications} />
+      <FriendMessageNotifications inbox={friendMessages} />
       {incomingFriendRequests > 0 && <Button variant="outline" onClick={() => { hideNotifications(); openFriends(); }}>{incomingFriendRequests} {incomingFriendRequests === 1 ? "richiesta di amicizia ricevuta" : "richieste di amicizia ricevute"}. Apri richieste</Button>}
       {islandJobs.length > 0 && <AnalysisIsland jobs={islandJobs} embedded onHide={hideNotifications} />}
       <UploadNotifications controller={uploads} onOpen={id => { hideNotifications(); void openDocument(id); }} />

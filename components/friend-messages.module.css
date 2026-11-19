@@ -1,6 +1,9 @@
 .message { border:1px solid var(--border); border-radius:12px; border-bottom-left-radius:4px; background:var(--accent); padding:10px 12px; min-width:0; }
 .message header { display:flex; align-items:center; gap:8px; }.message header>div { flex:1; min-width:0; }.message strong { display:block; font-size:12px; overflow-wrap:anywhere; }.message time { display:block; font-size:10px; color:var(--muted-foreground); margin-top:1px; }.message p { white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; line-height:1.5; margin:6px 0 0; }
 .message .notificationAction { width:30px; height:30px; min-width:30px; padding:0; flex-shrink:0; }
+.quickReply { display:grid; justify-items:end; gap:8px; margin-top:10px; }
+.quickReply textarea { width:100%; min-width:0; }
+.quickReply p { justify-self:start; color:var(--destructive); }
 .chats { width:100%; max-width:1120px; margin:0 auto; padding:16px 24px 32px; min-width:0; }
 .pageHeader { display:flex; align-items:center; gap:12px; margin-bottom:22px; }
 .pageHeader h1 { margin:0; font-size:28px; }.pageHeader p { margin:4px 0 0; color:var(--muted-foreground); font-size:14px; }
