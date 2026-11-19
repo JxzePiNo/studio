@@ -53,7 +53,7 @@ export function NotificationCenter({ events, children, previews }: {
     {!open && unread > 0 && <span className={styles.srOnly} role="status" aria-live="polite">{unread === 1 ? "1 nuova notifica" : `${unread} nuove notifiche`}</span>}
     <Dialog.Portal><Dialog.Content side="bottom" align="center" sideOffset={10} collisionPadding={14} className={styles.dialog} aria-label="Notifiche">
       <header className={styles.heading}><h2>Notifiche</h2><Dialog.Close asChild><button aria-label="Chiudi notifiche"><X size={18} /></button></Dialog.Close></header>
-      <section className={styles.tony} aria-label="Tony e le notifiche"><TonyMascot size={86} animated showName={false} /><div className={styles.speech}><strong>Tony del bar</strong><p>{events.length ? "Ecco gli aggiornamenti del tuo studio. Da qui puoi aprirli e riprendere da dove eri rimasto." : "Nessuna notifica qui. Quando ci saranno novità, le troverai in questo spazio."}</p></div></section>
+      <section className={styles.tony} aria-label="Tony e le notifiche"><TonyMascot size={86} animated showName={false} /><div className={`${styles.speechBubble} ${styles.speech}`}><strong>Tony del bar</strong><p>{events.length ? "Ecco gli aggiornamenti del tuo studio. Da qui puoi aprirli e riprendere da dove eri rimasto." : "Nessuna notifica qui. Quando ci saranno novità, le troverai in questo spazio."}</p></div></section>
       <section className={styles.content} aria-label="Notifiche">{children(() => changeOpen(false))}</section>
     </Dialog.Content></Dialog.Portal>
   </Dialog.Root>

@@ -35,7 +35,13 @@ for (const width of [1280, 390]) test(`sidebar chats support offline friends, co
   await expect(chat).toBeVisible();
   await expect(chat).toContainText("Ultimo accesso non disponibile");
   const composer = chat.getByRole("textbox", { name: "Messaggio", exact: true });
+  await expect(composer).toHaveCSS("height", "44px");
+  await expect(composer).toHaveCSS("resize", "none");
+  await chat.screenshot({ path: `test-results/friend-composer-${width}.png` });
+  await composer.fill("Una riga lunga ".repeat(25).trim());
+  await expect.poll(async () => (await composer.boundingBox())?.height).toBeGreaterThan(44);
   await composer.fill("Ci sei per ripassare?");
+  await expect(composer).toHaveCSS("height", "44px");
   await composer.press("Enter");
   await expect(chat.getByRole("log")).toContainText("Ci sei per ripassare?");
   expect(sent[0]).toMatchObject({ action: "send", targetId: "bob", text: "Ci sei per ripassare?" });
@@ -45,6 +51,7 @@ for (const width of [1280, 390]) test(`sidebar chats support offline friends, co
   await composer.fill("Stavo scrivendo");
   await composer.press("Shift+Enter");
   await composer.press("a");
+  await expect(composer).toHaveCSS("height", "66px");
   const received = { id: crypto.randomUUID(), sender: bob, text: "Certo, iniziamo da Analisi!", sentAt: Date.now() };
   incoming = [received];
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
@@ -57,16 +64,16 @@ for (const width of [1280, 390]) test(`sidebar chats support offline friends, co
   const dimensions = await message.evaluate(element => {
     const reply = element.querySelector('button[aria-label="Rispondi"]')!;
     const header = element.querySelector("header")!;
-    return { height: element.getBoundingClientRect().height, replyInHeader: header.contains(reply), bottomPadding: getComputedStyle(element).paddingBottom };
+    return { height: element.getBoundingClientRect().height, replyInHeader: header.contains(reply) };
   });
   expect(dimensions.replyInHeader).toBe(true);
-  expect(dimensions.bottomPadding).toBe("10px");
   expect(dimensions.height).toBeLessThan(130);
   await page.screenshot({ path: `test-results/friend-message-${width}.png` });
   await expect(message).toHaveCount(0, { timeout: 12_000 });
   await expect(composer).toBeFocused();
   await expect(notifications).toHaveCount(0);
   await page.getByRole("button", { name: /^Mostra notifiche/ }).click();
+  await notifications.screenshot({ path: `test-results/friend-notification-panel-${width}.png` });
   await notifications.getByRole("button", { name: "Rispondi", exact: true }).click();
   const reply = notifications.getByRole("textbox", { name: "Risposta a bob" });
   await reply.fill("Perfetto, a dopo!");

@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { Reply, X } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState, type ComponentProps, type KeyboardEvent } from "react";
+import { LoaderCircle, Reply, Send, X } from "lucide-react";
 import { ActionTooltip } from "./ui/tooltip";
 import { authHeaders } from "@/lib/firebase-client";
 import { readApiResponse } from "@/lib/api-response";
@@ -10,15 +10,31 @@ import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { FriendAvatar } from "./friend-avatar";
 import styles from "./friend-messages.module.css";
+import notificationStyles from "./notification-center.module.css";
 
-export function submitMessageOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
+function submitMessageOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
   if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
   event.preventDefault();
   if (!event.repeat && event.currentTarget.value.trim()) event.currentTarget.form?.requestSubmit();
 }
 
-export function MessageShortcutHint({ id }: { id: string }) {
-  return <small id={id} className={styles.shortcutHint}><kbd>Invio</kbd> per inviare · <kbd>Maiusc + Invio</kbd> per andare a capo</small>;
+export function FriendMessageComposer({ value, sending, ...props }: Omit<ComponentProps<typeof Textarea>, "value"> & { value: string; sending: boolean }) {
+  const hintId = useId();
+  return <>
+    <div className={styles.composerRow}>
+      <div className={styles.composerField}>
+        <span aria-hidden="true">{value}{" "}</span>
+        <Textarea {...props} aria-describedby={hintId} onKeyDown={submitMessageOnEnter} value={value} rows={1} maxLength={2000} disabled={sending} />
+      </div>
+      <Button type="submit" size="icon" className={styles.sendButton} aria-label={sending ? "Invio in corso" : "Invia"} disabled={sending || !value.trim()}>
+        {sending ? <LoaderCircle size={18} className="spin" aria-hidden="true" /> : <Send size={18} aria-hidden="true" />}
+      </Button>
+    </div>
+    <small id={hintId} className={styles.shortcutHint}>
+      <span><kbd>Invio</kbd> per inviare</span>
+      <span><kbd>Maiusc + Invio</kbd> per andare a capo</span>
+    </small>
+  </>;
 }
 
 export async function messageRequest<T>(body?: unknown, signal?: AbortSignal, friendId?: string): Promise<T> {
@@ -70,7 +86,6 @@ export function FriendMessageNotification({ message, dismiss }: { message: Frien
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const replyId = useRef<string | null>(null);
-  const shortcutHintId = useId();
   const senderName = message.sender.nickname || message.sender.name;
 
   async function sendReply() {
@@ -93,7 +108,7 @@ export function FriendMessageNotification({ message, dismiss }: { message: Frien
     }
   }
 
-  return <article className={styles.message} aria-label={`Messaggio da ${senderName}`}>
+  return <article className={`${notificationStyles.speechBubble} ${styles.message}`} aria-label={`Messaggio da ${senderName}`}>
     <header>
       <FriendAvatar name={message.sender.name} photoURL={message.sender.photoURL} />
       <div><strong>{message.sender.nickname ? `@${message.sender.nickname}` : message.sender.name}</strong><time dateTime={new Date(message.sentAt).toISOString()}>{new Date(message.sentAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</time></div>
@@ -102,12 +117,10 @@ export function FriendMessageNotification({ message, dismiss }: { message: Frien
     </header>
     <p>{message.text}</p>
     {replyOpen && <form className={styles.quickReply} onSubmit={event => { event.preventDefault(); void sendReply(); }}>
-      <Textarea autoFocus aria-label={`Risposta a ${senderName}`} aria-describedby={shortcutHintId} onKeyDown={submitMessageOnEnter} placeholder="Scrivi una risposta…" rows={2} maxLength={2000} value={draft} disabled={sending} onChange={event => {
+      <FriendMessageComposer autoFocus aria-label={`Risposta a ${senderName}`} placeholder="Scrivi una risposta…" value={draft} sending={sending} onChange={event => {
         setDraft(event.target.value);
         replyId.current = null;
       }} />
-      <Button type="submit" size="sm" disabled={sending || !draft.trim()}>{sending ? "Invio…" : "Invia"}</Button>
-      <MessageShortcutHint id={shortcutHintId} />
       {error && <p role="alert">{error}</p>}
     </form>}
   </article>;
