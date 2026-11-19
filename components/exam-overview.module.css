@@ -1,10 +1,10 @@
 /* Original ArchAIve Tailwind palette, resolved from its installed theme. */
-.card[data-folder-color=blue], .swatch[data-folder-color=blue] { --folder-start:oklch(70.7% 0.165 254.624); --folder-end:oklch(62.3% 0.214 259.815); --folder-flap:color-mix(in oklab, oklch(80.9% 0.105 251.813) 50%, transparent); --paper-back:color-mix(in oklab, oklch(93.2% 0.032 255.585) 60%, transparent); --paper-front:oklch(97% 0.014 254.604); --paper-line:color-mix(in oklab, oklch(80.9% 0.105 251.813) 40%, transparent); --paper-border:oklch(88.2% 0.059 254.128); }
-.card[data-folder-color=orange], .swatch[data-folder-color=orange] { --folder-start:oklch(75% 0.183 55.934); --folder-end:oklch(70.5% 0.213 47.604); --folder-flap:color-mix(in oklab, oklch(83.7% 0.128 66.29) 50%, transparent); --paper-back:color-mix(in oklab, oklch(95.4% 0.038 75.164) 60%, transparent); --paper-front:oklch(98% 0.016 73.684); --paper-line:color-mix(in oklab, oklch(75% 0.183 55.934) 40%, transparent); --paper-border:oklch(90.1% 0.076 70.697); }
-.card[data-folder-color=yellow], .swatch[data-folder-color=yellow] { --folder-start:oklch(85.2% 0.199 91.936); --folder-end:oklch(79.5% 0.184 86.047); --folder-flap:color-mix(in oklab, oklch(94.5% 0.129 101.54) 50%, transparent); --paper-back:color-mix(in oklab, oklch(97.3% 0.071 103.193) 60%, transparent); --paper-front:oklch(98.7% 0.026 102.212); --paper-line:color-mix(in oklab, oklch(85.2% 0.199 91.936) 40%, transparent); --paper-border:oklch(94.5% 0.129 101.54); }
-.card[data-folder-color=red], .swatch[data-folder-color=red] { --folder-start:oklch(70.4% 0.191 22.216); --folder-end:oklch(63.7% 0.237 25.331); --folder-flap:color-mix(in oklab, oklch(80.8% 0.114 19.571) 50%, transparent); --paper-back:color-mix(in oklab, oklch(93.6% 0.032 17.717) 60%, transparent); --paper-front:oklch(97.1% 0.013 17.38); --paper-line:color-mix(in oklab, oklch(70.4% 0.191 22.216) 40%, transparent); --paper-border:oklch(88.5% 0.062 18.334); }
-.card[data-folder-color=grey], .swatch[data-folder-color=grey] { --folder-start:oklch(70.7% 0.022 261.325); --folder-end:oklch(55.1% 0.027 264.364); --folder-flap:color-mix(in oklab, oklch(87.2% 0.01 258.338) 50%, transparent); --paper-back:color-mix(in oklab, oklch(92.8% 0.006 264.531) 60%, transparent); --paper-front:oklch(96.7% 0.003 264.542); --paper-line:oklch(87.2% 0.01 258.338); --paper-border:oklch(87.2% 0.01 258.338); }
-.card[data-folder-color=black], .swatch[data-folder-color=black] { --folder-start:oklch(26.9% 0 none); --folder-end:oklch(20.5% 0 none); --folder-flap:color-mix(in oklab, oklch(43.9% 0 none) 50%, transparent); --paper-back:color-mix(in oklab, oklch(55.6% 0 none) 60%, transparent); --paper-front:oklch(97% 0 none); --paper-line:oklch(87% 0 none); --paper-border:oklch(55.6% 0 none); }
+.card[data-folder-color=blue], .resumeExam[data-folder-color=blue], .swatch[data-folder-color=blue] { --folder-start:oklch(70.7% 0.165 254.624); --folder-end:oklch(62.3% 0.214 259.815); --folder-flap:color-mix(in oklab, oklch(80.9% 0.105 251.813) 50%, transparent); --paper-back:color-mix(in oklab, oklch(93.2% 0.032 255.585) 60%, transparent); --paper-front:oklch(97% 0.014 254.604); --paper-line:color-mix(in oklab, oklch(80.9% 0.105 251.813) 40%, transparent); --paper-border:oklch(88.2% 0.059 254.128); }
+.card[data-folder-color=orange], .resumeExam[data-folder-color=orange], .swatch[data-folder-color=orange] { --folder-start:oklch(75% 0.183 55.934); --folder-end:oklch(70.5% 0.213 47.604); --folder-flap:color-mix(in oklab, oklch(83.7% 0.128 66.29) 50%, transparent); --paper-back:color-mix(in oklab, oklch(95.4% 0.038 75.164) 60%, transparent); --paper-front:oklch(98% 0.016 73.684); --paper-line:color-mix(in oklab, oklch(75% 0.183 55.934) 40%, transparent); --paper-border:oklch(90.1% 0.076 70.697); }
+.card[data-folder-color=yellow], .resumeExam[data-folder-color=yellow], .swatch[data-folder-color=yellow] { --folder-start:oklch(85.2% 0.199 91.936); --folder-end:oklch(79.5% 0.184 86.047); --folder-flap:color-mix(in oklab, oklch(94.5% 0.129 101.54) 50%, transparent); --paper-back:color-mix(in oklab, oklch(97.3% 0.071 103.193) 60%, transparent); --paper-front:oklch(98.7% 0.026 102.212); --paper-line:color-mix(in oklab, oklch(85.2% 0.199 91.936) 40%, transparent); --paper-border:oklch(94.5% 0.129 101.54); }
+.card[data-folder-color=red], .resumeExam[data-folder-color=red], .swatch[data-folder-color=red] { --folder-start:oklch(70.4% 0.191 22.216); --folder-end:oklch(63.7% 0.237 25.331); --folder-flap:color-mix(in oklab, oklch(80.8% 0.114 19.571) 50%, transparent); --paper-back:color-mix(in oklab, oklch(93.6% 0.032 17.717) 60%, transparent); --paper-front:oklch(97.1% 0.013 17.38); --paper-line:color-mix(in oklab, oklch(70.4% 0.191 22.216) 40%, transparent); --paper-border:oklch(88.5% 0.062 18.334); }
+.card[data-folder-color=grey], .resumeExam[data-folder-color=grey], .swatch[data-folder-color=grey] { --folder-start:oklch(70.7% 0.022 261.325); --folder-end:oklch(55.1% 0.027 264.364); --folder-flap:color-mix(in oklab, oklch(87.2% 0.01 258.338) 50%, transparent); --paper-back:color-mix(in oklab, oklch(92.8% 0.006 264.531) 60%, transparent); --paper-front:oklch(96.7% 0.003 264.542); --paper-line:oklch(87.2% 0.01 258.338); --paper-border:oklch(87.2% 0.01 258.338); }
+.card[data-folder-color=black], .resumeExam[data-folder-color=black], .swatch[data-folder-color=black] { --folder-start:oklch(26.9% 0 none); --folder-end:oklch(20.5% 0 none); --folder-flap:color-mix(in oklab, oklch(43.9% 0 none) 50%, transparent); --paper-back:color-mix(in oklab, oklch(55.6% 0 none) 60%, transparent); --paper-front:oklch(97% 0 none); --paper-line:oklch(87% 0 none); --paper-border:oklch(55.6% 0 none); }
 
 /* Folder silhouette and paper arrangement adapted from the user's ArchAIve
    frontend/src/components/ui/folder-components.tsx. No asset dependencies. */
@@ -79,4 +79,61 @@
   .toolbar > label { min-width: 0; max-width: none; }
   .search { max-width: none; }
   .sort { margin-left: 0; }
+}
+.resumeSection { margin-bottom: 24px; }
+.resumeSection h2 { margin: 0 0 10px; font-size: 15px; font-weight: 700; }
+
+.resumeExam {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid color-mix(in oklab, var(--folder-start) 35%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--folder-start) 10%, var(--card));
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+}
+
+.resumeExam:hover { border-color: var(--folder-start); }
+.resumeExam:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.resumeExam > svg { flex-shrink: 0; }
+.resumeExamCopy { display: grid; flex: 1; min-width: 0; gap: 3px; }
+.resumeExam small { color: var(--muted-foreground); }
+.resumeExam strong { overflow-wrap: anywhere; }
+.resumeFolder {
+  position: relative;
+  flex: 0 0 28px;
+  height: 28px;
+}
+
+.resumeFolder .folder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: scale(0.25);
+  transform-origin: top left;
+}
+
+.resumeDocument {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(24px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.resumeDocument small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resumeDocument progress { appearance: none; width: 100%; height: 5px; border: 0; border-radius: 999px; overflow: hidden; background: color-mix(in oklab, var(--folder-start) 20%, var(--card)); }
+.resumeDocument progress::-webkit-progress-bar { background: transparent; }
+.resumeDocument progress::-webkit-progress-value { background: var(--folder-start); border-radius: inherit; }
+.resumeDocument progress::-moz-progress-bar { background: var(--folder-start); border-radius: inherit; }
+.resumePage { color: var(--muted-foreground); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.resumePage strong { color: var(--foreground); font-size: 16px; }
+
+@media (max-width: 540px) {
+  .resumeDocument { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
+  .resumeDocument progress { grid-row: 2; }
+  .resumePage { grid-column: 2; grid-row: 1 / span 2; }
 }

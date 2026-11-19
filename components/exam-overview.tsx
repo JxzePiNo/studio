@@ -6,7 +6,7 @@ import { readApiResponse } from "@/lib/api-response";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { CalendarDays, Check, FolderOpen, LoaderCircle, Plus, Search, Settings2, X } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, FolderOpen, LoaderCircle, Plus, Search, Settings2, X } from "lucide-react";
 import { authHeaders } from "@/lib/firebase-client";
 import { examColors, type ExamColor, examColor } from "@/lib/exam-colors";
 import { visibleExams, type ExamSort } from "@/lib/exam-list";
@@ -31,6 +31,8 @@ import type { ReadingActivity } from "@/lib/study-session";
 interface ExamOverviewProps {
   dialogOnly?: boolean;
   examsOnly?: boolean;
+  lastOpenedExam?: ExamFolder;
+  recentDocument?: { id: string; page: number } | null;
   folders: ExamFolder[];
   documents: DocumentSummary[];
   onOpen: (id: string) => void;
@@ -71,7 +73,7 @@ function ExamFolderVisual() {
   </span>;
 }
 
-export function ExamOverview({ dialogOnly = false, examsOnly = false, folders, documents, onOpen, onCreate, onUpdated, onDeleted, isCourseBusy, activity, today, onActivityDaySelect, requestedCourseAction, onCourseActionHandled }: ExamOverviewProps) {
+export function ExamOverview({ dialogOnly = false, examsOnly = false, lastOpenedExam, recentDocument, folders, documents, onOpen, onCreate, onUpdated, onDeleted, isCourseBusy, activity, today, onActivityDaySelect, requestedCourseAction, onCourseActionHandled }: ExamOverviewProps) {
   const [showArchived, setShowArchived] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [search, setSearch] = useState("");
@@ -179,8 +181,25 @@ export function ExamOverview({ dialogOnly = false, examsOnly = false, folders, d
   const selectedDate = validExamDate(examDate) ? new Date(`${examDate}T12:00:00`) : undefined;
   const displayedFolders = visibleExams(folders.filter(folder => showArchived ? folder.archived : !folder.archived), search, sort, today);
 
+  const resumeDocument = recentDocument && documents.find(document => document.id === recentDocument.id && document.folderId === lastOpenedExam?.id);
+
   return <>{!dialogOnly && <div className="overview-page">
     <header className={`exam-overview-heading ${greetingStyles.header}`}><>{examsOnly ? <h1 className={folderStyles.pageTitle}>I tuoi esami</h1> : <HomeGreeting />}</><Button className={greetingStyles.action} onClick={onCreate}><Plus size={17} /> Nuovo esame</Button></header>
+    {lastOpenedExam && <section className={folderStyles.resumeSection}>
+      <h2>Riprendi a studiare</h2>
+      <button type="button" className={folderStyles.resumeExam} data-folder-color={archiveColors[examColors.indexOf(examColor(lastOpenedExam))]} onClick={() => onOpen(lastOpenedExam.id)}>
+        <span className={folderStyles.resumeFolder}><ExamFolderVisual /></span>
+        <span className={folderStyles.resumeExamCopy}>
+          <strong>{formatCourseName(lastOpenedExam.name)}</strong>
+          {resumeDocument && recentDocument && <span className={folderStyles.resumeDocument}>
+            <small title={resumeDocument.name}>{resumeDocument.name}</small>
+            <progress max={resumeDocument.pages} value={recentDocument.page} aria-label={`Posizione in ${resumeDocument.name}`} />
+            <span className={folderStyles.resumePage}>Pag. <strong>{recentDocument.page}</strong>/{resumeDocument.pages}</span>
+          </span>}
+        </span>
+        <ArrowRight size={18} aria-hidden="true" />
+      </button>
+    </section>}
     {!examsOnly && activity && today && <HomeStudyActivity activity={activity} today={today} onDaySelect={onActivityDaySelect} />}
     <div className={folderStyles.sectionHeading}><h2>{showArchived ? "I tuoi esami archiviati" : "I tuoi prossimi esami"}</h2>{(showArchived || folders.some(folder => folder.archived)) && <Button variant="ghost" onClick={() => setShowArchived(value => !value)} aria-pressed={showArchived}>{showArchived ? "Mostra prossimi esami" : "Mostra archiviati"}</Button>}</div>
     {folders.length > 0 && <div className={folderStyles.toolbar}>

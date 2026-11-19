@@ -53,7 +53,7 @@ export default function AccountGate() {
   if (!ready) return <main><BaristaLoading fullScreen name="Il tuo spazio" statusText="Caricamento del tuo spazio." hint="Tony sta preparando il tuo tavolo." /></main>;
   if (!user) return <LoginScreen busy={busy} error={error} onLogin={() => void login()} />;
   if (!referralsReady) return <main><BaristaLoading fullScreen name="Il tuo benvenuto" statusText="Preparazione del benvenuto." hint="Tony sta arrivando." /></main>;
-  return <StudyProfileProvider key={user.uid} onSignOut={logout}><Workspace /><LogoutHandler /></StudyProfileProvider>;
+  return <StudyProfileProvider key={user.uid} onSignOut={logout}><Workspace accountId={user.uid} /><LogoutHandler /></StudyProfileProvider>;
 }
 function LogoutHandler() {
   useEffect(() => {

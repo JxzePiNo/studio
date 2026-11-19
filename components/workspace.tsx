@@ -77,7 +77,7 @@ function resetMobilePageScroll() {
 }
 type BatchProgress = { id: string; startedAt: number; total: number; completed: number; current: number | null; active: number[]; status: "running" | "stopping" | "stopped" | "completed" | "error" };
 
-export default function Workspace() {
+export default function Workspace({ accountId = "local" }: { accountId?: string }) {
   const friendMessages = useFriendMessages();
   const { requested: requestedTour, consumeRequest: cancelTourRequest } = useTonyTours();
   const { profile: tourProfile, loading: tourProfileLoading } = useStudyProfile();
@@ -97,6 +97,25 @@ export default function Workspace() {
   const [selectedStudyDay, setSelectedStudyDay] = useState("");
   const [folders, setFolders] = useState<ExamFolder[]>([]);
   const [folderId, setFolderId] = useState("");
+  const [lastOpenedExamId, setLastOpenedExamId] = useState("");
+  const lastExamStorageKey = `studio-last-opened-exam:${accountId}`;
+  const openedExamId = section === "study" && folders.some(folder => folder.id === folderId) ? folderId : "";
+  const lastOpenedExam = folders.find(folder => folder.id === lastOpenedExamId);
+  const [recentDocument, setRecentDocument] = useState<{ id: string; page: number } | null>(null);
+  const recentDocumentKey = `studio-last-document:${accountId}:${lastOpenedExamId}`;
+  useEffect(() => {
+    setRecentDocument(null);
+    if (!lastOpenedExamId) return;
+    try { setRecentDocument(JSON.parse(localStorage.getItem(recentDocumentKey) || "null")); } catch {}
+  }, [lastOpenedExamId, recentDocumentKey]);
+  useEffect(() => {
+    try { setLastOpenedExamId(localStorage.getItem(lastExamStorageKey) || ""); } catch {}
+  }, [lastExamStorageKey]);
+  useEffect(() => {
+    if (!openedExamId) return;
+    setLastOpenedExamId(openedExamId);
+    try { localStorage.setItem(lastExamStorageKey, openedExamId); } catch {}
+  }, [lastExamStorageKey, openedExamId]);
   const themeFolder = section === "study" ? folders.find(folder => folder.id === folderId) : undefined;
   const courseColor = themeFolder ? examAccentColor(themeFolder) : undefined;
   const courseForeground = themeFolder && ["mint", "peach"].includes(examColor(themeFolder)) ? "#172033" : "#ffffff";
@@ -479,6 +498,13 @@ export default function Workspace() {
     if (input.current) input.current.value = "";
   }
 
+  useEffect(() => {
+    if (!doc?.folderId || !page) return;
+    const position = { id: doc.id, page };
+    if (doc.folderId === lastOpenedExamId) setRecentDocument(position);
+    try { localStorage.setItem(`studio-last-document:${accountId}:${doc.folderId}`, JSON.stringify(position)); } catch {}
+  }, [accountId, doc?.id, doc?.folderId, lastOpenedExamId, page]);
+
   const ambientRef = useAmbientParallax(!doc && !opening);
 
   const navigate = useCallback((target: number) => {
@@ -703,7 +729,7 @@ export default function Workspace() {
       {error && <div className="error-banner" role="alert"><span>{error}</span><Button variant="ghost" aria-label="Chiudi messaggio" onClick={() => setError("")}><X size={16} /></Button></div>}
 
 
-      {(section === "study" || section === "exams") && !doc && !opening && <ExamOverview examsOnly={section === "exams"} dialogOnly={!!folderId} requestedCourseAction={requestedCourseAction} onCourseActionHandled={() => setRequestedCourseAction(undefined)} onDeleted={id => { setFolders(items => items.filter(item => item.id !== id)); setLibrary(items => items.filter(item => item.folderId !== id)); if (folderId === id) openFolder(""); void refresh(); }} isCourseBusy={id => uploads.jobs.some(job => job.folderId === id && ["queued", "preparing", "uploading", "processing"].includes(job.status)) || pendingWrites.current > 0 || courseAnalysis.jobs.some(job => job.folderId === id && ["checking", "running", "stopping"].includes(job.status)) || (!!readerJobDocument.current && analysisLock.current && library.some(item => item.id === readerJobDocument.current && item.folderId === id)) || Object.entries(chatController.sessions).some(([key, value]) => value.status === "pending" && library.some(item => item.folderId === id && key.startsWith(`${item.id}:`)))} onActivityDaySelect={openSessions} activity={studySession.activity} today={studySession.todayDate} folders={folders} documents={library} onOpen={openFolder} onCreate={() => { setSidebar(false); setCreatingFolder(true); }} onUpdated={folder => { setFolders(current => current.map(f => f.id === folder.id ? folder : f)); if (folder.archived && folderId === folder.id) openFolder(""); }} />}
+      {(section === "study" || section === "exams") && !doc && !opening && <ExamOverview lastOpenedExam={lastOpenedExam} recentDocument={recentDocument} examsOnly={section === "exams"} dialogOnly={!!folderId} requestedCourseAction={requestedCourseAction} onCourseActionHandled={() => setRequestedCourseAction(undefined)} onDeleted={id => { setFolders(items => items.filter(item => item.id !== id)); setLibrary(items => items.filter(item => item.folderId !== id)); if (folderId === id) openFolder(""); void refresh(); }} isCourseBusy={id => uploads.jobs.some(job => job.folderId === id && ["queued", "preparing", "uploading", "processing"].includes(job.status)) || pendingWrites.current > 0 || courseAnalysis.jobs.some(job => job.folderId === id && ["checking", "running", "stopping"].includes(job.status)) || (!!readerJobDocument.current && analysisLock.current && library.some(item => item.id === readerJobDocument.current && item.folderId === id)) || Object.entries(chatController.sessions).some(([key, value]) => value.status === "pending" && library.some(item => item.folderId === id && key.startsWith(`${item.id}:`)))} onActivityDaySelect={openSessions} activity={studySession.activity} today={studySession.todayDate} folders={folders} documents={library} onOpen={openFolder} onCreate={() => { setSidebar(false); setCreatingFolder(true); }} onUpdated={folder => { setFolders(current => current.map(f => f.id === folder.id ? folder : f)); if (folder.archived && folderId === folder.id) openFolder(""); }} />}
       {section === "study" && !folderId && !doc && !opening && <SharedMaterials home />}
       {section === "friends" && !doc && !opening && <FriendsSection initialTab={friendsTab} onTabChange={setFriendsTab} />}
       {section === "chats" && !doc && !opening && <FriendChats selectedId={selectedChatId} onSelect={openChats} unread={friendMessages.messages} onOpenFriends={openFriends} onIncoming={friendMessages.announce} />}
