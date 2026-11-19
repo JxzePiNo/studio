@@ -42,10 +42,23 @@ export async function messageRequest<T>(body?: unknown, signal?: AbortSignal, fr
 }
 export function useFriendMessages() {
   const [messages, setMessages] = useState<FriendMessage[]>([]);
+  const [previews, setPreviews] = useState<(FriendMessage & { previewExpiresAt: number })[]>([]);
   const dismissed = useRef(new Set<string>());
+  const announced = useRef(new Set<string>());
+  const openedAt = useRef<number | null>(null);
   const [error, setError] = useState("");
+  const announce = useCallback((incoming: FriendMessage[]) => {
+    const now = Date.now();
+    const fresh = incoming.filter(message => {
+      if (message.sentAt < (openedAt.current ?? now) || announced.current.has(message.id) || dismissed.current.has(message.id)) return false;
+      announced.current.add(message.id);
+      return true;
+    });
+    if (fresh.length) setPreviews(current => [...fresh.map(message => ({ ...message, previewExpiresAt: now + 10_000 })), ...current]);
+  }, []);
   useEffect(() => {
     const controller = new AbortController();
+    openedAt.current ??= Date.now();
     let pending = false;
     const load = async () => {
       if (pending || document.visibilityState !== "visible") return;
@@ -53,7 +66,9 @@ export function useFriendMessages() {
       try {
         const result = await messageRequest<{ messages: FriendMessage[] }>(undefined, controller.signal);
         if (controller.signal.aborted) return;
-        setMessages(result.messages.filter(message => !dismissed.current.has(message.id)));
+        const incoming = result.messages.filter(message => !dismissed.current.has(message.id));
+        setMessages(incoming);
+        announce(incoming);
       } catch { /* Retry when the tab is visible or the connection returns. */ }
       finally { pending = false; }
     };
@@ -65,14 +80,18 @@ export function useFriendMessages() {
     window.addEventListener("studio-messages-changed", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => { controller.abort(); clearInterval(timer); window.removeEventListener("online", refresh); window.removeEventListener("studio-friends-changed", refresh); window.removeEventListener("studio-messages-changed", refresh); document.removeEventListener("visibilitychange", refresh); };
-  }, []);
+  }, [announce]);
   const dismiss = useCallback(async (id: string) => {
     if (dismissed.current.has(id)) return;
     dismissed.current.add(id); setError("");
-    try { await messageRequest({ action: "read", ids: [id] }); setMessages(current => current.filter(message => message.id !== id)); }
+    try {
+      await messageRequest({ action: "read", ids: [id] });
+      setMessages(current => current.filter(message => message.id !== id));
+      setPreviews(current => current.filter(message => message.id !== id));
+    }
     catch (cause) { dismissed.current.delete(id); setError((cause as Error).message); }
   }, []);
-  return { messages, dismiss, error };
+  return { messages, previews, announce, dismiss, error };
 }
 export function FriendMessageNotifications({ inbox }: { inbox: ReturnType<typeof useFriendMessages> }) {
   return <>{inbox.error && <p role="alert">{inbox.error}</p>}{inbox.messages.map(message =>
@@ -108,20 +127,27 @@ export function FriendMessageNotification({ message, dismiss }: { message: Frien
     }
   }
 
-  return <article className={`${notificationStyles.speechBubble} ${styles.message}`} aria-label={`Messaggio da ${senderName}`}>
-    <header>
-      <FriendAvatar name={message.sender.name} photoURL={message.sender.photoURL} />
-      <div><strong>{message.sender.nickname ? `@${message.sender.nickname}` : message.sender.name}</strong><time dateTime={new Date(message.sentAt).toISOString()}>{new Date(message.sentAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</time></div>
-      <ActionTooltip label="Rispondi"><Button type="button" className={styles.notificationAction} variant="ghost" size="icon" aria-label="Rispondi" aria-expanded={replyOpen} disabled={sending} onClick={() => setReplyOpen(open => !open)}><Reply size={15} /></Button></ActionTooltip>
-      <ActionTooltip label="Segna come letto"><Button type="button" className={styles.notificationAction} variant="ghost" size="icon" aria-label={`Segna come letto il messaggio di ${senderName}`} disabled={sending} onClick={() => void dismiss(message.id)}><X size={15} /></Button></ActionTooltip>
-    </header>
-    <p>{message.text}</p>
-    {replyOpen && <form className={styles.quickReply} onSubmit={event => { event.preventDefault(); void sendReply(); }}>
-      <FriendMessageComposer autoFocus aria-label={`Risposta a ${senderName}`} placeholder="Scrivi una risposta…" value={draft} sending={sending} onChange={event => {
-        setDraft(event.target.value);
-        replyId.current = null;
-      }} />
-      {error && <p role="alert">{error}</p>}
-    </form>}
+  return <article className={styles.message} aria-label={`Messaggio da ${senderName}`}>
+    <FriendAvatar name={message.sender.name} photoURL={message.sender.photoURL} />
+    <div className={`${notificationStyles.speechBubble} ${styles.messageBubble}`}>
+      <header>
+        <strong>{message.sender.nickname ? `@${message.sender.nickname}` : message.sender.name}</strong>
+        <div className={styles.notificationActions}>
+          <ActionTooltip label="Rispondi"><Button type="button" className={styles.notificationAction} variant="ghost" size="icon" aria-label="Rispondi" aria-expanded={replyOpen} disabled={sending} onClick={() => setReplyOpen(open => !open)}><Reply size={15} /></Button></ActionTooltip>
+          <ActionTooltip label="Segna come letto"><Button type="button" className={styles.notificationAction} variant="ghost" size="icon" aria-label={`Segna come letto il messaggio di ${senderName}`} disabled={sending} onClick={() => void dismiss(message.id)}><X size={15} /></Button></ActionTooltip>
+        </div>
+      </header>
+      <div className={styles.messageBody}>
+        <p>{message.text}</p>
+        <time dateTime={new Date(message.sentAt).toISOString()}>{new Date(message.sentAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</time>
+      </div>
+      {replyOpen && <form className={styles.quickReply} onSubmit={event => { event.preventDefault(); void sendReply(); }}>
+        <FriendMessageComposer autoFocus aria-label={`Risposta a ${senderName}`} placeholder="Scrivi una risposta…" value={draft} sending={sending} onChange={event => {
+          setDraft(event.target.value);
+          replyId.current = null;
+        }} />
+        {error && <p role="alert">{error}</p>}
+      </form>}
+    </div>
   </article>;
 }

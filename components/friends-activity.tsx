@@ -14,8 +14,8 @@ import { TonyMascot } from "./mascot/tony-mascot";
 import styles from "./friends.module.css";
 
 
-type Activity = { enabled: boolean; studying: FriendPerson[]; online?: FriendPerson[]; incoming: number };
-export function FriendsActivity({ running, onOpen, onIncomingChange }: { running: boolean; onOpen: () => void; onIncomingChange?: (count: number, initial: boolean) => void }) {
+type Activity = { enabled: boolean; studying: FriendPerson[]; online?: FriendPerson[]; incoming: number; incomingRequest?: FriendPerson };
+export function FriendsActivity({ running, onOpen, onIncomingChange }: { running: boolean; onOpen: () => void; onIncomingChange?: (count: number, person?: FriendPerson) => void }) {
   const [open, setOpen] = useState(false);
   const [period, setPeriod] = useState<FriendsPeriod>("day");
   const [ranking, setRanking] = useState<FriendsOverview | null>(null);
@@ -29,11 +29,9 @@ export function FriendsActivity({ running, onOpen, onIncomingChange }: { running
     return () => controller.abort();
   }, [open, period, retry]);
   const [data, setData] = useState<Activity | null>(null);
-  const reportedIncoming = useRef(false);
   useEffect(() => {
     if (!data) return;
-    onIncomingChange?.(data.enabled ? data.incoming : 0, !reportedIncoming.current);
-    reportedIncoming.current = true;
+    onIncomingChange?.(data.enabled ? data.incoming : 0, data.enabled ? data.incomingRequest : undefined);
   }, [data, onIncomingChange]);
   const [announcement, setAnnouncement] = useState("");
   const previouslyStudying = useRef(new Set<string>());

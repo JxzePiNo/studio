@@ -165,12 +165,19 @@ export class FriendsService {
     const studying: FriendPerson[] = [];
     const online: FriendPerson[] = [];
     let incoming = 0;
+    let incomingRequest: FriendPerson | undefined;
     for (let offset = 0; offset < edges.docs.length; offset += 10) await Promise.all(edges.docs.slice(offset, offset + 10).map(async doc => {
       const edge = doc.data() as Edge;
       const id = edge.members.find(value => value !== this.uid)!;
       if (blocked.has(id)) return;
       const profile = await this.profile(id); if (!profile?.enabled) return;
-      if (edge.status === "pending") { if (edge.requester !== this.uid) incoming++; return; }
+      if (edge.status === "pending") {
+        if (edge.requester !== this.uid) {
+          incoming++;
+          if (incoming === 1) incomingRequest = this.person(id, profile);
+        }
+        return;
+      }
       const status = await this.status(id, profile);
       if (status === "studying" || status === "online") {
         const person = { ...this.person(id, profile), status };
@@ -179,7 +186,7 @@ export class FriendsService {
       }
     }));
     for (const people of [online, studying]) people.sort((a, b) => (a.nickname || a.name).localeCompare(b.nickname || b.name, "it"));
-    return { enabled: true, studying, online, incoming };
+    return { enabled: true, studying, online, incoming, ...(incoming === 1 && incomingRequest ? { incomingRequest } : {}) };
   }
   async saveSettings(input: SettingsInput, identity: SocialIdentity) {
     const ref = this.profiles().doc(this.uid);

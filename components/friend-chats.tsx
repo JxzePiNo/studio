@@ -11,8 +11,9 @@ import { FriendAvatar } from "./friend-avatar";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import styles from "./friend-messages.module.css";
+import notificationStyles from "./notification-center.module.css";
 
-function Conversation({ friend, onBack }: { friend: FriendPerson; onBack: () => void }) {
+function Conversation({ friend, onBack, onIncoming }: { friend: FriendPerson; onBack: () => void; onIncoming: (messages: FriendMessage[]) => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loaded, setLoaded] = useState(false), [error, setError] = useState("");
   const [text, setText] = useState(""), [busy, setBusy] = useState(false), [sendError, setSendError] = useState("");
@@ -30,7 +31,9 @@ function Conversation({ friend, onBack }: { friend: FriendPerson; onBack: () => 
         const result = await messageRequest<{ messages: ChatMessage[] }>(undefined, controller.signal, friend.id);
         if (controller.signal.aborted) return;
         setMessages(result.messages); setLoaded(true); setError("");
-        const unread = result.messages.filter(message => !message.outgoing && !message.read).map(message => message.id);
+        const incoming = result.messages.filter(message => !message.outgoing && !message.read);
+        onIncoming(incoming.map(({ id, text, sentAt }) => ({ id, text, sentAt, sender: friend })));
+        const unread = incoming.map(message => message.id);
         for (let offset = 0; offset < unread.length; offset += 50) {
           await messageRequest({ action: "read", ids: unread.slice(offset, offset + 50) }, controller.signal);
         }
@@ -45,14 +48,14 @@ function Conversation({ friend, onBack }: { friend: FriendPerson; onBack: () => 
     document.addEventListener("visibilitychange", update);
     window.addEventListener("online", update);
     return () => { controller.abort(); clearInterval(timer); document.removeEventListener("visibilitychange", update); window.removeEventListener("online", update); };
-  }, [friend.id]);
+  }, [friend, onIncoming]);
   useEffect(() => { end.current?.scrollIntoView({ block: "nearest" }); }, [messages.length]);
   return <section className={styles.conversation} aria-label={`Chat con ${friend.nickname || friend.name}`}>
     <header className={styles.chatHeader}><Button className={styles.chatBack} variant="ghost" size="icon" onClick={onBack} aria-label="Torna alle chat"><ArrowLeft size={18} /></Button><FriendAvatar name={friend.name} photoURL={friend.photoURL} /><div><h2>{friend.nickname ? `@${friend.nickname}` : friend.name}</h2>{friend.status && <small>{friendPresenceLabel(friend)}</small>}</div></header>
     <div className={styles.history} role="log" aria-label="Messaggi della conversazione" aria-live="polite" aria-busy={!loaded && !error}>
       {!loaded && !error && <p className={styles.empty}>Caricamento messaggi…</p>}
       {loaded && !messages.length && <p className={styles.empty}>Inizia la conversazione. Puoi scrivere anche quando il tuo amico è offline.</p>}
-      {messages.map(message => <article className={styles.bubble} data-outgoing={message.outgoing} key={`${message.outgoing}:${message.id}`} aria-label={message.outgoing ? "Messaggio inviato" : "Messaggio ricevuto"}><p>{message.text}</p><time dateTime={new Date(message.sentAt).toISOString()}>{new Date(message.sentAt).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time></article>)}
+      {messages.map(message => <article className={`${notificationStyles.speechBubble} ${styles.bubble} ${styles.messageBody}`} data-outgoing={message.outgoing} key={`${message.outgoing}:${message.id}`} aria-label={message.outgoing ? "Messaggio inviato" : "Messaggio ricevuto"}><p>{message.text}</p><time dateTime={new Date(message.sentAt).toISOString()}>{new Date(message.sentAt).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time></article>)}
       <div ref={end} />
     </div>
     {error && <p className={styles.chatError} role="alert">{error} <Button variant="ghost" size="sm" onClick={() => refresh.current()}>Riprova</Button></p>}
@@ -73,7 +76,7 @@ function Conversation({ friend, onBack }: { friend: FriendPerson; onBack: () => 
   </section>;
 }
 
-export function FriendChats({ selectedId, onSelect, unread, onOpenFriends }: { selectedId: string; onSelect: (id: string) => void; unread: FriendMessage[]; onOpenFriends: () => void }) {
+export function FriendChats({ selectedId, onSelect, unread, onOpenFriends, onIncoming }: { selectedId: string; onSelect: (id: string) => void; unread: FriendMessage[]; onOpenFriends: () => void; onIncoming: (messages: FriendMessage[]) => void }) {
   const [friends, setFriends] = useState<FriendPerson[]>([]), [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(""), [query, setQuery] = useState("");
   useEffect(() => {
@@ -105,7 +108,7 @@ export function FriendChats({ selectedId, onSelect, unread, onOpenFriends }: { s
         {loaded && friends.length > 0 && !visible.length && <p className={styles.empty}>Nessun amico trovato.</p>}
         <ul>{visible.map(friend => { const count = unread.filter(message => message.sender.id === friend.id).length; return <li key={friend.id}><button type="button" aria-current={selectedId === friend.id ? "true" : undefined} onClick={() => onSelect(friend.id)}><FriendAvatar name={friend.name} photoURL={friend.photoURL} /><span><strong>{friend.nickname ? `@${friend.nickname}` : friend.name}</strong><small>{latest(friend.id)?.text || (friend.status ? friendPresenceLabel(friend) : friend.name)}</small></span>{count > 0 && <b aria-label={`${count} messaggi non letti`}>{count}</b>}</button></li>; })}</ul>
       </aside>
-      {selected ? <Conversation key={selected.id} friend={selected} onBack={() => onSelect("")} /> : <div className={styles.chatPlaceholder}><MessageCircle size={36} /><p>{selectedId && loaded ? "Questa chat non è disponibile. Scegli un amico dall’elenco." : "Scegli un amico per aprire la conversazione."}</p></div>}
+      {selected ? <Conversation key={selected.id} friend={selected} onBack={() => onSelect("")} onIncoming={onIncoming} /> : <div className={styles.chatPlaceholder}><MessageCircle size={36} /><p>{selectedId && loaded ? "Questa chat non è disponibile. Scegli un amico dall’elenco." : "Scegli un amico per aprire la conversazione."}</p></div>}
     </div>
   </div>;
 }

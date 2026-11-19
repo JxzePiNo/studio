@@ -95,6 +95,12 @@ test("PDF timer starts automatically, stops on close and preserves manual contro
   try {
     await expect(page.locator(".slide-stage canvas")).toBeVisible();
     const bar = page.getByRole("region", { name: "Riepilogo studio", exact: true });
+    const toolbar = page.locator(".reader-toolbar");
+    const eye = page.getByRole("button", { name: "Nascondi riepilogo studio", exact: true });
+    await expect(eye).toBeVisible();
+    const toolbarBounds = (await toolbar.boundingBox())!;
+    const eyeBounds = (await eye.boundingBox())!;
+    expect(eyeBounds.x).toBeGreaterThanOrEqual(toolbarBounds.x + toolbarBounds.width);
     await expect(bar).toContainText("0 / 3");
     await page.locator(".slide-stage canvas").click();
     await page.keyboard.press("Space");
@@ -122,7 +128,7 @@ test("PDF timer starts automatically, stops on close and preserves manual contro
     await expect(bar.getByRole("timer")).toHaveText(timeAfter(5));
     await page.clock.runFor(5000);
     await expect(bar.getByRole("timer")).toHaveText(timeAfter(5));
-    await page.getByRole("button", { name: "Nascondi riepilogo studio", exact: true }).click();
+    await bar.getByRole("button", { name: "Chiudi riepilogo studio", exact: true }).click();
     await expect(bar).toHaveCount(0);
     await page.getByRole("button", { name: "Mostra riepilogo studio", exact: true }).click();
     await expect(bar.getByRole("timer")).toHaveText(timeAfter(5));

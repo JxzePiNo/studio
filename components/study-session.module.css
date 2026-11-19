@@ -13,11 +13,13 @@
 .bar button:focus-visible,.restore:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .bar button:disabled { opacity: .4; cursor: default; }
 .timer button { display: flex; width: auto; gap: 4px; padding: 0 7px; font-size: 10px; white-space: nowrap; height: 28px; }
-.bar .hide { background: transparent; color: var(--muted-foreground); }
+.bar .hide { width:30px; height:30px; border-radius:9px; background:transparent; color:var(--muted-foreground); }
+.bar .hide:hover { background:var(--muted); }
 .restore { width: 32px; height: 34px; border: 1px solid var(--border); background: var(--card); box-shadow: 0 5px 16px #26372212; }
 @media(max-width:600px) { .dock { top: 8px; width: calc(100vw - 86px); } .bar { width: 100%; gap: 8px; padding: 9px; border-radius: 16px; } .timer { gap: 3px; padding-left: 7px; } .timer > span { font-size: 11px; } .count strong,.document strong { font-size: 12px; } .count > span,.document > span { font-size: 8px; } .bar button { width: 22px; height: 24px; } }
 @media(max-width:600px) { .floating { top: 56px; } .bar { gap: 5px; padding: 7px; } .timer { gap: 3px; padding-left: 5px; } .timer button { width: auto; padding: 0 4px; font-size: 9px; } .timer .actionLabel { display: none; }  }
 @media(max-width:380px) { .bar { flex-wrap: wrap; } .document { display: none; } }
+@media(max-width:600px) { .bar .hide { width:24px; height:24px; } }
 @media(min-width:601px) and (max-width:700px) { .floating { top:56px; } }
 
 .restore{width:38px;height:38px;border-radius:12px}@media(max-width:700px){.dock{top:8px;width:max-content}}

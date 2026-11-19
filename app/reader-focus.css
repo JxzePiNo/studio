@@ -15,7 +15,7 @@
 .reader-toolbar .reader-dismiss { display: none; }
 .reader-toolbar .reader-navigation-page { display: flex; align-items: center; gap: 3px; font-size: 11px; }
 .reader-toolbar .reader-navigation-page input { height: 28px; min-height: 28px; font-size: 11px; }
-.reader-topbar > div:last-child { position: static; inset: auto; transform: none; width: auto; flex-shrink: 0; gap: 6px; }
+.reader-topbar > .study-activity-dock { position: static; inset: auto; transform: none; width: auto; flex-shrink: 0; gap: 6px; }
 .reader-active .study-grid.reader-split { position: absolute; inset: var(--reader-toolbar-height) 0 0; width: 100%; height: calc(100dvh - var(--reader-toolbar-height)); padding: 0; }
 .reader-active .portrait-complete { display: none; }
 .reader-clean-toggle.ui-button { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px)); z-index: 80; width: 44px; height: 44px; min-width: 44px; min-height: 44px; border-radius: 11px; background: var(--card); box-shadow: 0 2px 12px #00000012; }
@@ -41,7 +41,7 @@ body:has(.reader-clean) .mobile-reader-tony,
   .reader-active { --reader-toolbar-height: 108px; }
   .reader-topbar { display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-rows: 40px 44px; gap: 6px; padding: 8px; }
   .reader-topbar > .workspace-back { justify-self: start; }
-  .reader-topbar > div:last-child { grid-column: 2; grid-row: 1; }
+  .reader-topbar > .study-activity-dock { grid-column: 2; grid-row: 1; }
   .reader-toolbar { grid-column: 1 / -1; grid-row: 2; width: 100%; overflow-x: auto; gap: 4px; padding: 3px 5px; scrollbar-width: none; }
   .reader-toolbar-name { flex: 1 0 72px; max-width: 110px; font-size: 10px; gap: 4px; }
   .reader-toolbar .ui-button { padding-inline: 4px; }

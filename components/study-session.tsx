@@ -3,7 +3,7 @@
 import { ActionTooltip } from "@/components/ui/tooltip";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { Eye, EyeOff, Pause, Play, Square } from "lucide-react";
+import { Eye, EyeOff, Pause, Play, Square, X } from "lucide-react";
 import { onAuthStateChanged } from "firebase/auth";
 import { buildSavedSession, type SavedSessionInput, type SavedStudySession, type StudyHistorySnapshot } from "@/lib/study-history";
 import type { DocumentSummary } from "@/lib/types";
@@ -187,7 +187,7 @@ export function StudySessionBar({ session, document, portrait = false, suppresse
     <div className={styles.timer}><span role="timer" aria-label="Tempo di studio">{time}</span><ActionTooltip label="Avvia o riprendi timer"><button onClick={session.toggleTimer} disabled={session.running} aria-label="Play"><Play size={13} /><span className={styles.actionLabel}>Play</span></button></ActionTooltip><ActionTooltip label="Metti in pausa"><button onClick={session.toggleTimer} disabled={!session.running} aria-label="Pausa"><Pause size={13} /><span className={styles.actionLabel}>Pausa</span></button></ActionTooltip><ActionTooltip label="Termina e salva la sessione"><button onClick={session.endSession} disabled={!session.hasActiveSession} aria-label="Fine sessione"><Square size={12} /><span>Fine sessione</span></button></ActionTooltip></div>
     {document && <ActionTooltip label={document.name}><div className={styles.document}><strong>{document.read}<span> / {document.total}</span></strong><span>pag PDF</span></div></ActionTooltip>}
     {session.errorHistory && <ActionTooltip label={session.errorHistory}><button onClick={() => void session.reloadHistory()} aria-label="Riprova salvataggio sessioni">Riprova salvataggio</button></ActionTooltip>}
-
+    <Popover.Close asChild><button type="button" className={styles.hide} aria-label="Chiudi riepilogo studio"><X size={18} /></button></Popover.Close>
   </section>
   </Popover.Content></Popover.Portal></Popover.Root>;
 }

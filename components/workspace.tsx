@@ -2,6 +2,8 @@
 
 import { FriendMessageNotification, FriendMessageNotifications, useFriendMessages } from "./friend-messages";
 import { FriendChats } from "./friend-chats";
+import { FriendRequestNotification } from "./friend-request-notification";
+import type { FriendPerson } from "@/lib/friends-types";
 import { TonyTour } from "./tony-tour";
 import { useTonyTours } from "./tony-tour-provider";
 import { useStudyProfile } from "./study-profile-provider";
@@ -80,7 +82,13 @@ export default function Workspace() {
   const { requested: requestedTour, consumeRequest: cancelTourRequest } = useTonyTours();
   const { profile: tourProfile, loading: tourProfileLoading } = useStudyProfile();
   const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
-  const [incomingFriendRequests, setIncomingFriendRequests] = useState(0);
+  const [{ count: incomingFriendRequests, person: incomingFriendRequest }, setIncomingFriendRequests] = useState<{ count: number; person?: FriendPerson }>({ count: 0 });
+  const reportIncomingFriendRequests = useCallback((count: number, person?: FriendPerson) => {
+    setIncomingFriendRequests({ count, person });
+  }, []);
+  function resolveFriendRequest(id: string) {
+    setIncomingFriendRequests(current => current.person?.id === id ? { count: 0 } : current);
+  }
   const [friendsTab, setFriendsTab] = useState("friends");
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [section, setSection] = useState<"study" | "exams" | "sessions" | "friends" | "calendar" | "chats">("study");
@@ -627,21 +635,24 @@ export default function Workspace() {
   const tourScope = doc?.id || folderId || "home";
 
   const friendRequestLabel = `${incomingFriendRequests} ${incomingFriendRequests === 1 ? "richiesta di amicizia ricevuta" : "richieste di amicizia ricevute"}. Apri richieste`;
+  const friendRequestId = incomingFriendRequests ? `friends:${incomingFriendRequest?.id ?? incomingFriendRequests}` : null;
+  const friendRequestCard = incomingFriendRequest && <FriendRequestNotification key={incomingFriendRequest.id} person={incomingFriendRequest} onResolved={resolveFriendRequest} />;
   const studyDock = (<div className={`${sessionStyles.dock} study-activity-dock`}>
       <StudySessionBar suppressed={readerClean && !!doc} portrait={!!doc && portrait} session={studySession} document={doc ? { name: doc.name, read: Object.values(doc.slides).filter(slide => slide.read).length, total: doc.pages } : undefined} />
-      <FriendsActivity running={studySession.running} onOpen={openFriends} onIncomingChange={setIncomingFriendRequests} />
+      <FriendsActivity running={studySession.running} onOpen={openFriends} onIncomingChange={reportIncomingFriendRequests} />
       <NotificationCenter previews={[
-        ...friendMessages.messages.map(message => ({
+        ...friendMessages.previews.map(message => ({
           id: `message:${message.id}`,
+          expiresAt: message.previewExpiresAt,
           content: <FriendMessageNotification message={message} dismiss={friendMessages.dismiss} />,
         })),
-        ...(incomingFriendRequests ? [{
-          id: `friends:${incomingFriendRequests}`,
-          content: <Button variant="outline" onClick={openFriends}>{friendRequestLabel}</Button>,
+        ...(friendRequestId ? [{
+          id: friendRequestId,
+          content: friendRequestCard || <Button variant="outline" onClick={openFriends}>{friendRequestLabel}</Button>,
         }] : []),
-      ]} events={[...friendMessages.messages.map(message => `message:${message.id}`), ...(incomingFriendRequests ? [`friends:${incomingFriendRequests}`] : []), ...islandJobs.map(job => `analysis:${job.id}:${job.status}`), ...chatController.notifications.map(item => `chat:${item.key}`), ...uploads.jobs.map(job => `upload:${job.id}:${job.status}`)]}>{hideNotifications => <>
+      ]} events={[...friendMessages.messages.map(message => `message:${message.id}`), ...(friendRequestId ? [friendRequestId] : []), ...islandJobs.map(job => `analysis:${job.id}:${job.status}`), ...chatController.notifications.map(item => `chat:${item.key}`), ...uploads.jobs.map(job => `upload:${job.id}:${job.status}`)]}>{hideNotifications => <>
       <FriendMessageNotifications inbox={friendMessages} />
-      {incomingFriendRequests > 0 && <Button variant="outline" onClick={() => { hideNotifications(); openFriends(); }}>{friendRequestLabel}</Button>}
+      {friendRequestId && (friendRequestCard || <Button variant="outline" onClick={() => { hideNotifications(); openFriends(); }}>{friendRequestLabel}</Button>)}
       {islandJobs.length > 0 && <AnalysisIsland jobs={islandJobs} embedded onHide={hideNotifications} />}
       <UploadNotifications controller={uploads} onOpen={id => { hideNotifications(); void openDocument(id); }} />
       <ChatNotifications controller={chatController} onHide={hideNotifications} onOpenQuiz={(id, quizId) => { hideNotifications(); const course = library.find(item => item.id === id)?.folderId; if (!course) return; if (docRef.current || opening) void closeDocument(); setSection("study"); setFolderId(course); setQuery(""); changeLocation(course); if (quizId) setQuizToOpen({ documentId: id, quizId }); }} onOpen={(id, target) => { hideNotifications(); void (async () => {
@@ -695,7 +706,7 @@ export default function Workspace() {
       {(section === "study" || section === "exams") && !doc && !opening && <ExamOverview examsOnly={section === "exams"} dialogOnly={!!folderId} requestedCourseAction={requestedCourseAction} onCourseActionHandled={() => setRequestedCourseAction(undefined)} onDeleted={id => { setFolders(items => items.filter(item => item.id !== id)); setLibrary(items => items.filter(item => item.folderId !== id)); if (folderId === id) openFolder(""); void refresh(); }} isCourseBusy={id => uploads.jobs.some(job => job.folderId === id && ["queued", "preparing", "uploading", "processing"].includes(job.status)) || pendingWrites.current > 0 || courseAnalysis.jobs.some(job => job.folderId === id && ["checking", "running", "stopping"].includes(job.status)) || (!!readerJobDocument.current && analysisLock.current && library.some(item => item.id === readerJobDocument.current && item.folderId === id)) || Object.entries(chatController.sessions).some(([key, value]) => value.status === "pending" && library.some(item => item.folderId === id && key.startsWith(`${item.id}:`)))} onActivityDaySelect={openSessions} activity={studySession.activity} today={studySession.todayDate} folders={folders} documents={library} onOpen={openFolder} onCreate={() => { setSidebar(false); setCreatingFolder(true); }} onUpdated={folder => { setFolders(current => current.map(f => f.id === folder.id ? folder : f)); if (folder.archived && folderId === folder.id) openFolder(""); }} />}
       {section === "study" && !folderId && !doc && !opening && <SharedMaterials home />}
       {section === "friends" && !doc && !opening && <FriendsSection initialTab={friendsTab} onTabChange={setFriendsTab} />}
-      {section === "chats" && !doc && !opening && <FriendChats selectedId={selectedChatId} onSelect={openChats} unread={friendMessages.messages} onOpenFriends={openFriends} />}
+      {section === "chats" && !doc && !opening && <FriendChats selectedId={selectedChatId} onSelect={openChats} unread={friendMessages.messages} onOpenFriends={openFriends} onIncoming={friendMessages.announce} />}
       {section === "calendar" && !doc && !opening && <StudyCalendar folders={folders} documents={library} sessions={studySession.sessions} loading={studySession.loadingHistory || calendarRefreshing} historyError={studySession.errorHistory} onRefresh={() => { void refreshStudyCalendar(); }} onSaved={folder => setFolders(current => current.map(item => item.id === folder.id ? folder : item))} onOpen={openFolder} />}
       {section === "sessions" && !doc && !opening && <StudySessionsView sessions={studySession.sessions} activity={studySession.activity} today={studySession.todayDate} loading={studySession.loadingHistory} error={studySession.errorHistory} onRetry={() => void studySession.reloadHistory()} selectedDay={selectedStudyDay || null} onSelectDay={day => openSessions(day || "")} />}
       {section === "study" && folderId && <div className={`welcome ${homeStyles.courseWorkspace}`} hidden={!!doc || !!opening}>

@@ -2,33 +2,39 @@
 
 import { ActionTooltip } from "@/components/ui/tooltip";
 import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import * as Dialog from "@radix-ui/react-popover";
 import { Bell, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { TonyMascot } from "./mascot/tony-mascot";
 import styles from "./notification-center.module.css";
 
-function NotificationPreview({ children }: { children: ReactNode }) {
-  const [visible, setVisible] = useState(true);
+function NotificationPreview({ children, expiresAt }: { children: ReactNode; expiresAt?: number }) {
+  const [visible, setVisible] = useState(() => expiresAt === undefined || expiresAt > Date.now());
   const [interacting, setInteracting] = useState(false);
+  const [resumedAt, setResumedAt] = useState<number>();
   const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (!visible || interacting) return;
-    const timer = window.setTimeout(() => setVisible(false), 10_000);
+    const deadline = resumedAt ?? expiresAt ?? Date.now() + 10_000;
+    const timer = window.setTimeout(() => setVisible(false), Math.max(0, deadline - Date.now()));
     return () => window.clearTimeout(timer);
-  }, [interacting, visible]);
+  }, [expiresAt, interacting, resumedAt, visible]);
 
   return <AnimatePresence>
     {visible && <motion.div
       key="preview"
-      initial={{ opacity: 0, y: reducedMotion ? 0 : -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: reducedMotion ? 0 : -8 }}
+      initial={{ opacity: 0, x: reducedMotion ? 0 : 8 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: reducedMotion ? 0 : 8 }}
       transition={{ duration: reducedMotion ? 0 : 0.2 }}
       onFocusCapture={() => setInteracting(true)}
       onBlurCapture={event => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setInteracting(false);
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setResumedAt(Date.now() + 10_000);
+          setInteracting(false);
+        }
       }}
     >{children}</motion.div>}
   </AnimatePresence>;
@@ -37,7 +43,7 @@ function NotificationPreview({ children }: { children: ReactNode }) {
 export function NotificationCenter({ events, children, previews }: {
   events: string[];
   children: (hide: () => void) => ReactNode;
-  previews: { id: string; content: ReactNode }[];
+  previews: { id: string; content: ReactNode; expiresAt?: number }[];
 }) {
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState<string[]>([]);
@@ -57,8 +63,8 @@ export function NotificationCenter({ events, children, previews }: {
       <section className={styles.content} aria-label="Notifiche">{children(() => changeOpen(false))}</section>
     </Dialog.Content></Dialog.Portal>
   </Dialog.Root>
-    <div hidden={open} className={styles.previews}>
-      {previews.map(preview => <NotificationPreview key={preview.id}>{preview.content}</NotificationPreview>)}
-    </div>
+    {previews.length > 0 && typeof document !== "undefined" && createPortal(<div hidden={open} className={styles.previews}>
+      {previews.map(preview => <NotificationPreview key={preview.id} expiresAt={preview.expiresAt}>{preview.content}</NotificationPreview>)}
+    </div>, document.body)}
   </div>;
 }

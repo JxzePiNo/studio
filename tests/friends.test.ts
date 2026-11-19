@@ -16,6 +16,15 @@ test("shared profile respects privacy and blocks and reports relationship withou
   await alice.relationship("bob", "request");
   assert.equal((await alice.sharedProfile("bob")).person?.relationship, "outgoing");
   assert.equal((await bob.sharedProfile("alice")).person?.relationship, "incoming");
+  const pending = await bob.activity();
+  assert.equal(pending.incoming, 1);
+  assert.equal(pending.incomingRequest?.name, "Alice");
+  const carol = new FriendsService(db, "carol", now);
+  await carol.ensureProfile(identity("Carol"));
+  await carol.relationship("bob", "request");
+  const multiple = await bob.activity();
+  assert.equal(multiple.incoming, 2);
+  assert.equal(multiple.incomingRequest, undefined);
   await bob.relationship("alice", "accept");
   const shared = (await alice.sharedProfile("bob")).person!;
   assert.equal(shared.relationship, "friend"); assert.equal(shared.status, undefined);
