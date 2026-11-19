@@ -4,6 +4,14 @@
 .quickReply { display:grid; justify-items:end; gap:8px; margin-top:10px; }
 .quickReply textarea { width:100%; min-width:0; }
 .quickReply p { justify-self:start; color:var(--destructive); }
+.shortcutHint {
+  flex-basis:100%;
+  justify-self:start;
+  color:var(--muted-foreground);
+  font-size:11px;
+  line-height:1.4;
+}
+.shortcutHint kbd { font:inherit; font-weight:600; }
 .chats { width:100%; max-width:1120px; margin:0 auto; padding:16px 24px 32px; min-width:0; }
 .pageHeader { display:flex; align-items:center; gap:12px; margin-bottom:22px; }
 .pageHeader h1 { margin:0; font-size:28px; }.pageHeader p { margin:4px 0 0; color:var(--muted-foreground); font-size:14px; }

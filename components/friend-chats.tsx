@@ -6,7 +6,7 @@ import { friendsRequest } from "@/lib/friends-client";
 import type { FriendPerson, FriendsOverview } from "@/lib/friends-types";
 import type { ChatMessage, FriendMessage } from "@/lib/friend-messages";
 import { friendPresenceLabel } from "@/lib/friends-presence";
-import { messageRequest } from "./friend-messages";
+import { MessageShortcutHint, messageRequest, submitMessageOnEnter } from "./friend-messages";
 import { FriendAvatar } from "./friend-avatar";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -66,7 +66,13 @@ function Conversation({ friend, onBack }: { friend: FriendPerson; onBack: () => 
         window.dispatchEvent(new Event("studio-messages-changed"));
       } catch (cause) { setSendError((cause as Error).message); }
       finally { pending.current = false; setBusy(false); }
-    }}><label className="sr-only" htmlFor="chat-message">Messaggio</label><Textarea id="chat-message" placeholder="Scrivi un messaggio…" rows={2} maxLength={2000} required disabled={busy} value={text} onChange={event => { setText(event.target.value); messageId.current = crypto.randomUUID(); }} /><Button type="submit" disabled={busy || !text.trim()}><Send size={16} />{busy ? "Invio…" : "Invia"}</Button>{sendError && <p role="alert">{sendError}</p>}</form>
+    }}>
+      <label className="sr-only" htmlFor="chat-message">Messaggio</label>
+      <Textarea id="chat-message" aria-describedby="chat-message-shortcuts" onKeyDown={submitMessageOnEnter} placeholder="Scrivi un messaggio…" rows={2} maxLength={2000} required disabled={busy} value={text} onChange={event => { setText(event.target.value); messageId.current = crypto.randomUUID(); }} />
+      <Button type="submit" disabled={busy || !text.trim()}><Send size={16} />{busy ? "Invio…" : "Invia"}</Button>
+      <MessageShortcutHint id="chat-message-shortcuts" />
+      {sendError && <p role="alert">{sendError}</p>}
+    </form>
   </section>;
 }
 

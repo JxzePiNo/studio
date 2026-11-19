@@ -1,6 +1,6 @@
 "use client";
 
-import { FriendMessageNotifications, useFriendMessages } from "./friend-messages";
+import { FriendMessageNotification, FriendMessageNotifications, useFriendMessages } from "./friend-messages";
 import { FriendChats } from "./friend-chats";
 import { TonyTour } from "./tony-tour";
 import { useTonyTours } from "./tony-tour-provider";
@@ -81,11 +81,6 @@ export default function Workspace() {
   const { profile: tourProfile, loading: tourProfileLoading } = useStudyProfile();
   const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
   const [incomingFriendRequests, setIncomingFriendRequests] = useState(0);
-  const [initialFriendRequests, setInitialFriendRequests] = useState(false);
-  const reportIncomingRequests = useCallback((count: number, initial: boolean) => {
-    setIncomingFriendRequests(count);
-    if (initial) setInitialFriendRequests(count > 0);
-  }, []);
   const [friendsTab, setFriendsTab] = useState("friends");
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [section, setSection] = useState<"study" | "exams" | "sessions" | "friends" | "calendar" | "chats">("study");
@@ -631,12 +626,22 @@ export default function Workspace() {
   const tourSection: TourSection | null = doc ? "reader" : !opening && section === "study" ? folderId ? "course" : "home" : null;
   const tourScope = doc?.id || folderId || "home";
 
+  const friendRequestLabel = `${incomingFriendRequests} ${incomingFriendRequests === 1 ? "richiesta di amicizia ricevuta" : "richieste di amicizia ricevute"}. Apri richieste`;
   const studyDock = (<div className={`${sessionStyles.dock} study-activity-dock`}>
       <StudySessionBar suppressed={readerClean && !!doc} portrait={!!doc && portrait} session={studySession} document={doc ? { name: doc.name, read: Object.values(doc.slides).filter(slide => slide.read).length, total: doc.pages } : undefined} />
-      <FriendsActivity running={studySession.running} onOpen={openFriends} onIncomingChange={reportIncomingRequests} />
-      <NotificationCenter autoOpenOnEntry={initialFriendRequests} events={[...friendMessages.messages.map(message => `message:${message.id}`), ...(incomingFriendRequests ? [`friends:${incomingFriendRequests}`] : []), ...islandJobs.map(job => `analysis:${job.id}:${job.status}`), ...chatController.notifications.map(item => `chat:${item.key}`), ...uploads.jobs.map(job => `upload:${job.id}:${job.status}`)]}>{hideNotifications => <>
+      <FriendsActivity running={studySession.running} onOpen={openFriends} onIncomingChange={setIncomingFriendRequests} />
+      <NotificationCenter previews={[
+        ...friendMessages.messages.map(message => ({
+          id: `message:${message.id}`,
+          content: <FriendMessageNotification message={message} dismiss={friendMessages.dismiss} />,
+        })),
+        ...(incomingFriendRequests ? [{
+          id: `friends:${incomingFriendRequests}`,
+          content: <Button variant="outline" onClick={openFriends}>{friendRequestLabel}</Button>,
+        }] : []),
+      ]} events={[...friendMessages.messages.map(message => `message:${message.id}`), ...(incomingFriendRequests ? [`friends:${incomingFriendRequests}`] : []), ...islandJobs.map(job => `analysis:${job.id}:${job.status}`), ...chatController.notifications.map(item => `chat:${item.key}`), ...uploads.jobs.map(job => `upload:${job.id}:${job.status}`)]}>{hideNotifications => <>
       <FriendMessageNotifications inbox={friendMessages} />
-      {incomingFriendRequests > 0 && <Button variant="outline" onClick={() => { hideNotifications(); openFriends(); }}>{incomingFriendRequests} {incomingFriendRequests === 1 ? "richiesta di amicizia ricevuta" : "richieste di amicizia ricevute"}. Apri richieste</Button>}
+      {incomingFriendRequests > 0 && <Button variant="outline" onClick={() => { hideNotifications(); openFriends(); }}>{friendRequestLabel}</Button>}
       {islandJobs.length > 0 && <AnalysisIsland jobs={islandJobs} embedded onHide={hideNotifications} />}
       <UploadNotifications controller={uploads} onOpen={id => { hideNotifications(); void openDocument(id); }} />
       <ChatNotifications controller={chatController} onHide={hideNotifications} onOpenQuiz={(id, quizId) => { hideNotifications(); const course = library.find(item => item.id === id)?.folderId; if (!course) return; if (docRef.current || opening) void closeDocument(); setSection("study"); setFolderId(course); setQuery(""); changeLocation(course); if (quizId) setQuizToOpen({ documentId: id, quizId }); }} onOpen={(id, target) => { hideNotifications(); void (async () => {

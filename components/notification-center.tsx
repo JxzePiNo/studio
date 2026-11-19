@@ -1,27 +1,52 @@
 "use client";
 
 import { ActionTooltip } from "@/components/ui/tooltip";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-popover";
 import { Bell, X } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { TonyMascot } from "./mascot/tony-mascot";
 import styles from "./notification-center.module.css";
 
-export function NotificationCenter({ events, children, autoOpenOnEntry = false }: { events: string[]; children: (hide: () => void) => ReactNode; autoOpenOnEntry?: boolean }) {
+function NotificationPreview({ children }: { children: ReactNode }) {
+  const [visible, setVisible] = useState(true);
+  const [interacting, setInteracting] = useState(false);
+  const reducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!visible || interacting) return;
+    const timer = window.setTimeout(() => setVisible(false), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [interacting, visible]);
+
+  return <AnimatePresence>
+    {visible && <motion.div
+      key="preview"
+      initial={{ opacity: 0, y: reducedMotion ? 0 : -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: reducedMotion ? 0 : -8 }}
+      transition={{ duration: reducedMotion ? 0 : 0.2 }}
+      onFocusCapture={() => setInteracting(true)}
+      onBlurCapture={event => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setInteracting(false);
+      }}
+    >{children}</motion.div>}
+  </AnimatePresence>;
+}
+
+export function NotificationCenter({ events, children, previews }: {
+  events: string[];
+  children: (hide: () => void) => ReactNode;
+  previews: { id: string; content: ReactNode }[];
+}) {
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState<string[]>([]);
-  const autoOpened = useRef(false);
   const fingerprint = events.join("\u0000");
   useEffect(() => { const show = () => setOpen(true); window.addEventListener("studio-open-notifications", show); return () => window.removeEventListener("studio-open-notifications", show); }, []);
   useEffect(() => { if (open) setSeen(fingerprint ? fingerprint.split("\u0000") : []); }, [open, fingerprint]);
-  useEffect(() => {
-    if (!autoOpenOnEntry || autoOpened.current) return;
-    autoOpened.current = true;
-    setOpen(true);
-  }, [autoOpenOnEntry]);
   const unread = events.filter(event => !seen.includes(event)).length;
   function changeOpen(next: boolean) { if (next) setSeen(events); setOpen(next); }
-  return <Dialog.Root modal open={open} onOpenChange={changeOpen}>
+  return <div><Dialog.Root modal open={open} onOpenChange={changeOpen}>
     <Dialog.Trigger asChild><ActionTooltip label="Notifiche"><button className={styles.bell} aria-label={`Mostra notifiche${unread ? `, ${unread} ${unread === 1 ? "nuova" : "nuove"}` : ""}`}>
       <Bell size={18} aria-hidden="true" />{unread > 0 && <span className={styles.badge} aria-hidden="true">{unread > 99 ? "99+" : unread}</span>}
     </button></ActionTooltip></Dialog.Trigger>
@@ -31,5 +56,9 @@ export function NotificationCenter({ events, children, autoOpenOnEntry = false }
       <section className={styles.tony} aria-label="Tony e le notifiche"><TonyMascot size={86} animated showName={false} /><div className={styles.speech}><strong>Tony del bar</strong><p>{events.length ? "Ecco gli aggiornamenti del tuo studio. Da qui puoi aprirli e riprendere da dove eri rimasto." : "Nessuna notifica qui. Quando ci saranno novità, le troverai in questo spazio."}</p></div></section>
       <section className={styles.content} aria-label="Notifiche">{children(() => changeOpen(false))}</section>
     </Dialog.Content></Dialog.Portal>
-  </Dialog.Root>;
+  </Dialog.Root>
+    <div hidden={open} className={styles.previews}>
+      {previews.map(preview => <NotificationPreview key={preview.id}>{preview.content}</NotificationPreview>)}
+    </div>
+  </div>;
 }

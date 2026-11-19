@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Reply, X } from "lucide-react";
 import { ActionTooltip } from "./ui/tooltip";
 import { authHeaders } from "@/lib/firebase-client";
@@ -11,12 +11,21 @@ import { Textarea } from "./ui/textarea";
 import { FriendAvatar } from "./friend-avatar";
 import styles from "./friend-messages.module.css";
 
+export function submitMessageOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
+  if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+  event.preventDefault();
+  if (!event.repeat && event.currentTarget.value.trim()) event.currentTarget.form?.requestSubmit();
+}
+
+export function MessageShortcutHint({ id }: { id: string }) {
+  return <small id={id} className={styles.shortcutHint}><kbd>Invio</kbd> per inviare · <kbd>Maiusc + Invio</kbd> per andare a capo</small>;
+}
+
 export async function messageRequest<T>(body?: unknown, signal?: AbortSignal, friendId?: string): Promise<T> {
   return readApiResponse<T>(await fetch(`/api/friend-messages${friendId ? `?friend=${encodeURIComponent(friendId)}` : ""}`, { method: body ? "POST" : "GET", headers: { ...await authHeaders(), ...(body ? { "Content-Type": "application/json" } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), signal, cache: "no-store" }));
 }
 export function useFriendMessages() {
   const [messages, setMessages] = useState<FriendMessage[]>([]);
-  const announced = useRef(new Set<string>());
   const dismissed = useRef(new Set<string>());
   const [error, setError] = useState("");
   useEffect(() => {
@@ -28,12 +37,7 @@ export function useFriendMessages() {
       try {
         const result = await messageRequest<{ messages: FriendMessage[] }>(undefined, controller.signal);
         if (controller.signal.aborted) return;
-        const incoming = result.messages.filter(message => !dismissed.current.has(message.id));
-        setMessages(incoming);
-        if (incoming.some(message => !announced.current.has(message.id))) {
-          incoming.forEach(message => announced.current.add(message.id));
-          if (window.location.pathname !== "/chat") window.dispatchEvent(new Event("studio-open-notifications"));
-        }
+        setMessages(result.messages.filter(message => !dismissed.current.has(message.id)));
       } catch { /* Retry when the tab is visible or the connection returns. */ }
       finally { pending = false; }
     };
@@ -60,12 +64,13 @@ export function FriendMessageNotifications({ inbox }: { inbox: ReturnType<typeof
   )}</>;
 }
 
-function FriendMessageNotification({ message, dismiss }: { message: FriendMessage; dismiss: (id: string) => Promise<void> }) {
+export function FriendMessageNotification({ message, dismiss }: { message: FriendMessage; dismiss: (id: string) => Promise<void> }) {
   const [replyOpen, setReplyOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const replyId = useRef<string | null>(null);
+  const shortcutHintId = useId();
   const senderName = message.sender.nickname || message.sender.name;
 
   async function sendReply() {
@@ -97,11 +102,12 @@ function FriendMessageNotification({ message, dismiss }: { message: FriendMessag
     </header>
     <p>{message.text}</p>
     {replyOpen && <form className={styles.quickReply} onSubmit={event => { event.preventDefault(); void sendReply(); }}>
-      <Textarea autoFocus aria-label={`Risposta a ${senderName}`} placeholder="Scrivi una risposta…" rows={2} maxLength={2000} value={draft} disabled={sending} onChange={event => {
+      <Textarea autoFocus aria-label={`Risposta a ${senderName}`} aria-describedby={shortcutHintId} onKeyDown={submitMessageOnEnter} placeholder="Scrivi una risposta…" rows={2} maxLength={2000} value={draft} disabled={sending} onChange={event => {
         setDraft(event.target.value);
         replyId.current = null;
       }} />
       <Button type="submit" size="sm" disabled={sending || !draft.trim()}>{sending ? "Invio…" : "Invia"}</Button>
+      <MessageShortcutHint id={shortcutHintId} />
       {error && <p role="alert">{error}</p>}
     </form>}
   </article>;

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-for (const width of [1280, 390]) test(`friend requests open once and online indicator updates at ${width}px`, async ({ page }) => {
+for (const width of [1280, 390]) test(`friend requests preview and online indicator update at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 });
   let online = true;
   const friend = { id: "bob", name: "Bob", nickname: "bob", university: "Roma", studyProgram: "Informatica", status: "offline", lastSeen: Date.now() - 3 * 86400000 };
@@ -12,9 +12,8 @@ for (const width of [1280, 390]) test(`friend requests open once and online indi
   });
   await page.goto("/");
   const notifications = page.getByRole("dialog", { name: "Notifiche", exact: true });
-  await expect(notifications).toBeVisible();
-  await expect(notifications).toContainText("1 richiesta di amicizia ricevuta");
-  await page.getByRole("button", { name: "Chiudi notifiche", exact: true }).click();
+  await expect(page.getByRole("button", { name: /1 richiesta di amicizia ricevuta/ })).toBeVisible();
+  await expect(notifications).toHaveCount(0);
   const people = page.getByRole("button", { name: /^Amici online:/ });
   await expect(people.locator("i")).toBeVisible();
   online = false;
